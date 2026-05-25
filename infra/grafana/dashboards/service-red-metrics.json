@@ -1,0 +1,143 @@
+{
+  "id": null,
+  "uid": "service-red-metrics",
+  "title": "Service RED Metrics",
+  "tags": ["genai", "otel", "red", "services"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Log volume by service (request proxy -- req/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [1m])) * 60",
+          "legendFormat": "{{service_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 1, "fillOpacity": 5 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 2,
+      "title": "Error log rate by service (errors/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 9, "w": 18, "h": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [1m])) * 60",
+          "legendFormat": "{{service_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 1 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 3,
+      "title": "Overall error rate",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 9, "w": 6, "h": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} [5m])) / sum(rate({job=~\".+\"} [5m]))",
+          "legendFormat": "error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "orange", "value": 0.03 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Error rate per service -- last 5 min",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [5m])) / sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [5m]))",
+          "legendFormat": "{{service_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Recent error logs",
+      "type": "logs",
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=~\".+\", level=~\"error|ERROR\"}",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}

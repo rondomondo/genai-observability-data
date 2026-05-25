@@ -212,7 +212,7 @@ list-scenarios: check-uv ## List all available fault injection scenario presets
 .PHONY: stack-up
 stack-up: ## Start the full OTel stack (Collector, Jaeger, Loki, Grafana, Prometheus)
 	docker compose up -d
-	@printf "$(CYAN)Waiting for OTel Collector...$(RESET)\n"
+	@printf "$(CYAN)Waiting for OTel Collector...$(RESET)\n"`
 	@for i in $$(seq 1 20); do \
 	  curl -sf http://localhost:13133 >/dev/null 2>&1 && \
 	    printf "$(GREEN)OTel Collector ready$(RESET)\n" && break; \

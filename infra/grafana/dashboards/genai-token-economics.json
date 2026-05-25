@@ -1,0 +1,218 @@
+{
+  "id": null,
+  "uid": "genai-token-economics",
+  "title": "GenAI - Token Economics",
+  "tags": ["genai", "otel", "tokens"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Input tokens/min",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model) (rate({job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap input_tokens [1m])) * 60",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1, "fillOpacity": 15 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Output tokens/min",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model) (rate({job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap output_tokens [1m])) * 60",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1, "fillOpacity": 15 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "Avg input tokens per request",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | unwrap input_tokens [1h]))",
+          "legendFormat": "avg input tokens"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2000 },
+              { "color": "red", "value": 5000 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 4,
+      "title": "Avg output tokens per request",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | unwrap output_tokens [1h]))",
+          "legendFormat": "avg output tokens"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 800 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 5,
+      "title": "Input/output token ratio (higher = more prompt-heavy)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | unwrap input_tokens [1h])) / avg(avg_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | unwrap output_tokens [1h]))",
+          "legendFormat": "input:output ratio"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 6,
+      "title": "Embedding input tokens/min",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"Embeddings generated\" | logfmt | unwrap input_tokens [1m])) * 60",
+          "legendFormat": "embedding tokens/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 7,
+      "title": "Total token spend (input + output) by model -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 13, "w": 14, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model) (sum_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap input_tokens [1h]))",
+          "legendFormat": "{{model}} input"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (model) (sum_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap output_tokens [1h]))",
+          "legendFormat": "{{model}} output"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Avg embedding batch size",
+      "type": "timeseries",
+      "gridPos": { "x": 14, "y": 13, "w": 10, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Embeddings generated\" | logfmt | unwrap batch_size [1m]))",
+          "legendFormat": "avg batch size"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    }
+  ]
+}

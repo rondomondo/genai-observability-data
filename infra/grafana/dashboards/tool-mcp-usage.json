@@ -1,0 +1,240 @@
+{
+  "id": null,
+  "uid": "tool-mcp-usage",
+  "title": "Tool and MCP Usage",
+  "tags": ["genai", "otel", "tools", "mcp"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tool call rate -- MCP vs non-MCP (calls/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"MCP tool execution\" [1m])) * 60",
+          "legendFormat": "MCP tool calls/min"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"Tool execution\" [1m])) * 60",
+          "legendFormat": "non-MCP tool calls/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Tool error rate",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |= \"MCP tool execution\" [1m])) * 60",
+          "legendFormat": "MCP errors/min"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |= \"Tool execution\" [1m])) * 60",
+          "legendFormat": "non-MCP errors/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 1 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "MCP errors/min" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "dark-red" } }] },
+          { "matcher": { "id": "byName", "options": "non-MCP errors/min" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "MCP tool calls -- last hour",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"MCP tool execution\" [1h]))",
+          "legendFormat": "MCP calls"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 4,
+      "title": "Non-MCP tool calls -- last hour",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Tool execution\" [1h]))",
+          "legendFormat": "non-MCP calls"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 5,
+      "title": "MCP tool error rate",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |= \"MCP tool execution\" [5m])) / sum(rate({job=~\".+\"} |= \"MCP tool execution\" [5m]))",
+          "legendFormat": "MCP error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 6,
+      "title": "Non-MCP tool error rate",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |= \"Tool execution\" [5m])) / sum(rate({job=~\".+\"} |= \"Tool execution\" [5m]))",
+          "legendFormat": "tool error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 7,
+      "title": "Tool call volume by tool name -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (tool) (count_over_time({job=~\".+\"} |= \"tool execution\" | logfmt | tool != \"\" [1h]))",
+          "legendFormat": "{{tool}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Avg tool execution latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"MCP tool execution\" | logfmt | unwrap duration_ms [1m]))",
+          "legendFormat": "MCP avg latency ms"
+        },
+        {
+          "refId": "B",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Tool execution\" | logfmt | unwrap duration_ms [1m]))",
+          "legendFormat": "non-MCP avg latency ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 9,
+      "title": "Tool execution logs",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=~\".+\"} |~ \"(MCP tool|Tool) execution\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}

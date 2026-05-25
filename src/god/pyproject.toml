@@ -33,6 +33,7 @@ dependencies = [
     "pydantic-settings>=2.2.0",
     # Pydantic v2 for typed models
     "pydantic>=2.7.0",
+
 ]
 
 [project.optional-dependencies]
