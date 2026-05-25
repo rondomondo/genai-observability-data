@@ -16,15 +16,23 @@ services:
       - loki
     restart: unless-stopped
 
-  # Jaeger — distributed trace visualisation
+  # Jaeger — distributed trace visualisation (Badger storage for persistent deps graph)
   jaeger:
     image: jaegertracing/all-in-one:1.58
+    user: root
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
+    volumes:
+      - jaeger-badger:/badger
     ports:
       - "16686:16686"  # Jaeger UI
-      - "14250:14250"  # gRPC intake (from collector)
+      - "4317"         # OTLP gRPC (internal; collector → jaeger)
     restart: unless-stopped
+
 
   # Loki — log aggregation backend
   loki:
@@ -72,3 +80,4 @@ volumes:
   loki-data:
   grafana-data:
   prometheus-data:
+  jaeger-badger:

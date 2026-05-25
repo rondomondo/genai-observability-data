@@ -180,15 +180,29 @@ gen-fixtures: check-uv ## Generate deterministic test fixtures (seed=42, 200 tra
 	  --quiet
 	@printf "$(GREEN)Fixtures written to $(DATA_DIR)/fixtures/$(RESET)\n"
 
+ALL_SCENARIOS := db_incident llm_degradation rag_meltdown payment_outage cascading_failure quiet
+
 .PHONY: gen-scenario
-gen-scenario: check-uv ## Generate a specific scenario (SCENARIO=cascading_failure required)
-	@[ -n "$(SCENARIO)" ] || (printf "$(RED)ERROR:$(RESET) Set SCENARIO= (e.g. SCENARIO=cascading_failure)\n"; exit 1)
+gen-scenario: check-uv ## Generate a specific scenario (SCENARIO=<name>|all required)
+	@[ -n "$(SCENARIO)" ] || (printf "$(RED)ERROR:$(RESET) Set SCENARIO= (e.g. SCENARIO=cascading_failure or SCENARIO=all)\n"; exit 1)
 	@mkdir -p $(OUT_DIR)
-	cd $(PKG_DIR) && GOD_MOCK_MODE=true $(UV) run python -m god \
-	  --traces $(TRACES) \
-	  --scenario $(SCENARIO) \
-	  --format otlp_traces otlp_logs logfmt \
-	  --output $(CURDIR)/$(OUT_DIR)
+	@if [ "$(SCENARIO)" = "all" ]; then \
+	  for s in $(ALL_SCENARIOS); do \
+	    printf "$(CYAN)Generating scenario:$(RESET) $$s\n"; \
+	    (cd $(CURDIR)/$(PKG_DIR) && GOD_MOCK_MODE=true $(UV) run python -m god \
+	      --traces $(TRACES) \
+	      --scenario $$s \
+	      --format otlp_traces otlp_logs logfmt \
+	      --output $(CURDIR)/$(OUT_DIR)/$$s) || exit 1; \
+	  done; \
+	  printf "$(GREEN)All scenarios written to $(OUT_DIR)/$(RESET)\n"; \
+	else \
+	  cd $(PKG_DIR) && GOD_MOCK_MODE=true $(UV) run python -m god \
+	    --traces $(TRACES) \
+	    --scenario $(SCENARIO) \
+	    --format otlp_traces otlp_logs logfmt \
+	    --output $(CURDIR)/$(OUT_DIR); \
+	fi
 
 .PHONY: list-scenarios
 list-scenarios: check-uv ## List all available fault injection scenario presets
