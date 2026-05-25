@@ -1,0 +1,215 @@
+# .claudeignore
+# Human-readable source of truth for context exclusions.
+# Claude Code does not natively honour this file — the enforced rules live in
+# .claude/settings.json under permissions.deny (generated from this file).
+# Run: ./claudeignore-sync.sh to regenerate settings.json from this file.
+#
+# Syntax: one glob pattern per line, same rules as .gitignore
+#   *        matches anything except /
+#   **       matches anything including /
+#   ?        matches any single character
+#   [abc]    matches a, b, or c
+#   !pattern negates (un-ignore) a previously ignored pattern
+#   Lines starting with # are comments
+
+
+# -- Dependencies --------------------------------------------------------------
+# Never useful as context; burn through tokens fast
+
+node_modules/
+node_modules/**
+vendor/
+vendor/**
+.venv/
+.venv/**
+venv/
+venv/**
+__pypackages__/
+
+
+# -- Build & dist output -------------------------------------------------------
+
+dist/
+dist/**
+build/
+build/**
+out/
+out/**
+target/
+target/**
+bin/
+bin/**
+obj/
+obj/**
+.next/
+.next/**
+.nuxt/
+.nuxt/**
+.output/
+.output/**
+
+
+# -- Generated & compiled files ------------------------------------------------
+
+*.min.js
+*.min.css
+*.bundle.js
+*.chunk.js
+*.map
+*.pyc
+*.pyo
+__pycache__/
+__pycache__/**
+*.class
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+
+# -- Test coverage & reports ---------------------------------------------------
+# Noisy, rarely useful in context
+
+coverage/
+coverage/**
+.nyc_output/
+htmlcov/
+*.lcov
+test-results/
+test-results/**
+junit*.xml
+
+
+# -- Lock files ----------------------------------------------------------------
+# Useful to git, useless to Claude
+
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Pipfile.lock
+Cargo.lock
+go.sum
+composer.lock
+Gemfile.lock
+
+
+# -- Caches --------------------------------------------------------------------
+
+.cache/
+.cache/**
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+.gradle/
+.gradle/**
+.m2/
+.m2/**
+
+
+# -- IDE & editor files --------------------------------------------------------
+
+.idea/
+.idea/**
+.vscode/
+.vscode/**
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+
+# -- Logs ----------------------------------------------------------------------
+
+*.log
+logs/
+logs/**
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+# -- Secrets & credentials -----------------------------------------------------
+# Belt-and-suspenders — keep these out of context absolutely
+
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+secrets/**
+.secrets/
+.secrets/**
+*credentials*
+*secret*
+
+
+# -- Terraform state -----------------------------------------------------------
+
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform/**
+
+
+# -- Data & fixtures -----------------------------------------------------------
+# Large data files that add noise without value
+
+*.csv
+*.parquet
+*.arrow
+*.feather
+fixtures/
+fixtures/**
+testdata/
+testdata/**
+seed/
+seed/**
+
+
+# -- Binary & media assets -----------------------------------------------------
+
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+*.svg
+*.mp4
+*.mp3
+*.mov
+*.pdf
+*.zip
+*.tar
+*.gz
+*.tgz
+
+
+# -- Claude Code own files -----------------------------------------------------
+# Prevent Claude reading its own handoff/memory mid-session
+
+.claude/handoff.md
+.claude/session-history/
+.claude/session-history/**
+
+
+# -- Project-specific (uncomment / add as needed) ------------------------------
+deleteme/
+# docs/adr/
+# docs/security/
+# deprecated/
+# scratch/
+# spike/
+# migrations/
+# db/dumps/

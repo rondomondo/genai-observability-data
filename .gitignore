@@ -1,0 +1,95 @@
+# -- Secrets & credentials ----------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.template
+*.cer
+*.crt
+*.key
+*.p12
+*.pem
+*.pfx
+.secrets/
+.secrets/**
+secrets/
+secrets/**
+*credentials*
+*secret*
+
+# -- OS / Editor ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.idea/**
+.vscode/
+.vscode/**
+*.iml
+
+# -- Dependencies --------------------------------------------------------------
+.venv/
+.venv/**
+venv/
+venv/**
+
+# -- Build & dist output -------------------------------------------------------
+bin/
+bin/**
+build/
+build/**
+dist/
+dist/**
+out/
+out/**
+
+# -- Generated & compiled files ------------------------------------------------
+*.egg-info/
+*.py[cod]
+*.pyc
+*.pyo
+__pycache__/
+__pycache__/**
+__pypackages__/
+
+# -- Test coverage & reports ---------------------------------------------------
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+coverage/
+coverage/**
+coverage.xml
+htmlcov/
+junit*.xml
+test-results/
+test-results/**
+*.lcov
+
+# -- Caches --------------------------------------------------------------------
+.cache/
+.cache/**
+*.tsbuildinfo
+
+# -- Logs ----------------------------------------------------------------------
+*.log
+logs/
+logs/**
+
+# -- Lock files ----------------------------------------------------------------
+Pipfile.lock
+poetry.lock
+uv.lock
+
+# -- Data & fixtures -----------------------------------------------------------
+fixtures/
+fixtures/**
+seed/
+seed/**
+testdata/
+testdata/**
+
+# -- Claude -------------------------------------------------------------------
+.claude/.simplify-ignore-cache/
+.claude/sdd-cache/
