@@ -205,9 +205,9 @@ stack-up: ## Start the full OTel stack (Collector, Jaeger, Loki, Grafana, Promet
 	  printf "  ... waiting ($$i/20)\n"; sleep 3; \
 	done
 	@printf "$(GREEN)Stack ready:$(RESET)\n"
-	@printf "  Grafana:    http://localhost:3000\n"
-	@printf "  Jaeger:     http://localhost:16686\n"
-	@printf "  Prometheus: http://localhost:9090\n"
+	@printf "  Grafana:    http://grafana:3000\n"
+	@printf "  Jaeger:     http://jaeger:16686\n"
+	@printf "  Prometheus: http://prometheus:9090\n"
 	@printf "  OTel OTLP:  http://localhost:4318\n"
 
 .PHONY: stack-down
@@ -226,7 +226,7 @@ stack-reset: ## Wipe stack volumes and restart fresh
 # -- Demo workflow --------------------------------------------
 .PHONY: demo
 demo: stack-up gen-otlp ## Start stack then stream 100 traces (good for first run)
-	@printf "$(GREEN)Demo complete. Open Grafana: http://localhost:3000$(RESET)\n"
+	@printf "$(GREEN)Demo complete. Open Grafana: http://grafana:3000$(RESET)\n"
 
 .PHONY: demo-scenario
 demo-scenario: stack-up ## Stream a cascading failure scenario to the live stack
@@ -235,7 +235,7 @@ demo-scenario: stack-up ## Stream a cascading failure scenario to the live stack
 	  --scenario cascading_failure \
 	  --rate 5 \
 	  --otlp $(OTLP)
-	@printf "$(GREEN)Scenario streamed. Check Jaeger: http://localhost:16686$(RESET)\n"
+	@printf "$(GREEN)Scenario streamed. Check Jaeger: http://jaeger:16686$(RESET)\n"
 
 # -- Build and publish ----------------------------------------
 .PHONY: build

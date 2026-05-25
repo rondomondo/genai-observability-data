@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""god - GenAI Observability Data generator CLI.
+"""god-cli - GenAI Observability Data generator CLI.
 
 A rich terminal interface around the god package (src/god).
 Run from the repo root; the package is resolved via sys.path.
@@ -7,6 +7,8 @@ Run from the repo root; the package is resolved via sys.path.
 from __future__ import annotations
 
 import asyncio
+import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -16,6 +18,17 @@ _REPO_ROOT = Path(__file__).resolve().parent
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
+
+# Re-exec under uv if dependencies are not available (e.g. venv not activated)
+try:
+    import rich  # noqa: F401
+except ImportError:
+    _venv = _REPO_ROOT / "src" / "god" / ".venv"
+    _uv = subprocess.run(["which", "uv"], capture_output=True, text=True).stdout.strip()
+    if not _uv:
+        print("ERROR: 'uv' not found and 'rich' is not installed. Run: pip install rich", file=sys.stderr)
+        sys.exit(1)
+    os.execvp(_uv, [_uv, "run", "--project", str(_REPO_ROOT / "src" / "god"), "python", __file__, *sys.argv[1:]])
 
 import argparse
 

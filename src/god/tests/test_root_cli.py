@@ -1,4 +1,4 @@
-"""Tests for the root ./god CLI script.
+"""Tests for the root ./god-cli script.
 
 The script lives at the repo root and resolves src/god via sys.path injection.
 These tests invoke it via importlib (same process) to avoid subprocess overhead,
@@ -14,9 +14,9 @@ from unittest.mock import patch
 
 import pytest
 
-# Ensure the repo root is on sys.path so we can import the god script directly.
+# Ensure the repo root is on sys.path so we can import the god-cli script directly.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_SCRIPT = _REPO_ROOT / "god"
+_SCRIPT = _REPO_ROOT / "god-cli"
 
 # Import the root CLI as a module by loading it via importlib.
 # spec_from_file_location needs an explicit loader for extension-less scripts.

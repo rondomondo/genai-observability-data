@@ -41,7 +41,7 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
 - [Configuration](#configuration)
 - [Quick start](#quick-start)
 - [CLI reference](#cli-reference)
-- [Root CLI (god)](#root-cli-god)
+- [Root CLI (god-cli)](#root-cli-god-cli)
 - [Scenarios](#scenarios)
 - [OTel stack (Docker)](#otel-stack-docker)
 - [Output formats](#output-formats)
@@ -322,18 +322,18 @@ uv run python -m god --list-scenarios
 
 ---
 
-## Root CLI (god)
+## Root CLI (god-cli)
 
-The repo root ships a standalone `god` script that wraps the package with a Rich terminal UI. It
+The repo root ships a standalone `god-cli` script that wraps the package with a Rich terminal UI. It
 requires no installation beyond the existing `uv` environment - just run it from the repo root.
 
 ```bash
 # From the repo root (no cd required)
-./god --help
-./god --list-scenarios
-./god -n 50 --mock
-./god -n 500 --scenario cascading_failure --mock -o ./output --format otlp_traces otlp_logs logfmt
-./god -n 200 --scenario llm_degradation --mock --analyse
+./god-cli --help
+./god-cli --list-scenarios
+./god-cli -n 50 --mock
+./god-cli -n 500 --scenario cascading_failure --mock -o ./output --format otlp_traces otlp_logs logfmt
+./god-cli -n 200 --scenario llm_degradation --mock --analyse
 ```
 
 The script resolves `src/god` via `sys.path` automatically, so it works without activating the venv
@@ -341,7 +341,7 @@ or installing the package as an entry point.
 
 ### What the root CLI adds over `python -m god`
 
-| Feature | `python -m god` | `./god` |
+| Feature | `python -m god` | `./god-cli` |
 |---------|----------------|---------|
 | Output | Plain stderr progress | Rich panels, progress bar, colour |
 | `--help` | argparse default | Formatted table with grouped options |
@@ -349,7 +349,7 @@ or installing the package as an entry point.
 | Analysis output | Plain print | Severity-coloured anomaly signal panel |
 | Run config | Inline log line | Pre-run configuration panel |
 
-The underlying generation logic, all flags, and all defaults are identical. Use `./god` for
+The underlying generation logic, all flags, and all defaults are identical. Use `./god-cli` for
 interactive terminal sessions; use `python -m god` (or the `god` entry point) in scripts and CI.
 
 ### Quiet / pipe mode
@@ -357,7 +357,7 @@ interactive terminal sessions; use `python -m god` (or the `god` entry point) in
 `--quiet` (`-q`) suppresses all Rich output to stderr. Stdout stays clean data, suitable for piping:
 
 ```bash
-./god -n 1000 --mock -q | grep "level=ERROR" | wc -l
+./god-cli -n 1000 --mock -q | grep "level=ERROR" | wc -l
 ```
 
 ---
