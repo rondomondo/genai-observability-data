@@ -612,7 +612,6 @@ def build_rag_trace(
     spans: list[Span] = []
     cursor = start_ms
 
-    rag_svc = registry.get("rag-service")
     embed_svc = registry.get("embed-service")
     vector_svc = registry.get("vector-db")
     llm_svc = registry.get("llm-anthropic")

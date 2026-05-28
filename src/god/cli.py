@@ -1,8 +1,8 @@
 """Rich terminal CLI for the god package."""
+
 from __future__ import annotations
 
 import asyncio
-import sys
 import time
 
 from rich import box
@@ -13,16 +13,18 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-THEME = Theme({
-    "info": "cyan",
-    "success": "bold green",
-    "warn": "yellow",
-    "error": "bold red",
-    "dim": "dim white",
-    "heading": "bold blue",
-    "scenario": "magenta",
-    "value": "bright_white",
-})
+THEME = Theme(
+    {
+        "info": "cyan",
+        "success": "bold green",
+        "warn": "yellow",
+        "error": "bold red",
+        "dim": "dim white",
+        "heading": "bold blue",
+        "scenario": "magenta",
+        "value": "bright_white",
+    }
+)
 
 console = Console(stderr=True, theme=THEME, highlight=False)
 out = Console(theme=THEME, highlight=False)
@@ -169,6 +171,7 @@ def _print_help(version: str) -> None:
 
 async def _run_analysis(traces: list, logs: list, deps, model_override: str | None):  # type: ignore[return]
     from god.agent import analyse_batch
+
     return await analyse_batch(traces, logs, deps, model_name=model_override)
 
 
@@ -179,6 +182,7 @@ def build_arg_parser():
         Configured ArgumentParser instance
     """
     import argparse
+
     from god.scenarios import SCENARIO_PRESETS
 
     p = argparse.ArgumentParser(
@@ -199,8 +203,13 @@ def build_arg_parser():
     gen.add_argument("--capture-content", action="store_true", default=False)
 
     out_grp = p.add_argument_group("Output")
-    out_grp.add_argument("--format", nargs="+", choices=["otlp_traces", "otlp_logs", "logfmt", "loki"],
-                         default=["logfmt"], metavar="FMT")
+    out_grp.add_argument(
+        "--format",
+        nargs="+",
+        choices=["otlp_traces", "otlp_logs", "logfmt", "loki"],
+        default=["logfmt"],
+        metavar="FMT",
+    )
     out_grp.add_argument("--output", "-o", type=str, default=None, metavar="DIR")
     out_grp.add_argument("--otlp", type=str, default=None, metavar="URL")
     out_grp.add_argument("--otlp-header", action="append", default=[], metavar="KEY=VALUE")
@@ -280,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if use_mock:
         from god.mock.activate import activate_mock_mode
+
         activate_mock_mode()
 
     n_traces = args.traces or settings.default_traces
@@ -295,15 +305,25 @@ def main(argv: list[str] | None = None) -> int:
     deps = None
     if args.analyse:
         from god.deps import GodDeps
+
         deps = GodDeps(settings=settings, registry=registry, engine=engine)
 
     if not args.quiet:
         console.print(_header(__version__))
         console.print(
             Panel(
-                _config_table(n_traces, rate, args.scenario, args.seed,
-                              args.format, args.output, args.otlp,
-                              use_mock, args.capture_content, batch_size),
+                _config_table(
+                    n_traces,
+                    rate,
+                    args.scenario,
+                    args.seed,
+                    args.format,
+                    args.output,
+                    args.otlp,
+                    use_mock,
+                    args.capture_content,
+                    batch_size,
+                ),
                 title="[bold]Run configuration[/bold]",
                 box=box.ROUNDED,
                 border_style="dim",
@@ -379,9 +399,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.analyse:
         console.print("[info]Running scenario analysis agent...[/info]")
-        result = asyncio.run(
-            _run_analysis(all_traces, all_logs, deps, args.agent_model)
-        )
+        result = asyncio.run(_run_analysis(all_traces, all_logs, deps, args.agent_model))
         console.print(_analysis_panel(result))
 
     return 0

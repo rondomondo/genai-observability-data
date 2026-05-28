@@ -194,7 +194,10 @@ def build_http_span(
                             "internal processing error",
                         ]
                     ),
-                    "exception.stacktrace": f'  File "{svc.name}/handler.py", line {random.randint(50, 300)}\n    raise RuntimeError(...)',
+                    "exception.stacktrace": (
+                        f'  File "{svc.name}/handler.py", line {random.randint(50, 300)}'
+                        "\n    raise RuntimeError(...)"
+                    ),
                 },
             )
         )
