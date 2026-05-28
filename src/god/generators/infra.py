@@ -195,8 +195,7 @@ def build_http_span(
                         ]
                     ),
                     "exception.stacktrace": (
-                        f'  File "{svc.name}/handler.py", line {random.randint(50, 300)}'
-                        "\n    raise RuntimeError(...)"
+                        f'  File "{svc.name}/handler.py", line {random.randint(50, 300)}\n    raise RuntimeError(...)'
                     ),
                 },
             )

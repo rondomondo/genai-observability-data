@@ -31,6 +31,8 @@ _loader.exec_module(_root_cli)
 
 def _run(argv: list[str]) -> tuple[int, str, str]:
     """Run the root CLI with the given argv, returning (exit_code, stdout, stderr)."""
+    import god.cli as _cli
+
     stdout_buf = StringIO()
     stderr_buf = StringIO()
     from rich.console import Console
@@ -39,8 +41,8 @@ def _run(argv: list[str]) -> tuple[int, str, str]:
     err_console = Console(file=stderr_buf, theme=_root_cli.THEME, highlight=False, force_terminal=False)
 
     with (
-        patch.object(_root_cli, "console", err_console),
-        patch.object(_root_cli, "out", out_console),
+        patch.object(_cli, "console", err_console),
+        patch.object(_cli, "out", out_console),
     ):
         code = _root_cli.main(argv)
 

@@ -103,7 +103,7 @@ def test_file_sink_appends_across_calls() -> None:
 
 
 def test_multi_sink_fans_out() -> None:
-    called = []
+    called: list[tuple[str] | tuple[str, int, int]] = []
 
     class MockSink:
         def flush(self, traces, logs) -> None:

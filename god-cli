@@ -27,7 +27,7 @@ except ImportError:
         sys.exit(1)
     os.execvp(_uv, [_uv, "run", "--project", str(_REPO_ROOT / "src" / "god"), "python", __file__, *sys.argv[1:]])
 
-from god.cli import main
+from god.cli import THEME, console, main, out
 
 if __name__ == "__main__":
     sys.exit(main())
