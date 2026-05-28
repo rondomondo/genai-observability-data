@@ -558,8 +558,6 @@ genai-observability-data/
   tasks/
     plan.md                        # Refactor plan (package path flattening, in progress)
     todo.md                        # Task checklist for the flatten
-  tests/
-    test_sample.py                 # Placeholder (root-level)
   src/
     god/                           # The real package root
       pyproject.toml               # Canonical package declaration
@@ -694,25 +692,20 @@ accordingly.
 
 ## Gotchas
 
-1. **Entry point is `src/god/__main__.py`, not `src/__main__.py`.** The root `src/__main__.py` is a
-   stale file that imports from `synthetic_logs.*` (an old package name) and should not be used. Always
-   run `python -m god` from inside `src/god/` or use `uv run python -m god` which resolves the venv
-   correctly.
-
-2. **`gen-otlp` requires an API key (or mock mode).** The make target does not set `GOD_MOCK_MODE=true`
+1. **`gen-otlp` requires an API key (or mock mode).** The make target does not set `GOD_MOCK_MODE=true`
    unlike `gen`, `gen-files`, and `gen-fixtures`. If you have not set `ANTHROPIC_API_KEY` and are not
    in mock mode, the analysis agent will fail on `--analyse`. Pure generation without `--analyse` works
    fine without any API key.
 
-3. **Seed only partially controls randomness.** A few choices inside the generators (HTTP method
+2. **Seed only partially controls randomness.** A few choices inside the generators (HTTP method
    selection, some error type strings) use `random.choice` from the stdlib without seeding. For fully
    reproducible output, call `random.seed(n)` yourself before invoking `generate_dataset`.
 
-4. **`gen_ai.server.time_to_first_token` is in seconds (OTel spec); `gen_ai.server.ttft_ms` is a
+3. **`gen_ai.server.time_to_first_token` is in seconds (OTel spec); `gen_ai.server.ttft_ms` is a
    non-standard convenience attribute in milliseconds** emitted alongside it. Do not treat them as
    duplicates when writing dashboards.
 
-5. **Token budget breach suppresses baseline errors.** `_error_rate_override = 0.0` means the service
+4. **Token budget breach suppresses baseline errors.** `_error_rate_override = 0.0` means the service
    emits zero hard errors during that scenario window. The anomaly signal is purely in
    `finish_reason=length` spans, not in span status.
 

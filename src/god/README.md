@@ -546,9 +546,6 @@ stringified Python lists, which increases output size substantially.
 6. **`int` attributes are strings in OTLP JSON.** `{"intValue": "1204"}` not `{"intValue": 1204}`.
    The OTel spec requires this. Some parsers handle both; do not assume either.
 
-7. **Root `src/__main__.py` is stale.** It imports from `synthetic_logs.*` (old name). Always use
-   `src/god/__main__.py` via `python -m god` or the `god` entry point.
-
-8. **Fault propagation is one hop only.** `propagate_fault` bleeds 30% error rate and 50% latency
+7. **Fault propagation is one hop only.** `propagate_fault` bleeds 30% error rate and 50% latency
    increase to immediate callers in the dependency graph. It is not transitive. Recovery does not
    call `propagate_fault` in reverse - it clears overrides directly on specific services.
