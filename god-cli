@@ -3,6 +3,12 @@
 
 A rich terminal interface around the god package (src/god).
 Run from the repo root; the package is resolved via sys.path.
+
+Subcommands:
+  gen-scenario  Generate one or all fault-injection scenarios into output/<scenario>/
+                (mirrors `make gen-scenario SCENARIO=<name>|all`)
+
+All other arguments are forwarded to the core god CLI.
 """
 from __future__ import annotations
 
@@ -27,7 +33,134 @@ except ImportError:
         sys.exit(1)
     os.execvp(_uv, [_uv, "run", "--project", str(_REPO_ROOT / "src" / "god"), "python", __file__, *sys.argv[1:]])
 
-from god.cli import THEME, console, main, out
+from god.cli import THEME, console, main, out  # noqa: E402
+
+
+def _gen_scenario(argv: list[str]) -> int:
+    """Run gen-scenario subcommand: generate one or all scenarios into subdirectories.
+
+    Mirrors `make gen-scenario SCENARIO=<name>|all` with the same defaults:
+      TRACES=100, RATE=10.0, FORMAT=otlp_traces otlp_logs logfmt, OUT_DIR=./output
+
+    Args:
+        argv: arguments after the 'gen-scenario' token
+
+    Returns:
+        exit code
+    """
+    import argparse
+
+    from god.scenarios import SCENARIO_PRESETS
+
+    all_scenario_names = list(SCENARIO_PRESETS.keys())
+
+    p = argparse.ArgumentParser(
+        prog="god-cli gen-scenario",
+        description="Generate one or all fault-injection scenarios into output/<scenario>/.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument(
+        "scenario",
+        metavar="SCENARIO",
+        choices=[*all_scenario_names, "all"],
+        help="scenario preset name, or 'all' to generate every preset",
+    )
+    p.add_argument("--traces", "-n", type=int, default=100, metavar="N", help="traces per scenario (default: 100)")
+    p.add_argument("--rate", type=float, default=10.0, metavar="N", help="traces/sec (default: 10.0)")
+    p.add_argument(
+        "--format",
+        nargs="+",
+        choices=["otlp_traces", "otlp_logs", "logfmt", "loki"],
+        default=["otlp_traces", "otlp_logs", "logfmt"],
+        metavar="FMT",
+        help="output formats (default: otlp_traces otlp_logs logfmt)",
+    )
+    p.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=Path("./output"),
+        metavar="DIR",
+        help="root output directory; each scenario writes to DIR/<scenario>/ (default: ./output)",
+    )
+    p.add_argument("--seed", type=int, default=None, metavar="N", help="RNG seed for deterministic output")
+    p.add_argument("--mock", action="store_true", default=False, help="mock mode - no API key or network needed")
+    p.add_argument("--quiet", "-q", action="store_true", default=False, help="suppress progress output per scenario")
+
+    args = p.parse_args(argv)
+
+    scenarios = all_scenario_names if args.scenario == "all" else [args.scenario]
+
+    for scenario_name in scenarios:
+        scenario_out = args.output / scenario_name
+        scenario_out.mkdir(parents=True, exist_ok=True)
+
+        if not args.quiet:
+            console.print(f"[info]Generating scenario:[/info] [scenario]{scenario_name}[/scenario]")
+
+        god_argv: list[str] = [
+            "--traces", str(args.traces),
+            "--rate", str(args.rate),
+            "--scenario", scenario_name,
+            "--format", *args.format,
+            "--output", str(scenario_out),
+        ]
+        if args.seed is not None:
+            god_argv += ["--seed", str(args.seed)]
+        if args.mock:
+            god_argv.append("--mock")
+        if args.quiet:
+            god_argv.append("--quiet")
+
+        rc = main(god_argv)
+        if rc != 0:
+            console.print(f"[error]Failed on scenario:[/error] {scenario_name}")
+            return rc
+
+    if not args.quiet:
+        if args.scenario == "all":
+            console.print(f"[success]All scenarios written to[/success] [value]{args.output}/[/value]")
+        else:
+            console.print(f"[success]Scenario written to[/success] [value]{args.output / args.scenario}/[/value]")
+
+    return 0
+
+
+_SUBCOMMANDS = {
+    "gen-scenario": ("Generate one or all scenarios into output/<scenario>/", _gen_scenario),
+}
+
+
+def _print_wrapper_help(version: str) -> None:
+    from rich import box
+    from rich.panel import Panel
+    from rich.table import Table
+
+    from god.cli import _header, _print_help  # type: ignore[attr-defined]
+
+    console.print(_header(version))
+
+    t = Table(box=box.SIMPLE, show_header=False, padding=(0, 1), border_style="dim")
+    t.add_column("cmd", style="cyan", no_wrap=True)
+    t.add_column("desc", style="white")
+    t.add_row("[bold dim]Subcommands[/bold dim]", "")
+    for name, (desc, _) in _SUBCOMMANDS.items():
+        t.add_row(f"  {name}", desc)
+    t.add_row("", "")
+    t.add_row("[bold dim]Core flags[/bold dim]", "pass any god-cli flag directly (see below)")
+    console.print(Panel(t, title="[bold]Usage[/bold]: god-cli [SUBCOMMAND | OPTIONS]", box=box.ROUNDED, border_style="blue"))
+
+    _print_help(version)
+
 
 if __name__ == "__main__":
+    raw = sys.argv[1:]
+    if raw and raw[0] in _SUBCOMMANDS:
+        _, fn = _SUBCOMMANDS[raw[0]]
+        sys.exit(fn(raw[1:]))
+    if not raw:
+        from god import __version__
+
+        _print_wrapper_help(__version__)
+        sys.exit(0)
     sys.exit(main())
