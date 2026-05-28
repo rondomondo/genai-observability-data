@@ -317,3 +317,9 @@ clean: clean-pyc ## Remove all build artifacts and caches
 clean-output: ## Remove generated data files from output/ and data/fixtures/
 	@rm -rf $(OUT_DIR) $(DATA_DIR)/fixtures
 	@printf "  $(GREEN)output cleared$(RESET)\n"
+
+.PHONY: clean-all
+clean-all: clean ## Remove all artifacts, caches, and the virtualenv (full reset)
+	@printf "$(CYAN)Removing$(RESET) .venv...\n"
+	@rm -rf $(PKG_DIR)/.venv
+	@printf "  $(GREEN)ok$(RESET)\n"
