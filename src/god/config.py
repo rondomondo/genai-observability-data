@@ -4,6 +4,7 @@ Loaded from environment variables or a .env file.
 All fields have sensible defaults so the package works without any API keys
 when mock_mode=True.
 """
+
 from __future__ import annotations
 
 from pydantic import Field

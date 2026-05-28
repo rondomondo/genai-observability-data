@@ -1,17 +1,16 @@
 """Tests for output sinks — file, stdout, OTLP, multi."""
+
 from __future__ import annotations
 
 import gzip
 import json
 import tempfile
-from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
-from god.models import LogEntry, LogLevel, Span, SpanKind, SpanStatus, Trace
+from god.models import LogEntry, LogLevel, Trace
 from god.orchestrator import generate_trace
 from god.services import ServiceRegistry
 from god.sinks import FileSink, MultiSink, OTLPHttpSink, StdoutSink, _logs_to_loki, _logs_to_otlp
@@ -130,9 +129,7 @@ def test_logs_to_otlp_groups_by_service() -> None:
     ]
     result = _logs_to_otlp(logs)
     assert len(result["resourceLogs"]) == 2
-    total_records = sum(
-        len(rl["scopeLogs"][0]["logRecords"]) for rl in result["resourceLogs"]
-    )
+    total_records = sum(len(rl["scopeLogs"][0]["logRecords"]) for rl in result["resourceLogs"])
     assert total_records == 3
 
 
@@ -166,6 +163,7 @@ def test_otlp_http_sink_posts_to_endpoint() -> None:
 
 def test_otlp_http_sink_handles_connection_error(capsys) -> None:
     from urllib.error import URLError
+
     traces, logs = _sample_trace_and_logs()
     sink = OTLPHttpSink(endpoint="http://no-such-host:4318")
 

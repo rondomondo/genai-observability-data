@@ -2,19 +2,20 @@
 Core data models for synthetic log and trace generation.
 All models are dataclasses with OTLP-compatible field names.
 """
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Enumerations
 # ---------------------------------------------------------------------------
 
-class LogLevel(str, Enum):
+
+class LogLevel(StrEnum):
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARN = "WARN"
@@ -22,7 +23,7 @@ class LogLevel(str, Enum):
     FATAL = "FATAL"
 
 
-class SpanKind(str, Enum):
+class SpanKind(StrEnum):
     CLIENT = "CLIENT"
     SERVER = "SERVER"
     PRODUCER = "PRODUCER"
@@ -39,7 +40,7 @@ _SPAN_KIND_INT = {
 }
 
 
-class SpanStatus(str, Enum):
+class SpanStatus(StrEnum):
     OK = "OK"
     ERROR = "ERROR"
     UNSET = "UNSET"
@@ -52,15 +53,15 @@ _SPAN_STATUS_INT = {
 }
 
 
-class FinishReason(str, Enum):
+class FinishReason(StrEnum):
     STOP = "stop"
-    LENGTH = "length"          # token budget exhausted
+    LENGTH = "length"  # token budget exhausted
     TOOL_CALLS = "tool_calls"
     CONTENT_FILTER = "content_filter"
     ERROR = "error"
 
 
-class GenAIOperation(str, Enum):
+class GenAIOperation(StrEnum):
     CHAT = "chat"
     EMBEDDINGS = "embeddings"
     RETRIEVE = "retrieve"
@@ -69,7 +70,7 @@ class GenAIOperation(str, Enum):
     INVOKE_AGENT = "invoke_agent"
 
 
-class GenAIProvider(str, Enum):
+class GenAIProvider(StrEnum):
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
     AWS_BEDROCK = "aws.bedrock"
@@ -79,6 +80,7 @@ class GenAIProvider(str, Enum):
 # ---------------------------------------------------------------------------
 # Trace / Span models
 # ---------------------------------------------------------------------------
+
 
 def new_id(n: int = 16) -> str:
     """Generate a random hex ID of n hex chars."""
@@ -91,13 +93,14 @@ class Span:
     OTLP-compatible span. Attributes follow OTel semantic conventions.
     GenAI attributes follow the experimental GenAI semconv 1.41.0.
     """
+
     trace_id: str
     span_id: str
     parent_span_id: str | None
     name: str
     kind: SpanKind
     service_name: str
-    start_time_unix_nano: int        # epoch nanoseconds
+    start_time_unix_nano: int  # epoch nanoseconds
     end_time_unix_nano: int
     status: SpanStatus = SpanStatus.OK
     status_message: str = ""
@@ -162,15 +165,19 @@ class Trace:
 
         resource_spans = []
         for svc, spans in by_service.items():
-            resource_spans.append({
-                "resource": {
-                    "attributes": _attrs_to_otlp(spans[0].resource_attributes),
-                },
-                "scopeSpans": [{
-                    "scope": {"name": f"synthetic.{svc}", "version": "1.0.0"},
-                    "spans": [s.to_otlp_dict() for s in spans],
-                }],
-            })
+            resource_spans.append(
+                {
+                    "resource": {
+                        "attributes": _attrs_to_otlp(spans[0].resource_attributes),
+                    },
+                    "scopeSpans": [
+                        {
+                            "scope": {"name": f"synthetic.{svc}", "version": "1.0.0"},
+                            "spans": [s.to_otlp_dict() for s in spans],
+                        }
+                    ],
+                }
+            )
         return {"resourceSpans": resource_spans}
 
 
@@ -178,12 +185,14 @@ class Trace:
 # Log model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class LogEntry:
     """
     Structured log entry. Maps to OTLP LogRecord format.
     trace_id / span_id allow correlation with trace data.
     """
+
     timestamp_unix_nano: int
     service_name: str
     level: LogLevel
@@ -210,8 +219,9 @@ class LogEntry:
             "stream": {
                 "service": self.service_name,
                 "level": self.level.value,
-                **{k: str(v) for k, v in self.resource_attributes.items()
-                   if k in ("environment", "region", "version")},
+                **{
+                    k: str(v) for k, v in self.resource_attributes.items() if k in ("environment", "region", "version")
+                },
             },
             "values": [[str(self.timestamp_unix_nano), self.body]],
         }
@@ -238,6 +248,7 @@ class LogEntry:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _attrs_to_otlp(attrs: dict[str, Any]) -> list[dict]:
     """Convert a flat dict to OTLP key-value attribute list."""
     result = []
@@ -249,9 +260,7 @@ def _attrs_to_otlp(attrs: dict[str, Any]) -> list[dict]:
         elif isinstance(v, float):
             result.append({"key": k, "value": {"doubleValue": v}})
         elif isinstance(v, list):
-            result.append({"key": k, "value": {"arrayValue": {
-                "values": [{"stringValue": str(i)} for i in v]
-            }}})
+            result.append({"key": k, "value": {"arrayValue": {"values": [{"stringValue": str(i)} for i in v]}}})
         else:
             result.append({"key": k, "value": {"stringValue": str(v)}})
     return result

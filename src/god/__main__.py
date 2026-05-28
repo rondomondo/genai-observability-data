@@ -24,6 +24,7 @@ python -m god --traces 50 --scenario rag_meltdown --analyse --mock
 # List available scenarios:
 python -m god --list-scenarios
 """
+
 from __future__ import annotations
 
 import sys

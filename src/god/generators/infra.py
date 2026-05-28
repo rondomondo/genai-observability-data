@@ -4,6 +4,7 @@ Infrastructure span and log generators.
 Covers HTTP/gRPC services, databases, caches, and queues.
 All timing uses log-normal distributions for realism.
 """
+
 from __future__ import annotations
 
 import random
@@ -12,13 +13,18 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from god.models import (
-    LogEntry, LogLevel, Span, SpanEvent, SpanKind, SpanStatus, Trace,
+    LogEntry,
+    LogLevel,
+    Span,
+    SpanEvent,
+    SpanKind,
+    SpanStatus,
     new_id,
 )
 from god.services import ServiceDef, ServiceType
 
 if TYPE_CHECKING:
-    from god.services import ServiceRegistry
+    pass
 
 # ---------------------------------------------------------------------------
 # HTTP status code distributions
@@ -28,8 +34,8 @@ _HTTP_SUCCESS = [200, 200, 200, 200, 200, 201, 204]
 _HTTP_CLIENT_ERR = [400, 401, 403, 404, 422, 429]
 _HTTP_SERVER_ERR = [500, 502, 503, 504]
 
-_GRPC_SUCCESS = [0]   # OK
-_GRPC_ERRORS  = [2, 4, 5, 13, 14]  # UNKNOWN, DEADLINE_EXCEEDED, NOT_FOUND, INTERNAL, UNAVAILABLE
+_GRPC_SUCCESS = [0]  # OK
+_GRPC_ERRORS = [2, 4, 5, 13, 14]  # UNKNOWN, DEADLINE_EXCEEDED, NOT_FOUND, INTERNAL, UNAVAILABLE
 
 _DB_OPERATIONS = [
     ("SELECT", "users", "SELECT * FROM users WHERE id = ?"),
@@ -53,33 +59,33 @@ _CACHE_KEYS = [
 
 _LOG_TEMPLATES: dict[ServiceType, list[tuple[LogLevel, str]]] = {
     ServiceType.HTTP_API: [
-        (LogLevel.INFO,  "Incoming {method} {path} from {ip}"),
-        (LogLevel.INFO,  "Request completed in {duration_ms:.1f}ms status={status}"),
-        (LogLevel.WARN,  "Slow request detected: {duration_ms:.1f}ms > threshold {threshold}ms"),
+        (LogLevel.INFO, "Incoming {method} {path} from {ip}"),
+        (LogLevel.INFO, "Request completed in {duration_ms:.1f}ms status={status}"),
+        (LogLevel.WARN, "Slow request detected: {duration_ms:.1f}ms > threshold {threshold}ms"),
         (LogLevel.ERROR, "Upstream {upstream} returned {status}: {error}"),
         (LogLevel.ERROR, "Request timed out after {timeout_ms}ms calling {upstream}"),
     ],
     ServiceType.GRPC_SERVICE: [
-        (LogLevel.INFO,  "gRPC {method} called by {caller}"),
-        (LogLevel.INFO,  "gRPC {method} completed code={code}"),
+        (LogLevel.INFO, "gRPC {method} called by {caller}"),
+        (LogLevel.INFO, "gRPC {method} completed code={code}"),
         (LogLevel.ERROR, "gRPC {method} failed: {error}"),
     ],
     ServiceType.DATABASE: [
         (LogLevel.DEBUG, "Query: {sql} rows={rows} duration={duration_ms:.2f}ms"),
-        (LogLevel.WARN,  "Slow query: {sql} duration={duration_ms:.2f}ms"),
+        (LogLevel.WARN, "Slow query: {sql} duration={duration_ms:.2f}ms"),
         (LogLevel.ERROR, "Connection pool exhausted: active={active} max={max_conns}"),
         (LogLevel.ERROR, "Query failed: {error} sql={sql}"),
-        (LogLevel.WARN,  "Replica lag: {lag_ms}ms exceeds threshold"),
+        (LogLevel.WARN, "Replica lag: {lag_ms}ms exceeds threshold"),
     ],
     ServiceType.QUEUE: [
-        (LogLevel.INFO,  "Published message to {topic} partition={partition} offset={offset}"),
-        (LogLevel.INFO,  "Consumer lag on {topic}: {lag} messages"),
-        (LogLevel.WARN,  "Producer retry #{attempt} for {topic}: {error}"),
+        (LogLevel.INFO, "Published message to {topic} partition={partition} offset={offset}"),
+        (LogLevel.INFO, "Consumer lag on {topic}: {lag} messages"),
+        (LogLevel.WARN, "Producer retry #{attempt} for {topic}: {error}"),
         (LogLevel.ERROR, "Failed to publish to {topic} after {retries} retries: {error}"),
     ],
     ServiceType.CACHE: [
         (LogLevel.DEBUG, "Cache {result} for key {key} ttl={ttl}s"),
-        (LogLevel.WARN,  "Cache miss rate elevated: {miss_rate:.1%}"),
+        (LogLevel.WARN, "Cache miss rate elevated: {miss_rate:.1%}"),
         (LogLevel.ERROR, "Redis connection error: {error}"),
     ],
 }
@@ -88,6 +94,7 @@ _LOG_TEMPLATES: dict[ServiceType, list[tuple[LogLevel, str]]] = {
 # ---------------------------------------------------------------------------
 # Core helpers
 # ---------------------------------------------------------------------------
+
 
 def _sample_latency(svc: ServiceDef, rng: np.random.Generator) -> float:
     """Sample a latency in ms from the service's log-normal profile."""
@@ -111,12 +118,12 @@ def _ns(ts_ms: float) -> int:
 
 def _http_method_path() -> tuple[str, str]:
     choices = [
-        ("GET",  "/api/v1/users/{id}"),
+        ("GET", "/api/v1/users/{id}"),
         ("POST", "/api/v1/auth/token"),
-        ("GET",  "/api/v1/search"),
+        ("GET", "/api/v1/search"),
         ("POST", "/api/v1/payments"),
-        ("GET",  "/api/v1/health"),
-        ("GET",  "/api/v1/rag/query"),
+        ("GET", "/api/v1/health"),
+        ("GET", "/api/v1/rag/query"),
         ("POST", "/api/v1/rag/index"),
     ]
     m, p = random.choice(choices)
@@ -126,6 +133,7 @@ def _http_method_path() -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 # Span builders
 # ---------------------------------------------------------------------------
+
 
 def build_http_span(
     svc: ServiceDef,
@@ -141,10 +149,7 @@ def build_http_span(
     is_err = _should_error(svc, rng) or _is_timeout(duration, svc)
 
     method, path = _http_method_path()
-    status_code = (
-        random.choice(_HTTP_SERVER_ERR) if is_err
-        else random.choice(_HTTP_SUCCESS)
-    )
+    status_code = random.choice(_HTTP_SERVER_ERR) if is_err else random.choice(_HTTP_SUCCESS)
 
     attrs = {
         "http.request.method": method,
@@ -155,7 +160,7 @@ def build_http_span(
         "server.address": svc.name,
         "server.port": 8080,
         "http.request.duration_ms": round(duration, 2),
-        "client.address": f"10.0.{random.randint(0,255)}.{random.randint(1,254)}",
+        "client.address": f"10.0.{random.randint(0, 255)}.{random.randint(1, 254)}",
     }
     if is_err:
         attrs["error.type"] = "HTTPError"
@@ -175,18 +180,24 @@ def build_http_span(
         resource_attributes=svc.resource_attributes(),
     )
     if is_err:
-        span.events.append(SpanEvent(
-            name="exception",
-            time_unix_nano=_ns(start_ms + duration * 0.9),
-            attributes={
-                "exception.type": "RuntimeError",
-                "exception.message": random.choice([
-                    "upstream timeout", "connection refused",
-                    "rate limit exceeded", "internal processing error",
-                ]),
-                "exception.stacktrace": f"  File \"{svc.name}/handler.py\", line {random.randint(50,300)}\n    raise RuntimeError(...)",
-            },
-        ))
+        span.events.append(
+            SpanEvent(
+                name="exception",
+                time_unix_nano=_ns(start_ms + duration * 0.9),
+                attributes={
+                    "exception.type": "RuntimeError",
+                    "exception.message": random.choice(
+                        [
+                            "upstream timeout",
+                            "connection refused",
+                            "rate limit exceeded",
+                            "internal processing error",
+                        ]
+                    ),
+                    "exception.stacktrace": f'  File "{svc.name}/handler.py", line {random.randint(50, 300)}\n    raise RuntimeError(...)',
+                },
+            )
+        )
     return span, end_ms
 
 
@@ -202,9 +213,7 @@ def build_grpc_span(
     end_ms = start_ms + duration
     is_err = _should_error(svc, rng)
 
-    grpc_method = random.choice([
-        "Authenticate", "ValidateToken", "RefreshToken", "GetPermissions"
-    ])
+    grpc_method = random.choice(["Authenticate", "ValidateToken", "RefreshToken", "GetPermissions"])
     code = random.choice(_GRPC_ERRORS) if is_err else 0
 
     attrs = {
@@ -262,10 +271,14 @@ def build_db_span(
         attrs["db.collection.name"] = table
     if is_err:
         attrs["error.type"] = "DBError"
-        attrs["db.error.message"] = random.choice([
-            "connection timeout", "deadlock detected",
-            "connection pool exhausted", "query cancelled",
-        ])
+        attrs["db.error.message"] = random.choice(
+            [
+                "connection timeout",
+                "deadlock detected",
+                "connection pool exhausted",
+                "query cancelled",
+            ]
+        )
 
     span = Span(
         trace_id=trace_id,
@@ -333,6 +346,7 @@ def build_queue_span(
 # Log generators
 # ---------------------------------------------------------------------------
 
+
 def generate_logs_for_span(
     span: Span,
     svc: ServiceDef,
@@ -348,7 +362,8 @@ def generate_logs_for_span(
     duration_ms = span.duration_ms
 
     candidates = (
-        [t for t in templates if t[0] in (LogLevel.ERROR, LogLevel.WARN)] if is_err
+        [t for t in templates if t[0] in (LogLevel.ERROR, LogLevel.WARN)]
+        if is_err
         else [t for t in templates if t[0] in (LogLevel.INFO, LogLevel.DEBUG)]
     )
     if not candidates:
@@ -388,7 +403,10 @@ def generate_logs_for_span(
             "attempt": random.randint(1, 3),
             "retries": 3,
             "result": "HIT" if rng.random() > 0.3 else "MISS",
-            "key": random.choice(_CACHE_KEYS).replace("{user_id}", str(random.randint(1,9999))).replace("{session_id}", new_id(8)).replace("{ip}", "10.0.0.1"),
+            "key": random.choice(_CACHE_KEYS)
+            .replace("{user_id}", str(random.randint(1, 9999)))
+            .replace("{session_id}", new_id(8))
+            .replace("{ip}", "10.0.0.1"),
             "ttl": random.choice([60, 300, 3600]),
             "miss_rate": float(rng.uniform(0.3, 0.8)),
         }
@@ -398,17 +416,19 @@ def generate_logs_for_span(
         except KeyError:
             body = template
 
-        logs.append(LogEntry(
-            timestamp_unix_nano=ts_ns,
-            service_name=svc.name,
-            level=level,
-            body=body,
-            trace_id=span.trace_id,
-            span_id=span.span_id,
-            attributes={
-                "service.type": svc.type.value,
-            },
-            resource_attributes=svc.resource_attributes(),
-        ))
+        logs.append(
+            LogEntry(
+                timestamp_unix_nano=ts_ns,
+                service_name=svc.name,
+                level=level,
+                body=body,
+                trace_id=span.trace_id,
+                span_id=span.span_id,
+                attributes={
+                    "service.type": svc.type.value,
+                },
+                resource_attributes=svc.resource_attributes(),
+            )
+        )
 
     return logs

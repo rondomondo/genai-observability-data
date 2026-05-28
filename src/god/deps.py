@@ -1,4 +1,5 @@
 """Pydantic-AI dependency container for the scenario analysis agent."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -17,5 +18,5 @@ class GodDeps:
     engine: ScenarioEngine | None = None
 
     @classmethod
-    def from_settings(cls, s: Settings) -> "GodDeps":
+    def from_settings(cls, s: Settings) -> GodDeps:
         return cls(settings=s)

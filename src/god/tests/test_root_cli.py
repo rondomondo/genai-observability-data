@@ -4,10 +4,9 @@ The script lives at the repo root and resolves src/god via sys.path injection.
 These tests invoke it via importlib (same process) to avoid subprocess overhead,
 but stay isolated by calling god.main() directly after patching sys.argv.
 """
+
 from __future__ import annotations
 
-import sys
-import tempfile
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -20,8 +19,8 @@ _SCRIPT = _REPO_ROOT / "god-cli"
 
 # Import the root CLI as a module by loading it via importlib.
 # spec_from_file_location needs an explicit loader for extension-less scripts.
-import importlib.machinery
-import importlib.util
+import importlib.machinery  # noqa: E402
+import importlib.util  # noqa: E402
 
 _loader = importlib.machinery.SourceFileLoader("root_cli", str(_SCRIPT))
 _spec = importlib.util.spec_from_loader("root_cli", _loader)
@@ -81,11 +80,18 @@ def test_generate_stdout_quiet_mock(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_generate_to_file_mock(tmp_path: Path) -> None:
-    code, _, _ = _run([
-        "--traces", "15", "--mock", "--quiet",
-        "--output", str(tmp_path),
-        "--format", "logfmt",
-    ])
+    code, _, _ = _run(
+        [
+            "--traces",
+            "15",
+            "--mock",
+            "--quiet",
+            "--output",
+            str(tmp_path),
+            "--format",
+            "logfmt",
+        ]
+    )
     assert code == 0
     logfmt = tmp_path / "logs.logfmt"
     assert logfmt.exists()
@@ -121,13 +127,21 @@ def test_generate_stderr_progress_not_quiet(capsys: pytest.CaptureFixture[str]) 
 
 
 def test_generate_otlp_traces_format(tmp_path: Path) -> None:
-    code, _, _ = _run([
-        "--traces", "5", "--mock", "--quiet",
-        "--output", str(tmp_path),
-        "--format", "otlp_traces",
-    ])
+    code, _, _ = _run(
+        [
+            "--traces",
+            "5",
+            "--mock",
+            "--quiet",
+            "--output",
+            str(tmp_path),
+            "--format",
+            "otlp_traces",
+        ]
+    )
     assert code == 0
     import json
+
     otlp = tmp_path / "traces.otlp.jsonl"
     assert otlp.exists()
     first_line = otlp.read_text(encoding="utf-8").splitlines()[0]

@@ -12,6 +12,7 @@ Covers:
   - GenAI metrics (TTFT, inter-token latency, token counts)
   - Content capture events    gen_ai.content.prompt / gen_ai.content.completion
 """
+
 from __future__ import annotations
 
 import math
@@ -21,11 +22,18 @@ from typing import Any
 import numpy as np
 
 from god.models import (
-    FinishReason, GenAIOperation, GenAIProvider,
-    LogEntry, LogLevel, Span, SpanEvent, SpanKind, SpanStatus, Trace,
+    FinishReason,
+    GenAIOperation,
+    GenAIProvider,
+    LogEntry,
+    LogLevel,
+    Span,
+    SpanEvent,
+    SpanKind,
+    SpanStatus,
     new_id,
 )
-from god.services import ServiceDef, ServiceType
+from god.services import ServiceDef
 
 # ---------------------------------------------------------------------------
 # Realistic synthetic content pools
@@ -48,13 +56,18 @@ _USER_QUERIES = [
 ]
 
 _TOOL_NAMES = [
-    "search_logs", "get_trace", "query_metrics",
-    "fetch_deployment_history", "get_service_config",
+    "search_logs",
+    "get_trace",
+    "query_metrics",
+    "fetch_deployment_history",
+    "get_service_config",
 ]
 
 _MCP_TOOL_NAMES = [
-    "vector_search", "get_context_chunks",
-    "log_retrieval", "trace_lookup",
+    "vector_search",
+    "get_context_chunks",
+    "log_retrieval",
+    "trace_lookup",
 ]
 
 _EMBEDDING_INPUT_TEXTS = [
@@ -66,15 +79,17 @@ _EMBEDDING_INPUT_TEXTS = [
 ]
 
 _VECTOR_DB_COLLECTIONS = [
-    "logs_embeddings", "trace_summaries",
-    "runbooks", "incident_history",
+    "logs_embeddings",
+    "trace_summaries",
+    "runbooks",
+    "incident_history",
 ]
 
 _MODELS: dict[str, dict] = {
     # Anthropic
     "claude-sonnet-4-20250514": {
         "provider": GenAIProvider.ANTHROPIC,
-        "input_token_rate": 1.0,    # relative cost multiplier
+        "input_token_rate": 1.0,  # relative cost multiplier
         "context_window": 200000,
         "typical_input_tokens": (800, 4000),
         "typical_output_tokens": (150, 800),
@@ -135,6 +150,7 @@ _MODELS: dict[str, dict] = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _ns(ms: float) -> int:
     return int(ms * 1_000_000)
 
@@ -159,6 +175,7 @@ def _model_info(model: str) -> dict:
 # ---------------------------------------------------------------------------
 # Inference (chat) span
 # ---------------------------------------------------------------------------
+
 
 def build_inference_span(
     svc: ServiceDef,
@@ -255,7 +272,7 @@ def build_inference_span(
         "gen_ai.request.top_p": round(float(rng.uniform(0.8, 1.0)), 2),
         # Latency breakdown
         "gen_ai.server.time_to_first_token": round(ttft_ms / 1000, 4),  # seconds per spec
-        "gen_ai.server.ttft_ms": round(ttft_ms, 2),                     # convenience
+        "gen_ai.server.ttft_ms": round(ttft_ms, 2),  # convenience
         # Server info
         "server.address": f"{info['provider'].value}.api",
         "server.port": 443,
@@ -263,21 +280,23 @@ def build_inference_span(
     }
 
     if is_err:
-        attrs["error.type"] = random.choice([
-            "rate_limit_error", "overloaded_error",
-            "api_timeout", "server_error",
-        ])
+        attrs["error.type"] = random.choice(
+            [
+                "rate_limit_error",
+                "overloaded_error",
+                "api_timeout",
+                "server_error",
+            ]
+        )
 
     # Optional content capture (disabled by default — large + privacy-sensitive)
     if capture_content:
         attrs["gen_ai.system_instructions"] = random.choice(_SYSTEM_PROMPTS)
-        attrs["gen_ai.input.messages"] = str([
-            {"role": "user", "content": random.choice(_USER_QUERIES)}
-        ])
+        attrs["gen_ai.input.messages"] = str([{"role": "user", "content": random.choice(_USER_QUERIES)}])
         if output_tokens > 0:
-            attrs["gen_ai.output.messages"] = str([
-                {"role": "assistant", "content": "Based on the retrieved context, I can see..."}
-            ])
+            attrs["gen_ai.output.messages"] = str(
+                [{"role": "assistant", "content": "Based on the retrieved context, I can see..."}]
+            )
 
     span = Span(
         trace_id=trace_id,
@@ -296,24 +315,28 @@ def build_inference_span(
 
     # TTFT event — spec-recommended for streaming observability
     if not is_err:
-        span.events.append(SpanEvent(
-            name="gen_ai.content.first_token",
-            time_unix_nano=_ns(start_ms + ttft_ms),
-            attributes={
-                "gen_ai.server.time_to_first_token": round(ttft_ms / 1000, 4),
-            },
-        ))
+        span.events.append(
+            SpanEvent(
+                name="gen_ai.content.first_token",
+                time_unix_nano=_ns(start_ms + ttft_ms),
+                attributes={
+                    "gen_ai.server.time_to_first_token": round(ttft_ms / 1000, 4),
+                },
+            )
+        )
 
     # Exception event on error
     if is_err:
-        span.events.append(SpanEvent(
-            name="exception",
-            time_unix_nano=_ns(start_ms + ttft_ms * 0.5),
-            attributes={
-                "exception.type": attrs.get("error.type", "APIError"),
-                "exception.message": f"GenAI API error: {attrs.get('error.type')}",
-            },
-        ))
+        span.events.append(
+            SpanEvent(
+                name="exception",
+                time_unix_nano=_ns(start_ms + ttft_ms * 0.5),
+                attributes={
+                    "exception.type": attrs.get("error.type", "APIError"),
+                    "exception.message": f"GenAI API error: {attrs.get('error.type')}",
+                },
+            )
+        )
 
     return span, end_ms
 
@@ -321,6 +344,7 @@ def build_inference_span(
 # ---------------------------------------------------------------------------
 # Embedding span
 # ---------------------------------------------------------------------------
+
 
 def build_embedding_span(
     svc: ServiceDef,
@@ -382,6 +406,7 @@ def build_embedding_span(
 # Retrieval (vector search) span
 # ---------------------------------------------------------------------------
 
+
 def build_retrieval_span(
     svc: ServiceDef,
     trace_id: str,
@@ -407,7 +432,7 @@ def build_retrieval_span(
 
     attrs: dict[str, Any] = {
         "gen_ai.operation.name": GenAIOperation.RETRIEVE.value,
-        "db.system.name": "qdrant",                    # or "weaviate", "pgvector"
+        "db.system.name": "qdrant",  # or "weaviate", "pgvector"
         "db.collection.name": collection,
         "db.vector.query.top_k": top_k,
         "db.vector.query.returned": returned,
@@ -439,6 +464,7 @@ def build_retrieval_span(
 # ---------------------------------------------------------------------------
 # Tool execution span (LLM-initiated)
 # ---------------------------------------------------------------------------
+
 
 def build_tool_span(
     svc: ServiceDef,
@@ -489,6 +515,7 @@ def build_tool_span(
 # MCP tool span
 # ---------------------------------------------------------------------------
 
+
 def build_mcp_tool_span(
     svc: ServiceDef,
     trace_id: str,
@@ -533,7 +560,7 @@ def build_mcp_tool_span(
         # Transport
         "network.transport": "tcp",
         "network.protocol.name": "http",
-        "server.address": f"mcp.internal",
+        "server.address": "mcp.internal",
         "server.port": 8765,
         # JSON-RPC
         "jsonrpc.request.id": str(int(rng.integers(1, 9999))),
@@ -562,8 +589,9 @@ def build_mcp_tool_span(
 # Full RAG pipeline trace builder
 # ---------------------------------------------------------------------------
 
+
 def build_rag_trace(
-    registry,                    # ServiceRegistry
+    registry,  # ServiceRegistry
     trace_id: str,
     parent_span_id: str | None,
     start_ms: float,
@@ -591,14 +619,22 @@ def build_rag_trace(
 
     # 1. Embedding
     embed_span, cursor = build_embedding_span(
-        embed_svc, trace_id, parent_span_id, cursor, rng,
+        embed_svc,
+        trace_id,
+        parent_span_id,
+        cursor,
+        rng,
     )
     spans.append(embed_span)
-    cursor += float(rng.uniform(1, 5))   # network gap
+    cursor += float(rng.uniform(1, 5))  # network gap
 
     # 2. Retrieval
     retrieve_span, cursor = build_retrieval_span(
-        vector_svc, trace_id, parent_span_id, cursor, rng,
+        vector_svc,
+        trace_id,
+        parent_span_id,
+        cursor,
+        rng,
         latency_multiplier=retrieval_latency_multiplier,
     )
     spans.append(retrieve_span)
@@ -606,7 +642,11 @@ def build_rag_trace(
 
     # 3. LLM inference
     llm_span, cursor = build_inference_span(
-        llm_svc, trace_id, parent_span_id, cursor, rng,
+        llm_svc,
+        trace_id,
+        parent_span_id,
+        cursor,
+        rng,
         capture_content=capture_content,
         ttft_multiplier=ttft_multiplier,
     )
@@ -619,11 +659,19 @@ def build_rag_trace(
         tool_start = float(rng.uniform(lo, hi))
         if rng.random() < 0.5:
             tool_span, _ = build_mcp_tool_span(
-                llm_svc, trace_id, llm_span.span_id, tool_start, rng,
+                llm_svc,
+                trace_id,
+                llm_span.span_id,
+                tool_start,
+                rng,
             )
         else:
             tool_span, _ = build_tool_span(
-                llm_svc, trace_id, llm_span.span_id, tool_start, rng,
+                llm_svc,
+                trace_id,
+                llm_span.span_id,
+                tool_start,
+                rng,
             )
         spans.append(tool_span)
 
@@ -633,6 +681,7 @@ def build_rag_trace(
 # ---------------------------------------------------------------------------
 # GenAI log generators
 # ---------------------------------------------------------------------------
+
 
 def generate_genai_logs(
     span: Span,
@@ -652,9 +701,7 @@ def generate_genai_logs(
     else:
         finish_str = str(finish)
 
-    mid_ns = span.start_time_unix_nano + (
-        span.end_time_unix_nano - span.start_time_unix_nano
-    ) // 2
+    mid_ns = span.start_time_unix_nano + (span.end_time_unix_nano - span.start_time_unix_nano) // 2
 
     if op == GenAIOperation.CHAT.value:
         if is_err:
@@ -682,10 +729,7 @@ def generate_genai_logs(
 
     elif op == GenAIOperation.EMBEDDINGS.value:
         batch = span.attributes.get("gen_ai.embedding.batch_size", 1)
-        body = (
-            f"Embeddings generated model={model} "
-            f"batch_size={batch} input_tokens={in_tok}"
-        )
+        body = f"Embeddings generated model={model} batch_size={batch} input_tokens={in_tok}"
         level = LogLevel.ERROR if is_err else LogLevel.DEBUG
 
     elif op == GenAIOperation.RETRIEVE.value:
@@ -702,27 +746,27 @@ def generate_genai_logs(
         tool = span.attributes.get("gen_ai.tool.name", "unknown")
         mcp = "mcp.session.id" in span.attributes
         prefix = "MCP tool" if mcp else "Tool"
-        body = (
-            f"{prefix} execution tool={tool} "
-            f"duration_ms={span.duration_ms:.1f} "
-            + ("error=" + str(span.attributes.get("error.type", "")) if is_err else "ok=true")
+        body = f"{prefix} execution tool={tool} duration_ms={span.duration_ms:.1f} " + (
+            "error=" + str(span.attributes.get("error.type", "")) if is_err else "ok=true"
         )
         level = LogLevel.ERROR if is_err else LogLevel.INFO
 
     else:
         return logs
 
-    logs.append(LogEntry(
-        timestamp_unix_nano=mid_ns,
-        service_name=svc.name,
-        level=level,
-        body=body,
-        trace_id=span.trace_id,
-        span_id=span.span_id,
-        attributes={
-            "gen_ai.operation.name": op,
-            "gen_ai.request.model": model,
-        },
-        resource_attributes=svc.resource_attributes(),
-    ))
+    logs.append(
+        LogEntry(
+            timestamp_unix_nano=mid_ns,
+            service_name=svc.name,
+            level=level,
+            body=body,
+            trace_id=span.trace_id,
+            span_id=span.span_id,
+            attributes={
+                "gen_ai.operation.name": op,
+                "gen_ai.request.model": model,
+            },
+            resource_attributes=svc.resource_attributes(),
+        )
+    )
     return logs

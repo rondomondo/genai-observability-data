@@ -1,4 +1,5 @@
 """Tests for the pydantic-ai scenario analysis agent in mock mode."""
+
 from __future__ import annotations
 
 import pytest

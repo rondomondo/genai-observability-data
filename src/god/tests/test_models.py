@@ -1,19 +1,15 @@
 """Tests for core data models — serialisation, enums, helpers."""
-from __future__ import annotations
 
-import json
+from __future__ import annotations
 
 import pytest
 
 from god.models import (
-    FinishReason,
-    GenAIOperation,
     LogEntry,
     LogLevel,
     Span,
     SpanEvent,
     SpanKind,
-    SpanStatus,
     Trace,
     _attrs_to_otlp,
     _severity_number,
@@ -71,23 +67,38 @@ def test_span_to_otlp_dict_structure() -> None:
 
 def test_span_no_parent_is_empty_string() -> None:
     span = Span(
-        trace_id="t", span_id="s", parent_span_id=None,
-        name="root", kind=SpanKind.SERVER, service_name="svc",
-        start_time_unix_nano=0, end_time_unix_nano=1,
+        trace_id="t",
+        span_id="s",
+        parent_span_id=None,
+        name="root",
+        kind=SpanKind.SERVER,
+        service_name="svc",
+        start_time_unix_nano=0,
+        end_time_unix_nano=1,
     )
     assert "parentSpanId" not in span.to_otlp_dict()
 
 
 def test_trace_root_span() -> None:
     root = Span(
-        trace_id="t", span_id="root", parent_span_id=None,
-        name="root", kind=SpanKind.SERVER, service_name="svc",
-        start_time_unix_nano=0, end_time_unix_nano=10,
+        trace_id="t",
+        span_id="root",
+        parent_span_id=None,
+        name="root",
+        kind=SpanKind.SERVER,
+        service_name="svc",
+        start_time_unix_nano=0,
+        end_time_unix_nano=10,
     )
     child = Span(
-        trace_id="t", span_id="child", parent_span_id="root",
-        name="child", kind=SpanKind.CLIENT, service_name="svc2",
-        start_time_unix_nano=1, end_time_unix_nano=9,
+        trace_id="t",
+        span_id="child",
+        parent_span_id="root",
+        name="child",
+        kind=SpanKind.CLIENT,
+        service_name="svc2",
+        start_time_unix_nano=1,
+        end_time_unix_nano=9,
     )
     trace = Trace(trace_id="t", spans=[root, child])
     assert trace.root_span() is root
@@ -96,16 +107,24 @@ def test_trace_root_span() -> None:
 def test_trace_to_otlp_dict_groups_by_service() -> None:
     def _make(sid: str, svc: str, pid: str | None = None) -> Span:
         return Span(
-            trace_id="t", span_id=sid, parent_span_id=pid,
-            name="x", kind=SpanKind.INTERNAL, service_name=svc,
-            start_time_unix_nano=0, end_time_unix_nano=1,
+            trace_id="t",
+            span_id=sid,
+            parent_span_id=pid,
+            name="x",
+            kind=SpanKind.INTERNAL,
+            service_name=svc,
+            start_time_unix_nano=0,
+            end_time_unix_nano=1,
         )
 
-    trace = Trace(trace_id="t", spans=[
-        _make("s1", "svc-a"),
-        _make("s2", "svc-a", "s1"),
-        _make("s3", "svc-b", "s1"),
-    ])
+    trace = Trace(
+        trace_id="t",
+        spans=[
+            _make("s1", "svc-a"),
+            _make("s2", "svc-a", "s1"),
+            _make("s3", "svc-b", "s1"),
+        ],
+    )
     d = trace.to_otlp_dict()
     services = {rs["scopeSpans"][0]["scope"]["name"] for rs in d["resourceSpans"]}
     assert "synthetic.svc-a" in services
@@ -157,13 +176,15 @@ def test_log_entry_to_otlp_dict() -> None:
 
 
 def test_attrs_to_otlp_types() -> None:
-    attrs = _attrs_to_otlp({
-        "bool_val": True,
-        "int_val": 42,
-        "float_val": 3.14,
-        "str_val": "hello",
-        "list_val": [1, 2],
-    })
+    attrs = _attrs_to_otlp(
+        {
+            "bool_val": True,
+            "int_val": 42,
+            "float_val": 3.14,
+            "str_val": "hello",
+            "list_val": [1, 2],
+        }
+    )
     by_key = {a["key"]: a["value"] for a in attrs}
     assert by_key["bool_val"] == {"boolValue": True}
     assert by_key["int_val"] == {"intValue": "42"}

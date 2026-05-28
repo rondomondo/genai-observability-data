@@ -15,17 +15,17 @@ Built-in scenarios:
   - auth_outage           Auth service down → 401s across all services
   - kafka_lag             Consumer lag spike → notification delivery delays
 """
+
 from __future__ import annotations
 
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Callable, Iterator
+from enum import StrEnum
 
 from god.services import ServiceRegistry
 
 
-class ScenarioState(str, Enum):
+class ScenarioState(StrEnum):
     PENDING = "pending"
     ACTIVE = "active"
     RECOVERING = "recovering"
@@ -41,10 +41,11 @@ class Scenario:
     apply() is called once when the scenario becomes active.
     recover() is called once when it expires.
     """
+
     name: str
     description: str
-    start_offset_s: float       # seconds after epoch
-    end_offset_s: float         # seconds after epoch
+    start_offset_s: float  # seconds after epoch
+    end_offset_s: float  # seconds after epoch
     apply: Callable[[ServiceRegistry], None]
     recover: Callable[[ServiceRegistry], None]
     state: ScenarioState = ScenarioState.PENDING
@@ -70,6 +71,7 @@ class Scenario:
 # Scenario factory functions
 # ---------------------------------------------------------------------------
 
+
 def db_degradation(
     target: str = "postgres-payments",
     start_s: float = 60,
@@ -81,6 +83,7 @@ def db_degradation(
     Simulates connection pool exhaustion on a database.
     Upstream callers (e.g. payments-service) see cascading errors.
     """
+
     def apply(reg: ServiceRegistry) -> None:
         reg.propagate_fault(target, error_rate, latency_multiplier)
 
@@ -95,7 +98,7 @@ def db_degradation(
 
     return Scenario(
         name="db_degradation",
-        description=f"Connection pool exhaustion on {target}: error_rate={error_rate:.0%}, latency x{latency_multiplier}",
+        description=f"Connection pool exhaustion {target}: error_rate={error_rate:.0%}, latency x{latency_multiplier}",
         start_offset_s=start_s,
         end_offset_s=start_s + duration_s,
         apply=apply,
@@ -148,6 +151,7 @@ def token_budget_breach(
     Simulates a misconfigured max_tokens causing frequent LENGTH truncations.
     Not an error per se, but a quality degradation signal.
     """
+
     def apply(reg: ServiceRegistry) -> None:
         # Mark with a custom attribute rather than error rate
         svc = reg.get(target)
@@ -176,6 +180,7 @@ def provider_failover(
     Primary LLM provider becomes unavailable.
     Models a retry/failover pattern — primary errors spike, then recover.
     """
+
     def apply(reg: ServiceRegistry) -> None:
         reg.propagate_fault(primary, error_rate=0.95, latency_multiplier=3.0)
 
@@ -204,6 +209,7 @@ def vector_db_slowdown(
     """
     Vector index rebuild or high concurrency causing retrieval degradation.
     """
+
     def apply(reg: ServiceRegistry) -> None:
         reg.propagate_fault(target, error_rate=0.05, latency_multiplier=latency_multiplier)
 
@@ -230,6 +236,7 @@ def payments_error_burst(
     """
     Payment processor returns errors — cascades up to gateway.
     """
+
     def apply(reg: ServiceRegistry) -> None:
         reg.propagate_fault("payments-service", error_rate=0.6, latency_multiplier=4.0)
 
@@ -257,6 +264,7 @@ def auth_outage(
     """
     Auth service hard down — all authenticated endpoints return 401/503.
     """
+
     def apply(reg: ServiceRegistry) -> None:
         reg.propagate_fault("auth-service", error_rate=1.0, latency_multiplier=1.0)
 
@@ -283,6 +291,7 @@ def kafka_lag(
     """
     Kafka consumer lag spike — notification delays, no hard errors.
     """
+
     def apply(reg: ServiceRegistry) -> None:
         reg.propagate_fault("kafka", error_rate=0.02, latency_multiplier=10.0)
 
@@ -337,6 +346,7 @@ SCENARIO_PRESETS: dict[str, Callable[[], list[Scenario]]] = {
 # Scenario runner
 # ---------------------------------------------------------------------------
 
+
 class ScenarioEngine:
     """
     Applies and expires scenarios as virtual time advances.
@@ -374,11 +384,8 @@ class ScenarioEngine:
         return tags
 
     @classmethod
-    def from_preset(cls, name: str, registry: ServiceRegistry) -> "ScenarioEngine":
+    def from_preset(cls, name: str, registry: ServiceRegistry) -> ScenarioEngine:
         factory = SCENARIO_PRESETS.get(name)
         if factory is None:
-            raise ValueError(
-                f"Unknown scenario preset '{name}'. "
-                f"Available: {list(SCENARIO_PRESETS.keys())}"
-            )
+            raise ValueError(f"Unknown scenario preset '{name}'. Available: {list(SCENARIO_PRESETS.keys())}")
         return cls(registry, factory())

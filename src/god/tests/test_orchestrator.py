@@ -1,10 +1,10 @@
 """Tests for the orchestrator — full trace generation and dataset iteration."""
+
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
-from god.models import Trace, SpanStatus
+from god.models import SpanStatus, Trace
 from god.orchestrator import generate_dataset, generate_trace
 from god.services import ServiceRegistry
 
@@ -83,6 +83,7 @@ def test_generate_dataset_timestamps_increase() -> None:
 
 def test_generate_dataset_with_scenario_engine() -> None:
     from god.scenarios import ScenarioEngine, llm_latency_spike
+
     reg = ServiceRegistry()
     engine = ScenarioEngine(reg, [llm_latency_spike(start_s=0, duration_s=100)])
     results = list(generate_dataset(reg, n_traces=20, rng_seed=3, engine=engine))
@@ -91,6 +92,7 @@ def test_generate_dataset_with_scenario_engine() -> None:
 
 def test_generate_trace_with_scenario_tags() -> None:
     from god.scenarios import ScenarioEngine, vector_db_slowdown
+
     reg = ServiceRegistry()
     engine = ScenarioEngine(reg, [vector_db_slowdown(start_s=0, duration_s=100)])
     engine.tick(0.0)

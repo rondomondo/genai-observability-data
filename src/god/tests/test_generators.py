@@ -1,4 +1,5 @@
 """Tests for span generators — genai and infra."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -97,6 +98,7 @@ def _grpc_svc() -> ServiceDef:
 
 # Inference span
 
+
 def test_inference_span_basic_structure() -> None:
     svc = _llm_svc()
     span, end_ms = build_inference_span(svc, "trace1", None, 1000.0, _rng())
@@ -149,6 +151,7 @@ def test_inference_span_ttft_multiplier() -> None:
 
 # Embedding span
 
+
 def test_embedding_span_structure() -> None:
     svc = _embed_svc()
     span, end_ms = build_embedding_span(svc, "t", None, 0.0, _rng())
@@ -158,6 +161,7 @@ def test_embedding_span_structure() -> None:
 
 
 # Retrieval span
+
 
 def test_retrieval_span_structure() -> None:
     svc = _vector_svc()
@@ -177,6 +181,7 @@ def test_retrieval_span_latency_multiplier() -> None:
 
 # Tool spans
 
+
 def test_tool_span_structure() -> None:
     svc = _llm_svc()
     span, end_ms = build_tool_span(svc, "t", None, 0.0, _rng())
@@ -193,6 +198,7 @@ def test_mcp_tool_span_has_mcp_attrs() -> None:
 
 
 # Full RAG trace
+
 
 def test_rag_trace_returns_multiple_spans() -> None:
     reg = ServiceRegistry()
@@ -212,12 +218,14 @@ def test_rag_trace_end_time_after_start() -> None:
 
 # GenAI log generators
 
+
 def test_genai_logs_chat_success() -> None:
     svc = _llm_svc()
     span, _ = build_inference_span(svc, "t", None, 0.0, _rng(5))
     logs = generate_genai_logs(span, svc, _rng())
     assert len(logs) >= 1
     from god.models import LogLevel
+
     assert any(l.level in (LogLevel.INFO, LogLevel.WARN) for l in logs)
 
 
@@ -229,6 +237,7 @@ def test_genai_logs_embedding() -> None:
 
 
 # Infra span builders
+
 
 def test_http_span_structure() -> None:
     svc = _http_svc()

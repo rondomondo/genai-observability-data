@@ -8,6 +8,7 @@ Supported formats and destinations:
 
 All sinks implement the Sink protocol: flush(traces, logs).
 """
+
 from __future__ import annotations
 
 import gzip
@@ -15,22 +16,19 @@ import json
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Sequence
 from urllib import request as urllib_request
 from urllib.error import URLError
 
-
 from god.models import LogEntry, Trace
-
 
 # ---------------------------------------------------------------------------
 # Sink protocol
 # ---------------------------------------------------------------------------
 
+
 class Sink(ABC):
     @abstractmethod
-    def flush(self, traces: list[Trace], logs: list[LogEntry]) -> None:
-        ...
+    def flush(self, traces: list[Trace], logs: list[LogEntry]) -> None: ...
 
     def close(self) -> None:
         pass
@@ -39,6 +37,7 @@ class Sink(ABC):
 # ---------------------------------------------------------------------------
 # Stdout sink (logfmt, human-readable)
 # ---------------------------------------------------------------------------
+
 
 class StdoutSink(Sink):
     """
@@ -61,9 +60,10 @@ class StdoutSink(Sink):
                 spans = len(trace.spans)
                 errors = sum(1 for s in trace.spans if s.status.value == "ERROR")
                 duration = (
-                    (max(s.end_time_unix_nano for s in trace.spans) -
-                     min(s.start_time_unix_nano for s in trace.spans)) / 1_000_000
-                    if trace.spans else 0
+                    (max(s.end_time_unix_nano for s in trace.spans) - min(s.start_time_unix_nano for s in trace.spans))
+                    / 1_000_000
+                    if trace.spans
+                    else 0
                 )
                 status = "ERROR" if errors else "OK"
                 print(
@@ -76,6 +76,7 @@ class StdoutSink(Sink):
 # ---------------------------------------------------------------------------
 # File sink
 # ---------------------------------------------------------------------------
+
 
 class FileSink(Sink):
     """
@@ -133,6 +134,7 @@ class FileSink(Sink):
 # OTLP HTTP sink
 # ---------------------------------------------------------------------------
 
+
 class OTLPHttpSink(Sink):
     """
     Sends traces and logs to an OTLP-compatible HTTP endpoint.
@@ -177,6 +179,7 @@ class OTLPHttpSink(Sink):
 # Multi-sink (fan-out)
 # ---------------------------------------------------------------------------
 
+
 class MultiSink(Sink):
     def __init__(self, sinks: list[Sink]):
         self.sinks = sinks
@@ -194,6 +197,7 @@ class MultiSink(Sink):
 # OTLP format helpers
 # ---------------------------------------------------------------------------
 
+
 def _logs_to_otlp(logs: list[LogEntry]) -> dict:
     """
     Convert log entries to OTLP resourceLogs format.
@@ -205,18 +209,24 @@ def _logs_to_otlp(logs: list[LogEntry]) -> dict:
 
     resource_logs = []
     for svc_name, svc_logs in by_service.items():
-        resource_logs.append({
-            "resource": {
-                "attributes": svc_logs[0].resource_attributes
-                    and [{"key": k, "value": {"stringValue": str(v)}}
-                         for k, v in svc_logs[0].resource_attributes.items()]
+        resource_logs.append(
+            {
+                "resource": {
+                    "attributes": svc_logs[0].resource_attributes
+                    and [
+                        {"key": k, "value": {"stringValue": str(v)}}
+                        for k, v in svc_logs[0].resource_attributes.items()
+                    ]
                     or [],
-            },
-            "scopeLogs": [{
-                "scope": {"name": f"synthetic.{svc_name}", "version": "1.0.0"},
-                "logRecords": [l.to_otlp_dict() for l in svc_logs],
-            }],
-        })
+                },
+                "scopeLogs": [
+                    {
+                        "scope": {"name": f"synthetic.{svc_name}", "version": "1.0.0"},
+                        "logRecords": [l.to_otlp_dict() for l in svc_logs],
+                    }
+                ],
+            }
+        )
     return {"resourceLogs": resource_logs}
 
 

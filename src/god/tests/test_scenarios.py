@@ -1,20 +1,16 @@
 """Tests for the scenario engine and fault injection presets."""
+
 from __future__ import annotations
 
 import pytest
 
 from god.scenarios import (
     SCENARIO_PRESETS,
-    Scenario,
     ScenarioEngine,
     ScenarioState,
     auth_outage,
     db_degradation,
-    kafka_lag,
     llm_latency_spike,
-    payments_error_burst,
-    provider_failover,
-    token_budget_breach,
     vector_db_slowdown,
 )
 from god.services import ServiceRegistry
@@ -101,10 +97,13 @@ def test_scenario_engine_tick_activates() -> None:
 
 def test_scenario_engine_active_names() -> None:
     reg = _registry()
-    engine = ScenarioEngine(reg, [
-        db_degradation(start_s=0, duration_s=30),
-        auth_outage(start_s=0, duration_s=30),
-    ])
+    engine = ScenarioEngine(
+        reg,
+        [
+            db_degradation(start_s=0, duration_s=30),
+            auth_outage(start_s=0, duration_s=30),
+        ],
+    )
     engine.tick(0.0)
     names = engine.active_scenario_names()
     assert "db_degradation" in names
@@ -139,7 +138,6 @@ def test_scenario_engine_from_preset_unknown_raises() -> None:
 
 
 def test_all_presets_return_list() -> None:
-    reg = _registry()
     for name, factory in SCENARIO_PRESETS.items():
         scenarios = factory()
         assert isinstance(scenarios, list), f"Preset '{name}' did not return a list"

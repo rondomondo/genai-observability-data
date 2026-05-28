@@ -6,19 +6,20 @@ summary: active scenarios, anomaly signals, and recommended next actions.
 In mock mode (GOD_MOCK_MODE=true or no ANTHROPIC_API_KEY) the agent uses
 a FunctionModel — no network calls, no API key required.
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent
 
 from god.deps import GodDeps
 from god.models import LogEntry, SpanStatus, Trace
 
-
 # Output model returned by the agent
+
 
 class AnomalySignal(BaseModel):
     service: str
@@ -59,12 +60,8 @@ Be concise. Focus on signals that indicate real production problems.""",
 def _summarise_batch(traces: list[Trace], logs: list[LogEntry]) -> dict[str, Any]:
     """Build a compact JSON-serialisable summary of a trace batch for the agent."""
     total_spans = sum(len(t.spans) for t in traces)
-    error_spans = sum(
-        1 for t in traces for s in t.spans if s.status == SpanStatus.ERROR
-    )
-    durations = [
-        s.duration_ms for t in traces for s in t.spans if s.duration_ms > 0
-    ]
+    error_spans = sum(1 for t in traces for s in t.spans if s.status == SpanStatus.ERROR)
+    durations = [s.duration_ms for t in traces for s in t.spans if s.duration_ms > 0]
     durations.sort()
     p99_idx = max(0, int(len(durations) * 0.99) - 1)
     p99_ms = durations[p99_idx] if durations else 0.0
@@ -80,13 +77,13 @@ def _summarise_batch(traces: list[Trace], logs: list[LogEntry]) -> dict[str, Any
 
     # GenAI-specific signals
     token_truncations = sum(
-        1 for t in traces for s in t.spans
-        if "length" in str(s.attributes.get("gen_ai.response.finish_reasons", []))
+        1 for t in traces for s in t.spans if "length" in str(s.attributes.get("gen_ai.response.finish_reasons", []))
     )
     tool_failures = sum(
-        1 for t in traces for s in t.spans
-        if s.attributes.get("gen_ai.operation.name") == "execute_tool"
-        and s.status == SpanStatus.ERROR
+        1
+        for t in traces
+        for s in t.spans
+        if s.attributes.get("gen_ai.operation.name") == "execute_tool" and s.status == SpanStatus.ERROR
     )
 
     return {
@@ -120,7 +117,6 @@ async def analyse_batch(
     Returns:
         A structured ScenarioAnalysis with anomaly signals and recommendations
     """
-    from god.config import get_settings
 
     settings = deps.settings
     summary = _summarise_batch(traces, logs)

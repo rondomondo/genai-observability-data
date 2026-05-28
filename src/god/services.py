@@ -5,14 +5,14 @@ Services are defined as dataclasses with latency profiles, error rates,
 and upstream/downstream dependencies. The graph drives correlated failure
 propagation in the scenario engine.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Callable
+from enum import StrEnum
 
 
-class ServiceType(str, Enum):
+class ServiceType(StrEnum):
     HTTP_API = "http_api"
     GRPC_SERVICE = "grpc_service"
     DATABASE = "database"
@@ -31,6 +31,7 @@ class LatencyProfile:
     Log-normal latency distribution parameters.
     p50_ms / p99_ms are used to derive mu/sigma for numpy.random.lognormal.
     """
+
     p50_ms: float
     p99_ms: float
     timeout_ms: float = 5000.0
@@ -38,6 +39,7 @@ class LatencyProfile:
     def mu_sigma(self) -> tuple[float, float]:
         """Derive lognormal mu/sigma from p50 and p99."""
         import math
+
         mu = math.log(self.p50_ms)
         # p99 is approximately mu + 2.326 * sigma for lognormal
         sigma = (math.log(self.p99_ms) - mu) / 2.326
@@ -47,25 +49,25 @@ class LatencyProfile:
 @dataclass
 class ServiceDef:
     """Definition of a service in the topology."""
+
     name: str
     type: ServiceType
     version: str = "1.0.0"
     environment: str = "production"
     region: str = "eu-west-1"
     latency: LatencyProfile = field(default_factory=lambda: LatencyProfile(50, 500))
-    error_rate: float = 0.01          # baseline probability of error
+    error_rate: float = 0.01  # baseline probability of error
     dependencies: list[str] = field(default_factory=list)  # downstream service names
     # GenAI-specific
-    provider: str | None = None       # gen_ai.provider.name
-    model: str | None = None          # gen_ai.request.model
+    provider: str | None = None  # gen_ai.provider.name
+    model: str | None = None  # gen_ai.request.model
     # Runtime-injected overrides (set by scenario engine)
     _error_rate_override: float | None = field(default=None, repr=False)
     _latency_multiplier: float = field(default=1.0, repr=False)
 
     @property
     def effective_error_rate(self) -> float:
-        return self._error_rate_override if self._error_rate_override is not None \
-            else self.error_rate
+        return self._error_rate_override if self._error_rate_override is not None else self.error_rate
 
     @property
     def effective_latency(self) -> LatencyProfile:
@@ -112,7 +114,6 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         error_rate=0.005,
         dependencies=["auth-service", "rag-service", "payments-service"],
     ),
-
     # ── Auth ──────────────────────────────────────────────────────────────
     ServiceDef(
         name="auth-service",
@@ -127,7 +128,6 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         latency=LatencyProfile(p50_ms=3, p99_ms=40, timeout_ms=3000),
         error_rate=0.002,
     ),
-
     # ── RAG pipeline ──────────────────────────────────────────────────────
     ServiceDef(
         name="rag-service",
@@ -157,9 +157,8 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         error_rate=0.015,
         provider="anthropic",
         model="claude-sonnet-4-20250514",
-        dependencies=["vector-db"],   # tool call dependency
+        dependencies=["vector-db"],  # tool call dependency
     ),
-
     # ── Payments ──────────────────────────────────────────────────────────
     ServiceDef(
         name="payments-service",
@@ -180,7 +179,6 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         latency=LatencyProfile(p50_ms=10, p99_ms=50),
         error_rate=0.001,
     ),
-
     # ── Notifications (async consumer) ────────────────────────────────────
     ServiceDef(
         name="notifications-service",
@@ -197,7 +195,7 @@ class ServiceRegistry:
 
     def __init__(self, services: list[ServiceDef] | None = None):
         self._services: dict[str, ServiceDef] = {}
-        for svc in (services or DEFAULT_SERVICES):
+        for svc in services or DEFAULT_SERVICES:
             self._services[svc.name] = svc
 
     def get(self, name: str) -> ServiceDef:
@@ -207,8 +205,7 @@ class ServiceRegistry:
         return list(self._services.values())
 
     def dependencies_of(self, name: str) -> list[ServiceDef]:
-        return [self._services[d] for d in self.get(name).dependencies
-                if d in self._services]
+        return [self._services[d] for d in self.get(name).dependencies if d in self._services]
 
     def dependents_of(self, name: str) -> list[ServiceDef]:
         """Services that depend ON this service (upstream callers)."""
@@ -237,9 +234,7 @@ class ServiceRegistry:
                 existing = caller._error_rate_override or caller.error_rate
                 caller._error_rate_override = min(existing + bleed_error, 1.0)
             if bleed_latency > 1.0:
-                caller._latency_multiplier = max(
-                    caller._latency_multiplier, bleed_latency
-                )
+                caller._latency_multiplier = max(caller._latency_multiplier, bleed_latency)
 
     def clear_faults(self) -> None:
         for svc in self._services.values():
@@ -247,9 +242,15 @@ class ServiceRegistry:
             svc._latency_multiplier = 1.0
 
     def genai_services(self) -> list[ServiceDef]:
-        return [s for s in self._services.values()
-                if s.type in (
-                    ServiceType.GENAI_LLM, ServiceType.GENAI_EMBED,
-                    ServiceType.GENAI_VECTOR_DB, ServiceType.GENAI_RAG,
-                    ServiceType.GENAI_AGENT,
-                )]
+        return [
+            s
+            for s in self._services.values()
+            if s.type
+            in (
+                ServiceType.GENAI_LLM,
+                ServiceType.GENAI_EMBED,
+                ServiceType.GENAI_VECTOR_DB,
+                ServiceType.GENAI_RAG,
+                ServiceType.GENAI_AGENT,
+            )
+        ]

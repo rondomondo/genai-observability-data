@@ -1,9 +1,10 @@
 """Tests for service registry and dependency graph."""
+
 from __future__ import annotations
 
 import pytest
 
-from god.services import DEFAULT_SERVICES, LatencyProfile, ServiceDef, ServiceRegistry, ServiceType
+from god.services import LatencyProfile, ServiceDef, ServiceRegistry, ServiceType
 
 
 def test_latency_profile_mu_sigma_positive() -> None:

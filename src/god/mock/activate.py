@@ -4,6 +4,7 @@ Calling activate_mock_mode() replaces the pydantic-ai scenario_agent
 with a FunctionModel — no network calls, no API key required.
 The override is permanent for the process lifetime (using agent.override()).
 """
+
 from __future__ import annotations
 
 import contextlib

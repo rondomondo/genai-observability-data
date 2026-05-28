@@ -15,9 +15,9 @@ RESET  := \033[0m
 
 # -- Tooling --------------------------------------------------
 UV     := uv
-PYTEST := $(UV) run pytest
-RUFF   := $(UV) run ruff
-MYPY   := $(UV) run mypy
+PYTEST := $(UV) run --extra dev pytest
+RUFF   := $(UV) run --extra dev ruff
+MYPY   := $(UV) run --extra dev mypy
 
 # -- Paths ----------------------------------------------------
 PKG_DIR    := src/god
@@ -104,15 +104,15 @@ install-editable: check-uv ## Install god in editable mode (pip install -e .)
 # -- Code quality ---------------------------------------------
 .PHONY: format
 format: check-uv ## Format Python code with ruff
-	cd $(PKG_DIR) && $(UV) run ruff format .
+	cd $(PKG_DIR) && $(RUFF) format .
 
 .PHONY: lint
 lint: check-uv ## Lint and auto-fix with ruff
-	cd $(PKG_DIR) && $(UV) run ruff check --fix .
+	cd $(PKG_DIR) && $(RUFF) check --fix .
 
 .PHONY: typecheck
 typecheck: check-uv ## Static type checking with mypy
-	cd $(PKG_DIR) && $(UV) run mypy .
+	cd $(PKG_DIR) && $(MYPY) .
 
 .PHONY: ci
 ci: format lint typecheck test ## Run full CI pipeline (format, lint, typecheck, test)

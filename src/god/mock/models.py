@@ -4,13 +4,14 @@ Uses FunctionModel — fully deterministic, no network calls, no API key.
 Produces realistic-looking ScenarioAnalysis output based on the trace summary
 passed in the user message.
 """
+
 from __future__ import annotations
 
 import json
 import re
 
-from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 
 def _last_user_text(messages: list[ModelMessage]) -> str:
@@ -58,34 +59,42 @@ def _analysis_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse
             severity = "medium"
         else:
             severity = "low"
-        signals.append({
-            "service": svc,
-            "signal_type": "error_spike",
-            "severity": severity,
-            "detail": f"{svc_err_rate:.0%} error rate ({count}/{total} spans)",
-        })
+        signals.append(
+            {
+                "service": svc,
+                "signal_type": "error_spike",
+                "severity": severity,
+                "detail": f"{svc_err_rate:.0%} error rate ({count}/{total} spans)",
+            }
+        )
 
     if p99 > 5000:
-        signals.append({
-            "service": "llm-anthropic",
-            "signal_type": "latency_spike",
-            "severity": "high",
-            "detail": f"p99 latency {p99:.0f}ms exceeds 5s threshold",
-        })
+        signals.append(
+            {
+                "service": "llm-anthropic",
+                "signal_type": "latency_spike",
+                "severity": "high",
+                "detail": f"p99 latency {p99:.0f}ms exceeds 5s threshold",
+            }
+        )
     if truncations > 0:
-        signals.append({
-            "service": "llm-anthropic",
-            "signal_type": "token_truncation",
-            "severity": "medium",
-            "detail": f"{truncations} responses truncated at token limit",
-        })
+        signals.append(
+            {
+                "service": "llm-anthropic",
+                "signal_type": "token_truncation",
+                "severity": "medium",
+                "detail": f"{truncations} responses truncated at token limit",
+            }
+        )
     if tool_failures > 0:
-        signals.append({
-            "service": "llm-anthropic",
-            "signal_type": "tool_failure",
-            "severity": "medium",
-            "detail": f"{tool_failures} tool calls failed",
-        })
+        signals.append(
+            {
+                "service": "llm-anthropic",
+                "signal_type": "tool_failure",
+                "severity": "medium",
+                "detail": f"{tool_failures} tool calls failed",
+            }
+        )
 
     # Recommended action
     if error_rate > 0.3:
@@ -101,14 +110,10 @@ def _analysis_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse
     if active_hints:
         scenario_str = ", ".join(active_hints)
         summary_text = (
-            f"Active fault scenarios: {scenario_str}. "
-            f"Overall error rate {error_rate:.1%}, p99 latency {p99:.0f}ms."
+            f"Active fault scenarios: {scenario_str}. Overall error rate {error_rate:.1%}, p99 latency {p99:.0f}ms."
         )
     else:
-        summary_text = (
-            f"No active fault scenarios. "
-            f"System nominal — error rate {error_rate:.1%}, p99 {p99:.0f}ms."
-        )
+        summary_text = f"No active fault scenarios. System nominal — error rate {error_rate:.1%}, p99 {p99:.0f}ms."
 
     result = {
         "active_scenarios": active_hints,

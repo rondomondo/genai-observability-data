@@ -6,30 +6,35 @@ the dependency graph and generating correlated spans and logs.
 Also generates standalone log bursts (background noise logs not tied
 to a specific user-initiated request).
 """
+
 from __future__ import annotations
 
-import random
-from typing import Generator
+from collections.abc import Generator
 
 import numpy as np
 
 from god.generators.genai import (
-    build_embedding_span, build_inference_span, build_mcp_tool_span,
-    build_rag_trace, build_retrieval_span, build_tool_span,
+    build_embedding_span,
+    build_inference_span,
+    build_rag_trace,
+    build_retrieval_span,
     generate_genai_logs,
 )
 from god.generators.infra import (
-    build_db_span, build_grpc_span, build_http_span, build_queue_span,
+    build_db_span,
+    build_grpc_span,
+    build_http_span,
+    build_queue_span,
     generate_logs_for_span,
 )
-from god.models import LogEntry, Span, SpanStatus, Trace, new_id
+from god.models import LogEntry, Span, Trace, new_id
 from god.scenarios import ScenarioEngine
 from god.services import ServiceRegistry, ServiceType
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _ns(ms: float) -> int:
     return int(ms * 1_000_000)
@@ -50,6 +55,7 @@ def _scenario_retrieval_multiplier(engine: ScenarioEngine | None) -> float:
 # ---------------------------------------------------------------------------
 # Single span builder dispatch
 # ---------------------------------------------------------------------------
+
 
 def _build_span_for_service(
     svc,
@@ -104,7 +110,10 @@ def _build_span_for_service(
         # RAG builds its own multi-span subtrace
         rag_spans, end_ms = build_rag_trace(
             None,  # registry injected below, handled in generate_trace
-            trace_id, parent_span_id, start_ms, rng,
+            trace_id,
+            parent_span_id,
+            start_ms,
+            rng,
         )
         spans.extend(rag_spans)
         for s in rag_spans:
@@ -118,7 +127,8 @@ def _build_span_for_service(
 
 def _mock_svc_for_span(span: Span):
     """Create a minimal ServiceDef-like object for log generation."""
-    from god.services import ServiceDef, ServiceType, LatencyProfile
+    from god.services import LatencyProfile, ServiceDef, ServiceType
+
     return ServiceDef(
         name=span.service_name,
         type=ServiceType.GENAI_LLM,
@@ -129,6 +139,7 @@ def _mock_svc_for_span(span: Span):
 # ---------------------------------------------------------------------------
 # Full trace generator
 # ---------------------------------------------------------------------------
+
 
 def generate_trace(
     registry: ServiceRegistry,
@@ -162,17 +173,14 @@ def generate_trace(
 
     # ── auth-service ──────────────────────────────────────────────────────
     auth_svc = registry.get("auth-service")
-    auth_span, auth_end = build_grpc_span(
-        auth_svc, trace_id, gw_span.span_id, child_start, rng
-    )
+    auth_span, auth_end = build_grpc_span(auth_svc, trace_id, gw_span.span_id, child_start, rng)
     all_spans.append(auth_span)
     all_logs.extend(generate_logs_for_span(auth_span, auth_svc, rng))
 
     # postgres-auth child of auth
     pg_auth_svc = registry.get("postgres-auth")
     pg_auth_span, _ = build_db_span(
-        pg_auth_svc, trace_id, auth_span.span_id,
-        auth_end - float(rng.uniform(10, 30)), rng
+        pg_auth_svc, trace_id, auth_span.span_id, auth_end - float(rng.uniform(10, 30)), rng
     )
     all_spans.append(pg_auth_span)
     all_logs.extend(generate_logs_for_span(pg_auth_span, pg_auth_svc, rng))
@@ -183,10 +191,13 @@ def generate_trace(
 
     if path_roll < 0.50 or path_roll >= 0.85:
         # RAG pipeline
-        rag_svc = registry.get("rag-service")
         rag_start = auth_end + float(rng.uniform(2, 8))
         rag_spans, rag_end = build_rag_trace(
-            registry, trace_id, gw_span.span_id, rag_start, rng,
+            registry,
+            trace_id,
+            gw_span.span_id,
+            rag_start,
+            rng,
             capture_content=capture_content,
             ttft_multiplier=ttft_mult,
             retrieval_latency_multiplier=retrieval_mult,
@@ -204,26 +215,20 @@ def generate_trace(
         # Payments path
         pay_svc = registry.get("payments-service")
         pay_start = auth_end + float(rng.uniform(2, 8))
-        pay_span, pay_end = build_http_span(
-            pay_svc, trace_id, gw_span.span_id, pay_start, rng
-        )
+        pay_span, pay_end = build_http_span(pay_svc, trace_id, gw_span.span_id, pay_start, rng)
         all_spans.append(pay_span)
         all_logs.extend(generate_logs_for_span(pay_span, pay_svc, rng))
 
         # postgres-payments
         pg_pay = registry.get("postgres-payments")
-        pg_pay_span, _ = build_db_span(
-            pg_pay, trace_id, pay_span.span_id,
-            pay_end - float(rng.uniform(20, 80)), rng
-        )
+        pg_pay_span, _ = build_db_span(pg_pay, trace_id, pay_span.span_id, pay_end - float(rng.uniform(20, 80)), rng)
         all_spans.append(pg_pay_span)
         all_logs.extend(generate_logs_for_span(pg_pay_span, pg_pay, rng))
 
         # kafka publish
         kafka_svc = registry.get("kafka")
         kafka_span, _ = build_queue_span(
-            kafka_svc, trace_id, pay_span.span_id,
-            pay_end - float(rng.uniform(5, 20)), rng, is_producer=True
+            kafka_svc, trace_id, pay_span.span_id, pay_end - float(rng.uniform(5, 20)), rng, is_producer=True
         )
         all_spans.append(kafka_span)
         all_logs.extend(generate_logs_for_span(kafka_span, kafka_svc, rng))
@@ -235,6 +240,7 @@ def generate_trace(
 # ---------------------------------------------------------------------------
 # Bulk generator
 # ---------------------------------------------------------------------------
+
 
 def generate_dataset(
     registry: ServiceRegistry,
@@ -281,7 +287,9 @@ def generate_dataset(
         start_ms = base_epoch_ms + elapsed_ms + jitter_ms
 
         trace, logs = generate_trace(
-            registry, start_ms, rng,
+            registry,
+            start_ms,
+            rng,
             engine=engine,
             capture_content=capture_content,
         )
