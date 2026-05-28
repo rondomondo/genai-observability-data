@@ -222,7 +222,7 @@ stack-up: ## Start the full OTel stack (Collector, Jaeger, Loki, Grafana, Promet
 	@printf "  Grafana:    http://grafana:3000\n"
 	@printf "  Jaeger:     http://jaeger:16686\n"
 	@printf "  Prometheus: http://prometheus:9090\n"
-	@printf "  OTel OTLP:  http://localhost:4318\n"
+	@printf "  OTel OTLP:  http://otlp:4318\n"
 
 .PHONY: stack-down
 stack-down: ## Stop the OTel stack

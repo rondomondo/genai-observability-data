@@ -341,6 +341,8 @@ SCENARIO_PRESETS: dict[str, Callable[[], list[Scenario]]] = {
     "quiet": lambda: [],
 }
 
+SCENARIO_PRESETS["all"] = lambda: [s for name, factory in SCENARIO_PRESETS.items() if name not in ("all", "quiet") for s in factory()]
+
 
 # ---------------------------------------------------------------------------
 # Scenario runner

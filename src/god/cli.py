@@ -31,7 +31,7 @@ out = Console(theme=THEME, highlight=False)
 
 
 def _header(version: str) -> Panel:
-    title = Text("god", style="bold blue", justify="center")
+    title = Text("god-cli", style="bold blue", justify="center")
     title.append(f"  v{version}", style="dim")
     sub = Text("GenAI Observability Data Generator", style="dim", justify="center")
     content = Text.assemble(title, "\n", sub)
@@ -98,6 +98,62 @@ def _config_table(
     return t
 
 
+def _status_panel(settings, args) -> Panel:
+    import os
+
+    from god.scenarios import SCENARIO_PRESETS
+
+    use_mock = args.mock or settings.mock_mode
+    n_traces = args.traces or settings.default_traces
+    rate = args.rate or settings.default_rate
+    batch_size = args.batch_size or settings.default_batch_size
+
+    t = Table(box=box.SIMPLE, show_header=False, padding=(0, 1), border_style="dim")
+    t.add_column("key", style="dim", no_wrap=True)
+    t.add_column("value", style="value")
+    t.add_column("source", style="dim", no_wrap=True)
+
+    def _src(env_var: str, cli_val: object, default: object) -> str:
+        if cli_val is not None and cli_val != default:
+            return "cli"
+        if os.environ.get(env_var):
+            return f"env:{env_var}"
+        return "default"
+
+    def add(key: str, val: str, source: str, style: str = "value") -> None:
+        t.add_row(key, Text(val, style=style), source)
+
+    add("mock", str(use_mock), _src("GOD_MOCK_MODE", args.mock or None, False), style="warn" if use_mock else "dim")
+    add("traces", str(n_traces), _src("GOD_DEFAULT_TRACES", args.traces, None))
+    add("rate", f"{rate}/s", _src("GOD_DEFAULT_RATE", args.rate, None))
+    add("batch-size", str(batch_size), _src("GOD_DEFAULT_BATCH_SIZE", args.batch_size, None))
+
+    scenario_src = "cli" if args.scenario else "default"
+    add("scenario", args.scenario or "none", scenario_src, style="scenario" if args.scenario else "dim")
+
+    if args.scenario:
+        count = len(SCENARIO_PRESETS[args.scenario]())
+        add("  scenario-count", str(count), "")
+
+    add("format", ", ".join(args.format), "cli" if args.format != ["logfmt"] else "default")
+
+    if args.otlp:
+        add("otlp", args.otlp, "cli", style="cyan")
+    elif args.output:
+        add("output", args.output, "cli")
+    else:
+        add("output", "stdout", "default")
+
+    add("capture-content", str(args.capture_content), "cli" if args.capture_content else "default", style="warn" if args.capture_content else "dim")
+    add("analyse", str(args.analyse), "cli" if args.analyse else "default")
+
+    api_key_set = bool(settings.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY"))
+    add("anthropic-api-key", "set" if api_key_set else "NOT SET", "env" if api_key_set else "default", style="success" if api_key_set else ("warn" if args.analyse and not use_mock else "dim"))
+    add("agent-model", settings.agent_model, _src("GOD_AGENT_MODEL", args.agent_model, None))
+
+    return Panel(t, title="[bold]Runtime status[/bold]", box=box.ROUNDED, border_style="blue", padding=(0, 1))
+
+
 def _analysis_panel(result) -> Panel:  # type: ignore[type-arg]
     lines: list[tuple[str, str]] = [
         ("Active scenarios", ", ".join(result.active_scenarios) if result.active_scenarios else "none"),
@@ -156,6 +212,7 @@ def _print_help(version: str) -> None:
         ("", ""),
         ("Meta", ""),
         ("  --list-scenarios", "List available scenario presets"),
+        ("  --status", "Show resolved runtime configuration and exit"),
         ("  -q / --quiet", "Suppress progress output"),
         ("  -V / --version", "Show version and exit"),
     ]
@@ -166,7 +223,7 @@ def _print_help(version: str) -> None:
         else:
             t.add_row(flag, desc)
 
-    console.print(Panel(t, title="[bold]Usage[/bold]: god [OPTIONS]", box=box.ROUNDED, border_style="blue"))
+    console.print(Panel(t, title="[bold]Usage[/bold]: god-cli [OPTIONS]", box=box.ROUNDED, border_style="blue"))
 
 
 async def _run_analysis(traces: list, logs: list, deps, model_override: str | None):  # type: ignore[return]
@@ -186,7 +243,7 @@ def build_arg_parser():
     from god.scenarios import SCENARIO_PRESETS
 
     p = argparse.ArgumentParser(
-        prog="god",
+        prog="god-cli",
         description="Generate synthetic GenAI distributed traces and logs.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,
@@ -223,6 +280,7 @@ def build_arg_parser():
 
     meta = p.add_argument_group("Meta")
     meta.add_argument("--list-scenarios", action="store_true", default=False)
+    meta.add_argument("--status", action="store_true", default=False)
     meta.add_argument("--quiet", "-q", action="store_true", default=False)
 
     return p
@@ -264,6 +322,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
+    import sys
+
+    if not (argv if argv is not None else sys.argv[1:]):
+        from god import __version__
+
+        console.print(_header(__version__))
+        _print_help(__version__)
+        return 0
+
     from god import __version__
     from god.config import get_settings
     from god.orchestrator import generate_dataset
@@ -271,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
     from god.services import ServiceRegistry
 
     if args.version:
-        out.print(f"god {__version__}")
+        out.print(f"god-cli {__version__}")
         return 0
 
     if args.help:
@@ -285,6 +352,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     settings = get_settings()
+
+    if args.status:
+        console.print(_header(__version__))
+        console.print(_status_panel(settings, args))
+        return 0
     use_mock = args.mock or settings.mock_mode
 
     if use_mock:
