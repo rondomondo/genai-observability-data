@@ -43,7 +43,7 @@ lint: ## Lint and auto-fix Python code (ruff)
 
 .PHONY: typecheck
 typecheck: ## Run mypy type checks
-	$(UV) run mypy .
+	cd .. && $(UV) --project god run --extra dev mypy god
 
 # -- Tests -----------------------------------------------------
 .PHONY: test

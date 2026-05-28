@@ -112,7 +112,7 @@ lint: check-uv ## Lint and auto-fix with ruff
 
 .PHONY: typecheck
 typecheck: check-uv ## Static type checking with mypy
-	cd $(PKG_DIR) && $(MYPY) .
+	cd src && $(MYPY) god
 
 .PHONY: ci
 ci: format lint typecheck test ## Run full CI pipeline (format, lint, typecheck, test)
