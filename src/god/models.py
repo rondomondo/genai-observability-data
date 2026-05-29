@@ -79,6 +79,7 @@ class GenAIOperation(StrEnum):
 class GenAIProvider(StrEnum):
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
+    GOOGLE = "google"
     AWS_BEDROCK = "aws.bedrock"
     AZURE_AI = "azure.ai_inference"
 

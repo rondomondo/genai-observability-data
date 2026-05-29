@@ -226,6 +226,7 @@ stack-up: ## Start the full OTel stack (Collector, Jaeger, Loki, Grafana, Promet
 	@printf "  Jaeger:     http://jaeger:16686\n"
 	@printf "  Prometheus: http://prometheus:9090\n"
 	@printf "  OTel OTLP:  http://otlp:4318\n"
+	@printf "  Redis:      redis://localhost:6379\n"
 	@printf "$(GREEN)Dashboards:$(RESET)\n"
 	@printf "  Grafana:    http://grafana:3000/dashboards\n"
 	@printf "$(GREEN)Admin:$(RESET)\n"

@@ -148,7 +148,61 @@ _MODELS: dict[str, dict] = {
         "inter_token_p50_ms": 0,
         "inter_token_p99_ms": 0,
     },
+    # Google chat models
+    "gemini-2.5-flash": {
+        "provider": GenAIProvider.GOOGLE,
+        "input_token_rate": 0.15,
+        "context_window": 1048576,
+        "typical_input_tokens": (500, 3000),
+        "typical_output_tokens": (100, 600),
+        "ttft_p50_ms": 300,
+        "ttft_p99_ms": 1500,
+        "inter_token_p50_ms": 12,
+        "inter_token_p99_ms": 40,
+    },
+    # Google embedding models
+    "gemini-embedding-001": {
+        "provider": GenAIProvider.GOOGLE,
+        "input_token_rate": 0.01,
+        "context_window": 2048,
+        "typical_input_tokens": (30, 400),
+        "typical_output_tokens": (0, 0),
+        "ttft_p50_ms": 100,
+        "ttft_p99_ms": 500,
+        "inter_token_p50_ms": 0,
+        "inter_token_p99_ms": 0,
+    },
+    "gemini-embedding-2": {
+        "provider": GenAIProvider.GOOGLE,
+        "input_token_rate": 0.015,
+        "context_window": 2048,
+        "typical_input_tokens": (30, 400),
+        "typical_output_tokens": (0, 0),
+        "ttft_p50_ms": 120,
+        "ttft_p99_ms": 600,
+        "inter_token_p50_ms": 0,
+        "inter_token_p99_ms": 0,
+    },
+    "text-embedding-004": {
+        "provider": GenAIProvider.GOOGLE,
+        "input_token_rate": 0.005,
+        "context_window": 2048,
+        "typical_input_tokens": (30, 400),
+        "typical_output_tokens": (0, 0),
+        "ttft_p50_ms": 80,
+        "ttft_p99_ms": 400,
+        "inter_token_p50_ms": 0,
+        "inter_token_p99_ms": 0,
+    },
 }
+
+
+_CHAT_MODELS = [
+    "claude-sonnet-4-20250514",
+    "claude-haiku-4-5-20251001",
+    "gpt-4o",
+    "gemini-2.5-flash",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +272,7 @@ def build_inference_span(
     Metrics captured as span events:
       gen_ai.content.first_token   (time-to-first-token)
     """
-    model = model or svc.model or "claude-sonnet-4-20250514"
+    model = model or svc.model or random.choice(_CHAT_MODELS)
     info = _model_info(model)
     span_id = new_id(16)
 

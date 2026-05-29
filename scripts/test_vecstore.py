@@ -59,9 +59,37 @@ except ImportError:
     sys.exit(1)
 
 DEFAULT_MODEL = "gemini-embedding-001"
-DEFAULT_DIM = 3072
+DEFAULT_DIM = 768
 DEFAULT_VSET_KEY = "genai:embeddings"
 DEFAULT_REDIS_URL = "redis://localhost:6379"
+
+SAMPLE_TEXT = "Redis vector sets use HNSW for approximate nearest-neighbour search."
+SAMPLE_QUERY = "nearest neighbour search in Redis"
+
+VECSTORE_NOTES = """
+Redis Vector Set tuning reference
+----------------------------------
+Quantization  Size vs FP32  Recall    Use when
+NOQUANT       1x            Perfect   Exact precision required
+Q8            4x smaller    ~99.99%   Default sweet spot  <-- this script uses Q8
+BIN           32x smaller   Lower     Speed/memory critical, recall less important
+
+Q8 reduces memory ~75%, improves search speed ~30%, recall loss is negligible.
+
+Dimensions   Model examples
+384-dim      all-MiniLM-L6-v2 -- very memory efficient
+768-dim      most BERT-family models, solid general purpose  <-- this script default
+1536-dim     OpenAI text-embedding-3-small
+3072-dim     OpenAI text-embedding-3-large, Gemini embedding-001 max
+
+HNSW graph: each node costs ~M*2 + M*0.33 pointers at 8 bytes each (default M=16).
+Lower M to shrink per-node memory at the cost of recall.
+
+Performance ballpark: ~50k similarity queries/s for 3M items at 300-dim with Q8.
+VSIM scales nearly linearly with CPU cores up to 32 threads.
+
+TL;DR for RAG/semantic search: Q8 + 768-dim + M=16 -- Redis-recommended baseline.
+"""
 
 EMBEDDING_MODELS: dict[str, str] = {
     "gemini-embedding-001": "stable, recommended (3072 dims max)",
@@ -293,8 +321,10 @@ async def _async_main() -> None:
         return
 
     if not args.text and not args.query:
-        print("Error: --text and/or --query is required (or use --list / --flush)", file=sys.stderr)
-        sys.exit(1)
+        args.text = SAMPLE_TEXT
+        args.query = SAMPLE_QUERY
+        log("  (no --text/--query given; running built-in sample round-trip)")
+        log(VECSTORE_NOTES)
 
     if not args.api_key:
         print("Error: --api-key is required or set $GEMINI_API_KEY", file=sys.stderr)

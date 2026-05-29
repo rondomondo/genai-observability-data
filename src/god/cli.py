@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 
 from rich import box
@@ -330,6 +331,12 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         exit code
     """
+    if os.environ.get("BRAINTRUST_API_KEY"):
+        import braintrust
+
+        braintrust.auto_instrument()
+        braintrust.init_logger(project="genai-observability-data")
+
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
@@ -488,5 +495,10 @@ def main(argv: list[str] | None = None) -> int:
         console.print("[info]Running scenario analysis agent...[/info]")
         result = asyncio.run(_run_analysis(all_traces, all_logs, deps, args.agent_model))
         console.print(_analysis_panel(result))
+
+    if os.environ.get("BRAINTRUST_API_KEY"):
+        import braintrust
+
+        braintrust.flush()
 
     return 0
