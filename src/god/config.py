@@ -19,13 +19,13 @@ class Settings(BaseSettings):
     )
 
     # Model used by the scenario-analysis agent
-    agent_model: str = Field(default="claude-haiku-4-5-20251001", alias="GOD_AGENT_MODEL")
+    agent_model: str = Field(default="gemini-2.5-flash", alias="GOD_AGENT_MODEL")
 
     # When True the pydantic-ai agent is replaced with a FunctionModel (no API key needed)
     mock_mode: bool = Field(default=True, alias="GOD_MOCK_MODE")
 
-    # Optional Anthropic key -- only needed when mock_mode=False
-    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    # Optional Gemini key -- only needed when mock_mode=False
+    gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
 
     # Generation defaults (all overridable via CLI args)
     default_traces: int = Field(default=100, alias="GOD_DEFAULT_TRACES")

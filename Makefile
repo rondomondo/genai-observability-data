@@ -331,4 +331,5 @@ clean-all: clean clean-output ## Remove all artifacts, caches, and the virtualen
 	@printf "$(CYAN)Removing$(RESET) .venv...\n"
 	@rm -rf $(PKG_DIR)/.venv $(REPO_DIR)/.venv
 	@find $(REPO_DIR) -type f -name 'uv.lock' -exec rm -rf {} + 2>/dev/null || true
+	@docker compose down -v || true
 	@printf "  $(GREEN)ok$(RESET)\n"

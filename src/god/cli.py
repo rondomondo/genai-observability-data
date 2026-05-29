@@ -154,9 +154,9 @@ def _status_panel(settings, args) -> Panel:
     )
     add("analyse", str(args.analyse), "cli" if args.analyse else "default")
 
-    api_key_set = bool(settings.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY"))
+    api_key_set = bool(settings.gemini_api_key or os.environ.get("GEMINI_API_KEY"))
     add(
-        "anthropic-api-key",
+        "gemini-api-key",
         "set" if api_key_set else "NOT SET",
         "env" if api_key_set else "default",
         style="success" if api_key_set else ("warn" if args.analyse and not use_mock else "dim"),

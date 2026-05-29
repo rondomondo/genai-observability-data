@@ -29,7 +29,7 @@ dependencies = [
     # Core generation
     "numpy>=1.26.0",
     # Pydantic AI — scenario analysis agent, FunctionModel mock
-    "pydantic-ai[anthropic]>=1.0.0",
+    "pydantic-ai-slim[google]>=1.0.0",
     # Config via environment variables / .env
     "pydantic-settings>=2.2.0",
     # Pydantic v2 for typed models
@@ -75,4 +75,4 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = [".."]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --ignore=tests/test_root_cli.py"

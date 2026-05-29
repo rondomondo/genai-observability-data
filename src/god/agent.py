@@ -3,8 +3,8 @@
 The agent analyses a batch of generated traces and produces a structured
 summary: active scenarios, anomaly signals, and recommended next actions.
 
-In mock mode (GOD_MOCK_MODE=true or no ANTHROPIC_API_KEY) the agent uses
-a FunctionModel — no network calls, no API key required.
+In mock mode (GOD_MOCK_MODE=true or no GEMINI_API_KEY) the agent uses
+a FunctionModel -- no network calls, no API key required.
 """
 
 from __future__ import annotations
@@ -127,7 +127,9 @@ async def analyse_batch(
 
     prompt = f"Analyse this trace batch:\n\n{json.dumps(summary, indent=2)}"
 
-    effective_model = model_name or settings.agent_model
+    raw_model = model_name or settings.agent_model
+    # pydantic-ai requires the "google-gla:" prefix for Google Generative AI models
+    effective_model = raw_model if raw_model.startswith("google-") else f"google-gla:{raw_model}"
 
     result = await scenario_agent.run(
         prompt,
