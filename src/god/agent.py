@@ -14,6 +14,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.models.fallback import FallbackModel
+from pydantic_ai.models.gemini import GeminiModel
 
 from god.deps import GodDeps
 from god.models import LogEntry, SpanStatus, Trace
@@ -128,8 +130,17 @@ async def analyse_batch(
     prompt = f"Analyse this trace batch:\n\n{json.dumps(summary, indent=2)}"
 
     raw_model = model_name or settings.agent_model
-    # pydantic-ai requires the "google-gla:" prefix for Google Generative AI models
-    effective_model = raw_model if raw_model.startswith("google-") else f"google-gla:{raw_model}"
+    fallback_model = None if model_name else settings.agent_fallback_model
+
+    def _to_gemini(name: str) -> GeminiModel:
+        # pydantic-ai GeminiModel accepts bare names; strip any "google-gla:" prefix callers may pass
+        bare = name.removeprefix("google-gla:")
+        return GeminiModel(bare)
+
+    if fallback_model:
+        effective_model: FallbackModel | str = FallbackModel(_to_gemini(raw_model), _to_gemini(fallback_model))
+    else:
+        effective_model = raw_model if raw_model.startswith("google-") else f"google-gla:{raw_model}"
 
     result = await scenario_agent.run(
         prompt,

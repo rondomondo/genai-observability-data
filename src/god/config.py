@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     # Model used by the scenario-analysis agent
     agent_model: str = Field(default="gemini-2.5-flash", alias="GOD_AGENT_MODEL")
+    # Fallback model tried when the primary returns a 503/overload error
+    agent_fallback_model: str | None = Field(default="gemini-2.0-flash", alias="GOD_AGENT_FALLBACK_MODEL")
 
     # When True the pydantic-ai agent is replaced with a FunctionModel (no API key needed)
     mock_mode: bool = Field(default=True, alias="GOD_MOCK_MODE")
