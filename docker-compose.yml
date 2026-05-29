@@ -78,8 +78,19 @@ services:
       - "9090:9090"   # Prometheus UI
     restart: unless-stopped
 
+  # Redis — vector-capable store (Redis 8 / trixie includes vector search built-in)
+  redis:
+    image: redis:trixie
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"   # Redis client port
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
 volumes:
   loki-data:
   grafana-data:
   prometheus-data:
   jaeger-badger:
+  redis-data:

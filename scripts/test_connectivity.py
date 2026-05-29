@@ -15,7 +15,7 @@ Embedding models available:
   text-embedding-004       (stable, lower-cost)
 
 Query model example:
-  gemini-2.0-flash
+  gemini-2.5-flash
 
 Exits 0 on success, 1 on any error.
 
@@ -56,11 +56,29 @@ EMBEDDING_MODELS: dict[str, str] = {
     "text-embedding-004": "stable, lower-cost, good for high-volume workloads",
 }
 
-PROBE_TEXT = "The quick brown fox jumps over the lazy dog."
-PROBE_PROMPT = "Reply with exactly the word: connected"
+QUERY_MODELS: dict[str, str] = {
+    "gemini-2.5-flash": "fast, cost-efficient, 1M token context",
+}
+
+SAMPLE_TEXT = "The quick brown fox jumps over the lazy dog."
+SAMPLE_PROMPT = """Endianness considerations for FP32 format 
+When using the FP32 blob format with vector set commands like VADD and VSIM, the binary data must be encoded in little-endian byte order. This is important for cross-platform compatibility, as some ARM variants and other architectures may use different endianness.
+
+If your platform uses big-endian or mixed-endian encoding, you have two options:
+
+Manually convert the byte order to little-endian before passing the blob to Redis.
+Use the VALUES syntax instead, which accepts floating-point numbers as strings and is platform-independent."""
+
+
+
 VECTOR_PREVIEW_LEN = 10
+SAMPLE_TIMEOUT_SECONDS = 30.0
+
 _SORTED_EMBEDDING_MODELS = sorted(EMBEDDING_MODELS)
-print(_SORTED_EMBEDDING_MODELS)
+_SORTED_QUERY_MODELS = sorted(QUERY_MODELS)
+_ALL_KNOWN_MODELS = sorted({*EMBEDDING_MODELS, *QUERY_MODELS})
+
+
 def _build_client(api_key: str, braintrust_key: str | None) -> genai.Client:
     """Build a GenAI client, optionally routed through the Braintrust gateway.
 
@@ -83,7 +101,7 @@ def _build_client(api_key: str, braintrust_key: str | None) -> genai.Client:
 
 
 async def _run_embed(client: genai.Client, model: str) -> dict[str, Any]:
-    """Run an embedding probe and return a professional-grade result payload.
+    """Run an embedding sample and return a professional-grade result payload.
 
     Args:
         client: configured GenAI client.
@@ -95,22 +113,34 @@ async def _run_embed(client: genai.Client, model: str) -> dict[str, Any]:
             - vector: full list of float32 values (use for ingestion)
             - norm: L2 norm of the vector (sanity-check; should be ~1.0 for normalised models)
             - first_5_values: first 5 values rounded to 6 dp (human-readable preview)
-            - text_preview: first 80 chars of the probe text
+            - text_preview: first 80 chars of the sample text
             - task_type: embedding task type reported by the API (if present)
             - elapsed_ms: wall-clock latency in milliseconds
+
+    Raises:
+        RuntimeError: if the API returns an empty or missing embedding.
+        asyncio.TimeoutError: if the request exceeds SAMPLE_TIMEOUT_SECONDS.
     """
     loop = asyncio.get_running_loop()
     t0 = time.perf_counter()
-    result = await loop.run_in_executor(
-        None,
-        lambda: client.models.embed_content(model=model, contents=PROBE_TEXT),
+    result = await asyncio.wait_for(
+        loop.run_in_executor(
+            None,
+            lambda: client.models.embed_content(model=model, contents=SAMPLE_TEXT),
+        ),
+        timeout=SAMPLE_TIMEOUT_SECONDS,
     )
     elapsed_ms = round((time.perf_counter() - t0) * 1000)
 
     embedding_obj = result.embeddings[0] if result.embeddings else None
-    vector: list[float] = list(embedding_obj.values) if embedding_obj else []
+    if embedding_obj is None:
+        raise RuntimeError(f"API returned no embeddings for model '{model}'")
 
-    norm = round(math.sqrt(sum(v * v for v in vector)), 6) if vector else 0.0
+    vector: list[float] = list(embedding_obj.values) if embedding_obj.values else []
+    if not vector:
+        raise RuntimeError(f"API returned an empty embedding vector for model '{model}'")
+
+    norm = round(math.sqrt(sum(v * v for v in vector)), 6)
 
     return {
         "elapsed_ms": elapsed_ms,
@@ -118,13 +148,13 @@ async def _run_embed(client: genai.Client, model: str) -> dict[str, Any]:
         "norm": norm,
         "vector": vector,
         "first_5_values": [round(v, 6) for v in vector[:5]],
-        "text_preview": PROBE_TEXT[:80],
+        "text_preview": SAMPLE_TEXT[:80],
         "task_type": getattr(embedding_obj, "task_type", None),
     }
 
 
 async def _run_query(client: genai.Client, model: str) -> dict[str, Any]:
-    """Run a minimal generative query probe and return result fields.
+    """Run a minimal generative query sample and return result fields.
 
     Args:
         client: configured GenAI client.
@@ -133,20 +163,42 @@ async def _run_query(client: genai.Client, model: str) -> dict[str, Any]:
     Returns:
         Dict with keys:
             - response_text: stripped text from the first candidate
-            - finish_reason: string representation of the finish reason
+            - finish_reason: finish reason name from the API
             - elapsed_ms: wall-clock latency in milliseconds
+
+    Raises:
+        RuntimeError: if the API returns no candidates or an empty response.
+        asyncio.TimeoutError: if the request exceeds SAMPLE_TIMEOUT_SECONDS.
     """
     loop = asyncio.get_running_loop()
     t0 = time.perf_counter()
-    result = await loop.run_in_executor(
-        None,
-        lambda: client.models.generate_content(model=model, contents=PROBE_PROMPT),
+    result = await asyncio.wait_for(
+        loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(model=model, contents=SAMPLE_PROMPT),
+        ),
+        timeout=SAMPLE_TIMEOUT_SECONDS,
     )
     elapsed_ms = round((time.perf_counter() - t0) * 1000)
 
     candidate = result.candidates[0] if result.candidates else None
-    response_text = candidate.content.parts[0].text.strip() if candidate else ""
-    finish_reason = str(candidate.finish_reason) if candidate else "unknown"
+    if candidate is None:
+        raise RuntimeError(f"API returned no candidates for model '{model}'")
+
+    response_text = (
+        candidate.content.parts[0].text.strip()
+        if candidate.content and candidate.content.parts
+        else ""
+    )
+    if not response_text:
+        raise RuntimeError(f"API returned an empty response text for model '{model}'")
+
+    # Use .name for a clean string like "STOP" rather than "FinishReason.STOP"
+    finish_reason = (
+        candidate.finish_reason.name
+        if hasattr(candidate.finish_reason, "name")
+        else str(candidate.finish_reason)
+    )
 
     return {
         "elapsed_ms": elapsed_ms,
@@ -156,17 +208,19 @@ async def _run_query(client: genai.Client, model: str) -> dict[str, Any]:
 
 
 def _emit_model_help() -> str:
-    """Build the --model help string dynamically from EMBEDDING_MODELS."""
-    lines = ["Model to use (default: gemini-embedding-001)."]
+    """Build the --model help string dynamically from known model dicts."""
+    lines = ["Model to use. Defaults to gemini-embedding-001 for embed mode, gemini-2.5-flash for query mode."]
     lines.append("Embedding models:")
     for name, desc in sorted(EMBEDDING_MODELS.items()):
         lines.append(f"  {name}: {desc}")
-    lines.append("Query models: gemini-2.0-flash, gemini-2.0-pro, etc. (any generative model).")
+    lines.append("Query models:")
+    for name, desc in sorted(QUERY_MODELS.items()):
+        lines.append(f"  {name}: {desc}")
     return " ".join(lines)
 
 
 async def _async_main() -> None:
-    """Async entry point; handles argument parsing, validation, and probe dispatch."""
+    """Async entry point; handles argument parsing, validation, and sample dispatch."""
     parser = argparse.ArgumentParser(
         description="Test Google GenAI API key connectivity (embed or query)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -180,8 +234,8 @@ async def _async_main() -> None:
     parser.add_argument(
         "--model",
         metavar="MODEL",
-        default="gemini-embedding-001",
-        choices=_SORTED_EMBEDDING_MODELS,
+        default=None,
+        choices=_ALL_KNOWN_MODELS,
         help=_emit_model_help(),
     )
     parser.add_argument(
@@ -190,7 +244,8 @@ async def _async_main() -> None:
         default="auto",
         help=(
             "Request type: embed, query, or auto (default: auto -- inferred from model name). "
-            f"Known embedding models: {', '.join(_SORTED_EMBEDDING_MODELS)}."
+            f"Known embedding models: {', '.join(_SORTED_EMBEDDING_MODELS)}. "
+            f"Known query models: {', '.join(_SORTED_QUERY_MODELS)}."
         ),
     )
     parser.add_argument(
@@ -209,15 +264,22 @@ async def _async_main() -> None:
         type=int,
         default=VECTOR_PREVIEW_LEN,
         help=(
-            "Truncate the vector in JSON output to the first N values (e.g. 5, 8, 10). "
-            "Omit to include the full vector; pass 0 to exclude it entirely."
+            f"Truncate the vector in JSON output to the first N values (default: {VECTOR_PREVIEW_LEN}). "
+            "Pass 0 to exclude the vector field entirely. "
+            "Pass -1 to include the full vector."
         ),
     )
     parser.add_argument(
-        "--json",
-        dest="force_json",
+        "--quiet",
         action="store_true",
         help="Suppress all stderr progress output (stdout JSON only)",
+    )
+    parser.add_argument(
+        "--timeout",
+        metavar="SECONDS",
+        type=float,
+        default=SAMPLE_TIMEOUT_SECONDS,
+        help=f"Request timeout in seconds (default: {SAMPLE_TIMEOUT_SECONDS})",
     )
     args = parser.parse_args()
 
@@ -225,39 +287,66 @@ async def _async_main() -> None:
         print("Error: --api-key is required or set $GEMINI_API_KEY", file=sys.stderr)
         sys.exit(1)
 
+    # Resolve mode, then default model based on mode when not explicitly given.
     mode = args.mode
-    if mode == "auto":
-        mode = "embed" if args.model in EMBEDDING_MODELS else "query"
+    if mode == "query":
+        model = args.model or _SORTED_QUERY_MODELS[0]
+    elif mode == "embed":
+        model = args.model or _SORTED_EMBEDDING_MODELS[0]
+    else:
+        # auto: infer from model, or default to embed
+        model = args.model or _SORTED_EMBEDDING_MODELS[0]
+        mode = "embed" if model in EMBEDDING_MODELS else "query"
+    args.model = model
 
+    # Validate: embedding mode requires a known embedding model.
+    if mode == "embed" and args.model not in EMBEDDING_MODELS:
+        print(
+            f"Error: unknown embedding model '{args.model}'. "
+            f"Known models: {', '.join(_SORTED_EMBEDDING_MODELS)}. "
+            "Use --mode query for generative models.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Warn: embedding model passed with --mode query is almost certainly a mistake.
     if mode == "query" and args.model in EMBEDDING_MODELS:
         print(
-            f"Warning: model '{args.model}' is an embedding model but --mode query was requested.",
+            f"Warning: '{args.model}' is an embedding model but --mode query was requested. "
+            "This will likely fail.",
             file=sys.stderr,
         )
 
     def log(msg: str) -> None:
-        if not args.force_json:
+        if not args.quiet:
             print(msg, file=sys.stderr)
 
     log(f"  model:   {args.model}")
     log(f"  mode:    {mode}")
+    log(f"  timeout: {args.timeout}s")
     log(f"  api_key: {args.api_key[:8]}{'*' * max(0, len(args.api_key) - 8)}")
 
-    try:
-        client = _build_client(args.api_key, args.braintrust_key)
-    except Exception as exc:
-        print(f"Error: failed to build client -- {exc}", file=sys.stderr)
-        sys.exit(1)
+    client = _build_client(args.api_key, args.braintrust_key)
 
-    log("  sending probe request ...")
+    log("  sending sample request ...")
 
     try:
         if mode == "embed":
-            probe_result = await _run_embed(client, args.model)
+            SAMPLE_result = await _run_embed(client, args.model)
         else:
-            probe_result = await _run_query(client, args.model)
-    except Exception as exc:
+            SAMPLE_result = await _run_query(client, args.model)
+    except asyncio.TimeoutError:
         output: dict[str, Any] = {
+            "ok": False,
+            "model": args.model,
+            "mode": mode,
+            "error": f"Request timed out after {args.timeout}s",
+        }
+        print(json.dumps(output, ensure_ascii=False))
+        log(f"\nFAILED: timed out after {args.timeout}s")
+        sys.exit(1)
+    except Exception as exc:
+        output = {
             "ok": False,
             "model": args.model,
             "mode": mode,
@@ -267,19 +356,30 @@ async def _async_main() -> None:
         log(f"\nFAILED: {exc}")
         sys.exit(1)
 
-    if args.vector_preview is not None and "vector" in probe_result:
-        probe_result["vector"] = probe_result["vector"][:args.vector_preview]
+    # Apply --vector-preview: 0 → omit field, -1 → full vector, N → first N values.
+    if "vector" in SAMPLE_result:
+        n = args.vector_preview
+        if n == 0:
+            del SAMPLE_result["vector"]
+        elif n > 0:
+            SAMPLE_result["vector"] = SAMPLE_result["vector"][:n]
+        # n < 0: leave full vector intact
 
     output = {
         "ok": True,
         "model": args.model,
         "mode": mode,
         "via_braintrust": bool(args.braintrust_key),
-        **probe_result,
+        **SAMPLE_result,
     }
 
     print(json.dumps(output, ensure_ascii=False))
-    log(f"\n  ok: {probe_result['elapsed_ms']} ms")
+    if mode == "query" and "response_text" in SAMPLE_result:
+        log(f"\n--- response ({SAMPLE_result['elapsed_ms']} ms, finish={SAMPLE_result.get('finish_reason', '?')}) ---")
+        log(SAMPLE_result["response_text"])
+        log("---")
+    else:
+        log(f"\n  ok: {SAMPLE_result['elapsed_ms']} ms")
 
 
 def main() -> None:
