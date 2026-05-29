@@ -9,6 +9,11 @@ Covers:
   - Retrieval spans           gen_ai.operation.name = "retrieve"
   - Tool execution spans      gen_ai.operation.name = "execute_tool"
   - MCP tool spans            mcp.* attributes
+  - Create agent spans        gen_ai.operation.name = "create_agent"
+  - Invoke agent spans        gen_ai.operation.name = "invoke_agent"
+  - Memory operation spans    gen_ai.operation.name = "search_memory" / "create_memory" / etc.
+  - Workflow spans            gen_ai.operation.name = "invoke_workflow"
+  - Plan spans                gen_ai.operation.name = "plan"
   - GenAI metrics (TTFT, inter-token latency, token counts)
   - Content capture events    gen_ai.content.prompt / gen_ai.content.completion
 """
@@ -678,6 +683,523 @@ def build_rag_trace(
 
 
 # ---------------------------------------------------------------------------
+# Agent / memory / workflow content pools
+# ---------------------------------------------------------------------------
+
+_AGENT_NAMES = [
+    "ResearchAgent",
+    "SummaryAgent",
+    "CodeReviewAgent",
+    "IncidentAnalyser",
+    "AnomalyDetector",
+    "DataExtractionAgent",
+]
+
+_AGENT_DESCRIPTIONS = [
+    "Analyses logs and traces to identify root causes",
+    "Summarises incident timelines from trace data",
+    "Reviews code changes for regressions and security issues",
+    "Extracts structured data from unstructured log output",
+    "Detects anomalies in metric streams using LLM reasoning",
+]
+
+_WORKFLOW_NAMES = [
+    "incident_triage_pipeline",
+    "multi_agent_rag",
+    "customer_support_pipeline",
+    "code_review_workflow",
+    "anomaly_resolution_pipeline",
+]
+
+_MEMORY_QUERIES = [
+    "user preferences for alert thresholds",
+    "past incident resolutions for service degradation",
+    "prior tool call results for payments-service",
+    "historical anomaly patterns in auth-service",
+    "previously resolved root causes for connection pool exhaustion",
+]
+
+_TOOL_TYPES = ["function", "extension", "datastore"]
+
+_EXT_TOOL_NAMES = [
+    "fetch_pagerduty_incidents",
+    "query_grafana_dashboard",
+    "get_github_pr_diff",
+    "call_jira_api",
+    "invoke_aws_lambda",
+]
+
+_FUNCTION_TOOL_NAMES = [
+    "parse_log_line",
+    "compute_error_rate",
+    "format_trace_summary",
+    "extract_service_name",
+    "rank_candidates",
+]
+
+_DATASTORE_TOOL_NAMES = [
+    "search_runbook_db",
+    "query_incident_history",
+    "lookup_service_config",
+    "fetch_deployment_manifest",
+    "retrieve_alert_rules",
+]
+
+
+# ---------------------------------------------------------------------------
+# Create agent span
+# ---------------------------------------------------------------------------
+
+
+def build_create_agent_span(
+    svc: ServiceDef,
+    trace_id: str,
+    parent_span_id: str | None,
+    start_ms: float,
+    rng: np.random.Generator,
+    agent_name: str | None = None,
+) -> tuple[Span, float]:
+    """
+    gen_ai.operation.name = "create_agent"
+    Represents provisioning a remote agent (e.g. OpenAI Assistants, Bedrock Agents).
+    Span name: "create_agent {agent_name}"
+    Span kind: CLIENT
+    """
+    span_id = new_id(16)
+    duration_ms = _lognormal_sample(rng, 200, 1200)
+    end_ms = start_ms + duration_ms
+    is_err = rng.random() < svc.effective_error_rate
+
+    model = svc.model or "gpt-4o"
+    info = _model_info(model)
+    name = agent_name or random.choice(_AGENT_NAMES)
+    agent_id = f"asst_{new_id(24)}"
+
+    attrs: dict[str, Any] = {
+        "gen_ai.operation.name": GenAIOperation.CREATE_AGENT.value,
+        "gen_ai.provider.name": info["provider"].value,
+        "gen_ai.request.model": model,
+        "gen_ai.agent.id": agent_id,
+        "gen_ai.agent.name": name,
+        "gen_ai.agent.description": random.choice(_AGENT_DESCRIPTIONS),
+        "gen_ai.agent.version": f"1.{int(rng.integers(0, 5))}.0",
+        "server.address": f"{info['provider'].value}.api",
+        "server.port": 443,
+    }
+    if is_err:
+        attrs["error.type"] = random.choice(["agent_creation_failed", "quota_exceeded", "invalid_model"])
+
+    span = Span(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        name=f"create_agent {name}",
+        kind=SpanKind.CLIENT,
+        service_name=svc.name,
+        start_time_unix_nano=_ns(start_ms),
+        end_time_unix_nano=_ns(end_ms),
+        status=SpanStatus.ERROR if is_err else SpanStatus.OK,
+        attributes=attrs,
+        resource_attributes=svc.resource_attributes(),
+    )
+    return span, end_ms
+
+
+# ---------------------------------------------------------------------------
+# Invoke agent span
+# ---------------------------------------------------------------------------
+
+
+def build_invoke_agent_span(
+    svc: ServiceDef,
+    trace_id: str,
+    parent_span_id: str | None,
+    start_ms: float,
+    rng: np.random.Generator,
+    agent_name: str | None = None,
+    is_remote: bool = True,
+    conversation_id: str | None = None,
+) -> tuple[Span, float]:
+    """
+    gen_ai.operation.name = "invoke_agent"
+    Remote invocation (CLIENT kind) or in-process (INTERNAL kind).
+    Span name: "invoke_agent {agent_name}"
+    """
+    span_id = new_id(16)
+    # Agent invocations are longer — they encompass multiple LLM round-trips
+    duration_ms = _lognormal_sample(rng, svc.effective_latency.p50_ms, svc.effective_latency.p99_ms)
+    end_ms = start_ms + duration_ms
+    is_err = rng.random() < svc.effective_error_rate
+
+    model = svc.model or "gpt-4o"
+    info = _model_info(model)
+    name = agent_name or random.choice(_AGENT_NAMES)
+
+    # Aggregate token usage across the full agent invocation
+    in_lo, in_hi = info["typical_input_tokens"]
+    out_lo, out_hi = info["typical_output_tokens"]
+    turns = int(rng.integers(2, 6))
+    input_tokens = sum(_token_count(rng, in_lo, in_hi) for _ in range(turns))
+    output_tokens = sum(_token_count(rng, out_lo, out_hi) for _ in range(turns))
+
+    finish_reasons = [FinishReason.STOP.value] if not is_err else [FinishReason.ERROR.value]
+
+    attrs: dict[str, Any] = {
+        "gen_ai.operation.name": GenAIOperation.INVOKE_AGENT.value,
+        "gen_ai.provider.name": info["provider"].value,
+        "gen_ai.request.model": model,
+        "gen_ai.agent.id": f"asst_{new_id(24)}",
+        "gen_ai.agent.name": name,
+        "gen_ai.usage.input_tokens": input_tokens,
+        "gen_ai.usage.output_tokens": output_tokens,
+        "gen_ai.response.finish_reasons": finish_reasons,
+        "gen_ai.request.temperature": round(float(rng.uniform(0.0, 0.8)), 2),
+        "gen_ai.request.max_tokens": random.choice([2048, 4096, 8192]),
+        "gen_ai.conversation.id": conversation_id or f"conv_{new_id(20)}",
+    }
+    if is_remote:
+        attrs["server.address"] = f"{info['provider'].value}.api"
+        attrs["server.port"] = 443
+
+    if is_err:
+        attrs["error.type"] = random.choice(["agent_timeout", "agent_loop_limit", "context_length_exceeded"])
+
+    span = Span(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        name=f"invoke_agent {name}",
+        kind=SpanKind.CLIENT if is_remote else SpanKind.INTERNAL,
+        service_name=svc.name,
+        start_time_unix_nano=_ns(start_ms),
+        end_time_unix_nano=_ns(end_ms),
+        status=SpanStatus.ERROR if is_err else SpanStatus.OK,
+        attributes=attrs,
+        resource_attributes=svc.resource_attributes(),
+    )
+    return span, end_ms
+
+
+# ---------------------------------------------------------------------------
+# Rich tool call span (function / extension / datastore)
+# ---------------------------------------------------------------------------
+
+
+def build_rich_tool_span(
+    svc: ServiceDef,
+    trace_id: str,
+    parent_span_id: str | None,
+    start_ms: float,
+    rng: np.random.Generator,
+    tool_type: str | None = None,
+) -> tuple[Span, float]:
+    """
+    gen_ai.operation.name = "execute_tool"
+    Covers all three tool types from the spec: function, extension, datastore.
+    Populates gen_ai.tool.call.arguments and gen_ai.tool.call.result.
+    """
+    span_id = new_id(16)
+    t_type = tool_type or random.choice(_TOOL_TYPES)
+
+    if t_type == "extension":
+        tool_name = random.choice(_EXT_TOOL_NAMES)
+        base_p50, base_p99 = 300, 2000
+    elif t_type == "datastore":
+        tool_name = random.choice(_DATASTORE_TOOL_NAMES)
+        base_p50, base_p99 = 60, 400
+    else:
+        tool_name = random.choice(_FUNCTION_TOOL_NAMES)
+        base_p50, base_p99 = 5, 50
+
+    duration_ms = _lognormal_sample(rng, base_p50 * svc._latency_multiplier, base_p99 * svc._latency_multiplier)
+    end_ms = start_ms + duration_ms
+    is_err = rng.random() < svc.effective_error_rate
+
+    attrs: dict[str, Any] = {
+        "gen_ai.operation.name": GenAIOperation.EXECUTE_TOOL.value,
+        "gen_ai.tool.name": tool_name,
+        "gen_ai.tool.type": t_type,
+        "gen_ai.tool.call.id": f"call_{new_id(24)}",
+        "gen_ai.tool.description": f"{t_type.capitalize()} tool: {tool_name.replace('_', ' ')}",
+        "gen_ai.tool.call.arguments": f'{{"service": "payments-service", "window": "1h"}}',
+    }
+    if not is_err:
+        attrs["gen_ai.tool.call.result"] = '{"status": "ok", "records": 42}'
+    if is_err:
+        attrs["error.type"] = random.choice(["tool_timeout", "tool_execution_error", "invalid_arguments"])
+
+    span = Span(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        name=f"execute_tool {tool_name}",
+        kind=SpanKind.INTERNAL,
+        service_name=svc.name,
+        start_time_unix_nano=_ns(start_ms),
+        end_time_unix_nano=_ns(end_ms),
+        status=SpanStatus.ERROR if is_err else SpanStatus.OK,
+        attributes=attrs,
+        resource_attributes=svc.resource_attributes(),
+    )
+    return span, end_ms
+
+
+# ---------------------------------------------------------------------------
+# Memory operation span
+# ---------------------------------------------------------------------------
+
+_MEMORY_OPS = [
+    GenAIOperation.SEARCH_MEMORY,
+    GenAIOperation.UPSERT_MEMORY,
+    GenAIOperation.CREATE_MEMORY,
+    GenAIOperation.DELETE_MEMORY,
+]
+
+_MEMORY_OP_WEIGHTS = [0.55, 0.25, 0.15, 0.05]
+
+
+def build_memory_span(
+    svc: ServiceDef,
+    trace_id: str,
+    parent_span_id: str | None,
+    start_ms: float,
+    rng: np.random.Generator,
+    operation: GenAIOperation | None = None,
+) -> tuple[Span, float]:
+    """
+    Covers all memory CRUD operations from the spec.
+    gen_ai.operation.name = one of: search_memory, create_memory, upsert_memory, delete_memory
+    Span name: "{operation}"
+    Span kind: CLIENT
+    """
+    span_id = new_id(16)
+    op = operation or GenAIOperation(
+        rng.choice(  # type: ignore[call-arg]
+            [o.value for o in _MEMORY_OPS],
+            p=_MEMORY_OP_WEIGHTS,
+        )
+    )
+    duration_ms = _lognormal_sample(rng, svc.effective_latency.p50_ms, svc.effective_latency.p99_ms)
+    end_ms = start_ms + duration_ms
+    is_err = rng.random() < svc.effective_error_rate
+
+    store_id = f"ms_{new_id(8)}"
+    record_count = int(rng.integers(1, 10)) if op != GenAIOperation.SEARCH_MEMORY else int(rng.integers(0, 6))
+
+    attrs: dict[str, Any] = {
+        "gen_ai.operation.name": op.value,
+        "gen_ai.memory.store.id": store_id,
+        "gen_ai.memory.record.count": record_count,
+        "server.address": svc.name,
+        "server.port": 8080,
+    }
+    if op == GenAIOperation.SEARCH_MEMORY:
+        attrs["gen_ai.memory.query.text"] = random.choice(_MEMORY_QUERIES)
+    if op in (GenAIOperation.CREATE_MEMORY, GenAIOperation.UPSERT_MEMORY):
+        attrs["gen_ai.memory.record.id"] = f"mem_{new_id(20)}"
+    if is_err:
+        attrs["error.type"] = random.choice(["memory_store_unavailable", "memory_write_failed", "store_quota_exceeded"])
+
+    span = Span(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        name=op.value,
+        kind=SpanKind.CLIENT,
+        service_name=svc.name,
+        start_time_unix_nano=_ns(start_ms),
+        end_time_unix_nano=_ns(end_ms),
+        status=SpanStatus.ERROR if is_err else SpanStatus.OK,
+        attributes=attrs,
+        resource_attributes=svc.resource_attributes(),
+    )
+    return span, end_ms
+
+
+# ---------------------------------------------------------------------------
+# Plan span
+# ---------------------------------------------------------------------------
+
+
+def build_plan_span(
+    svc: ServiceDef,
+    trace_id: str,
+    parent_span_id: str | None,
+    start_ms: float,
+    rng: np.random.Generator,
+    agent_name: str | None = None,
+) -> tuple[Span, float]:
+    """
+    gen_ai.operation.name = "plan"
+    Represents the task decomposition phase before tool/agent execution.
+    Span kind: INTERNAL
+    """
+    span_id = new_id(16)
+    duration_ms = _lognormal_sample(rng, 600, 3000)
+    end_ms = start_ms + duration_ms
+    is_err = rng.random() < svc.effective_error_rate
+
+    name = agent_name or random.choice(_AGENT_NAMES)
+
+    attrs: dict[str, Any] = {
+        "gen_ai.operation.name": GenAIOperation.PLAN.value,
+        "gen_ai.agent.name": name,
+        "gen_ai.agent.id": f"asst_{new_id(24)}",
+    }
+    if is_err:
+        attrs["error.type"] = "planning_failed"
+
+    span = Span(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        name=f"plan {name}",
+        kind=SpanKind.INTERNAL,
+        service_name=svc.name,
+        start_time_unix_nano=_ns(start_ms),
+        end_time_unix_nano=_ns(end_ms),
+        status=SpanStatus.ERROR if is_err else SpanStatus.OK,
+        attributes=attrs,
+        resource_attributes=svc.resource_attributes(),
+    )
+    return span, end_ms
+
+
+# ---------------------------------------------------------------------------
+# Workflow span (invoke_workflow)
+# ---------------------------------------------------------------------------
+
+
+def build_workflow_span(
+    svc: ServiceDef,
+    trace_id: str,
+    parent_span_id: str | None,
+    start_ms: float,
+    rng: np.random.Generator,
+    workflow_name: str | None = None,
+) -> tuple[Span, float]:
+    """
+    gen_ai.operation.name = "invoke_workflow"
+    Top-level span covering a coordinated multi-agent pipeline.
+    Span kind: INTERNAL
+    """
+    span_id = new_id(16)
+    duration_ms = _lognormal_sample(rng, svc.effective_latency.p50_ms, svc.effective_latency.p99_ms)
+    end_ms = start_ms + duration_ms
+    is_err = rng.random() < svc.effective_error_rate
+
+    wf_name = workflow_name or random.choice(_WORKFLOW_NAMES)
+
+    attrs: dict[str, Any] = {
+        "gen_ai.operation.name": GenAIOperation.INVOKE_WORKFLOW.value,
+        "gen_ai.workflow.name": wf_name,
+    }
+    if is_err:
+        attrs["error.type"] = random.choice(["workflow_timeout", "agent_step_failed", "orchestration_error"])
+
+    span = Span(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        name=f"invoke_workflow {wf_name}",
+        kind=SpanKind.INTERNAL,
+        service_name=svc.name,
+        start_time_unix_nano=_ns(start_ms),
+        end_time_unix_nano=_ns(end_ms),
+        status=SpanStatus.ERROR if is_err else SpanStatus.OK,
+        attributes=attrs,
+        resource_attributes=svc.resource_attributes(),
+    )
+    return span, end_ms
+
+
+# ---------------------------------------------------------------------------
+# Full agentic pipeline trace builder
+# ---------------------------------------------------------------------------
+
+
+def build_agentic_trace(
+    registry,  # ServiceRegistry
+    trace_id: str,
+    parent_span_id: str | None,
+    start_ms: float,
+    rng: np.random.Generator,
+) -> tuple[list[Span], float]:
+    """
+    Build a full agentic pipeline subtrace:
+      1. invoke_workflow         (workflow span — root of agent pipeline)
+         ├─ plan {agent}        (planning phase)
+         ├─ search_memory       (retrieve prior context)
+         ├─ invoke_agent        (agent does LLM + tool calls)
+         │    ├─ chat {model}   (underlying LLM call)
+         │    └─ execute_tool   (one or more tool calls)
+         └─ upsert_memory       (persist new memories)
+
+    Returns (spans, end_time_ms).
+    """
+    spans: list[Span] = []
+    agent_name = random.choice(_AGENT_NAMES)
+    conversation_id = f"conv_{new_id(20)}"
+
+    workflow_svc = registry.get("workflow-orchestrator")
+    agent_svc = registry.get("agent-service")
+    memory_svc = registry.get("memory-service")
+    tool_svc = registry.get("tool-executor")
+    llm_svc = registry.get("llm-anthropic")
+
+    # 1. Workflow root span
+    wf_span, wf_end = build_workflow_span(workflow_svc, trace_id, parent_span_id, start_ms, rng)
+    spans.append(wf_span)
+    cursor = start_ms + float(rng.uniform(5, 20))
+
+    # 2. Plan phase (child of workflow)
+    plan_span, cursor = build_plan_span(agent_svc, trace_id, wf_span.span_id, cursor, rng, agent_name)
+    spans.append(plan_span)
+    cursor += float(rng.uniform(2, 8))
+
+    # 3. Search memory before acting
+    mem_search_span, cursor = build_memory_span(
+        memory_svc, trace_id, wf_span.span_id, cursor, rng, GenAIOperation.SEARCH_MEMORY
+    )
+    spans.append(mem_search_span)
+    cursor += float(rng.uniform(2, 8))
+
+    # 4. Invoke agent (encompasses the LLM + tools)
+    invoke_span, invoke_end = build_invoke_agent_span(
+        agent_svc, trace_id, wf_span.span_id, cursor, rng, agent_name=agent_name, conversation_id=conversation_id
+    )
+    spans.append(invoke_span)
+
+    # 4a. Underlying LLM chat span (child of invoke_agent)
+    llm_span, llm_end = build_inference_span(
+        llm_svc, trace_id, invoke_span.span_id, cursor + float(rng.uniform(5, 15)), rng
+    )
+    spans.append(llm_span)
+
+    # 4b. Tool calls (1-3 tools, children of invoke_agent)
+    n_tools = int(rng.integers(1, 4))
+    tool_cursor = llm_end + float(rng.uniform(2, 10))
+    for _ in range(n_tools):
+        tool_span, tool_cursor = build_rich_tool_span(
+            tool_svc, trace_id, invoke_span.span_id, tool_cursor, rng
+        )
+        spans.append(tool_span)
+        tool_cursor += float(rng.uniform(1, 5))
+
+    cursor = max(invoke_end, tool_cursor)
+
+    # 5. Persist new memories after agent run
+    mem_write_span, cursor = build_memory_span(
+        memory_svc, trace_id, wf_span.span_id, cursor, rng, GenAIOperation.UPSERT_MEMORY
+    )
+    spans.append(mem_write_span)
+
+    # Align workflow end to last child
+    wf_end = max(wf_end, cursor)
+    return spans, wf_end
+
+
+# ---------------------------------------------------------------------------
 # GenAI log generators
 # ---------------------------------------------------------------------------
 
@@ -743,12 +1265,93 @@ def generate_genai_logs(
 
     elif op == GenAIOperation.EXECUTE_TOOL.value:
         tool = span.attributes.get("gen_ai.tool.name", "unknown")
+        tool_type = span.attributes.get("gen_ai.tool.type", "")
         mcp = "mcp.session.id" in span.attributes
-        prefix = "MCP tool" if mcp else "Tool"
+        prefix = "MCP tool" if mcp else f"Tool[{tool_type}]" if tool_type else "Tool"
         body = f"{prefix} execution tool={tool} duration_ms={span.duration_ms:.1f} " + (
             "error=" + str(span.attributes.get("error.type", "")) if is_err else "ok=true"
         )
         level = LogLevel.ERROR if is_err else LogLevel.INFO
+
+    elif op == GenAIOperation.CREATE_AGENT.value:
+        agent_name = span.attributes.get("gen_ai.agent.name", "unknown")
+        agent_id = span.attributes.get("gen_ai.agent.id", "")
+        if is_err:
+            body = f"Agent creation failed agent={agent_name} error={span.attributes.get('error.type', 'unknown')}"
+            level = LogLevel.ERROR
+        else:
+            body = f"Agent provisioned agent={agent_name} agent_id={agent_id} duration_ms={span.duration_ms:.1f}"
+            level = LogLevel.INFO
+
+    elif op == GenAIOperation.INVOKE_AGENT.value:
+        agent_name = span.attributes.get("gen_ai.agent.name", "unknown")
+        in_tok = span.attributes.get("gen_ai.usage.input_tokens", 0)
+        out_tok = span.attributes.get("gen_ai.usage.output_tokens", 0)
+        conv = span.attributes.get("gen_ai.conversation.id", "")
+        if is_err:
+            body = (
+                f"Agent invocation failed agent={agent_name} "
+                f"error={span.attributes.get('error.type', 'unknown')} "
+                f"conversation_id={conv}"
+            )
+            level = LogLevel.ERROR
+        else:
+            body = (
+                f"Agent invocation complete agent={agent_name} "
+                f"input_tokens={in_tok} output_tokens={out_tok} "
+                f"duration_ms={span.duration_ms:.1f} conversation_id={conv}"
+            )
+            level = LogLevel.INFO
+
+    elif op in (
+        GenAIOperation.SEARCH_MEMORY.value,
+        GenAIOperation.CREATE_MEMORY.value,
+        GenAIOperation.UPSERT_MEMORY.value,
+        GenAIOperation.DELETE_MEMORY.value,
+    ):
+        store = span.attributes.get("gen_ai.memory.store.id", "unknown")
+        count = span.attributes.get("gen_ai.memory.record.count", 0)
+        if is_err:
+            body = (
+                f"Memory operation failed op={op} store={store} "
+                f"error={span.attributes.get('error.type', 'unknown')}"
+            )
+            level = LogLevel.ERROR
+        elif op == GenAIOperation.SEARCH_MEMORY.value:
+            query = span.attributes.get("gen_ai.memory.query.text", "")
+            body = (
+                f"Memory search complete store={store} records_returned={count} "
+                f"duration_ms={span.duration_ms:.1f} query=\"{query}\""
+            )
+            level = LogLevel.DEBUG
+        else:
+            body = (
+                f"Memory {op} complete store={store} records_affected={count} "
+                f"duration_ms={span.duration_ms:.1f}"
+            )
+            level = LogLevel.DEBUG
+
+    elif op == GenAIOperation.INVOKE_WORKFLOW.value:
+        wf_name = span.attributes.get("gen_ai.workflow.name", "unknown")
+        if is_err:
+            body = (
+                f"Workflow failed workflow={wf_name} "
+                f"error={span.attributes.get('error.type', 'unknown')} "
+                f"duration_ms={span.duration_ms:.1f}"
+            )
+            level = LogLevel.ERROR
+        else:
+            body = f"Workflow complete workflow={wf_name} duration_ms={span.duration_ms:.1f}"
+            level = LogLevel.INFO
+
+    elif op == GenAIOperation.PLAN.value:
+        agent_name = span.attributes.get("gen_ai.agent.name", "unknown")
+        if is_err:
+            body = f"Agent planning failed agent={agent_name} error={span.attributes.get('error.type', 'unknown')}"
+            level = LogLevel.ERROR
+        else:
+            body = f"Agent planning complete agent={agent_name} duration_ms={span.duration_ms:.1f}"
+            level = LogLevel.DEBUG
 
     else:
         return logs

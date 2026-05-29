@@ -14,8 +14,9 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
       +-- ScenarioEngine   (time-bounded fault injection)
       |       |
       |       +-- db_degradation / llm_latency_spike / provider_failover / ...
+      |       +-- tool_call_timeout / memory_store_degradation / agent_bootstrap_failure / ...
       |
-      +-- ServiceRegistry  (11-service topology with dependency graph)
+      +-- ServiceRegistry  (15-service topology with dependency graph)
       |
       +-- generate_dataset (Trace + LogEntry per virtual request)
       |       |
@@ -23,6 +24,7 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
       |       +-- auth-service + postgres-auth
       |       +-- RAG path: embed -> vector-db -> llm-anthropic (+ tool/MCP)
       |       +-- payments path: payments-service -> postgres-payments + kafka
+      |       +-- agentic path: workflow-orchestrator -> agent-service -> llm + tools + memory
       |
       +-- Sinks: stdout | FileSink | OTLPHttpSink | MultiSink
       |
@@ -72,7 +74,7 @@ with controllable fault scenarios injected at precise moments. You get:
 
 ### Service topology
 
-Eleven services, fully wired with dependency edges and latency profiles:
+Fifteen services, fully wired with dependency edges and latency profiles:
 
 ```mermaid
 flowchart LR
@@ -87,6 +89,10 @@ flowchart LR
     PGP["postgres-payments<br>DB p50=5ms"]
     KFK["kafka<br>Queue p50=10ms"]
     NOT["notifications-service<br>gRPC p50=50ms"]
+    AGT["agent-service<br>Agent p50=3000ms"]
+    TOOL["tool-executor<br>ToolExec p50=80ms"]
+    MEM["memory-service<br>Memory p50=40ms"]
+    WFL["workflow-orchestrator<br>Workflow p50=5000ms"]
 
     GW --> AUTH
     GW --> RAG
@@ -99,6 +105,11 @@ flowchart LR
     PAY --> PGP
     PAY --> KFK
     KFK --> NOT
+    WFL --> AGT
+    WFL --> MEM
+    AGT --> LLM
+    AGT --> MEM
+    AGT --> TOOL
 ```
 
 Latency is sampled from a lognormal distribution derived from each service's p50/p99 profile. Error
@@ -110,11 +121,13 @@ Each generated trace represents one incoming request. The orchestrator always bu
 
 1. `api-gateway` root span (HTTP SERVER)
 2. `auth-service` + `postgres-auth` sub-trace (every request)
-3. RAG path (~65% of requests): `embed-service` -> `vector-db` -> `llm-anthropic` (+ 25% chance of a
+3. RAG path (~50% of requests): `embed-service` -> `vector-db` -> `llm-anthropic` (+ 25% chance of a
    tool or MCP tool span as a child of the LLM span)
-4. Payments path (~65% of requests): `payments-service` -> `postgres-payments` + `kafka` -> `notifications-service`
+4. Payments path (~40% of requests): `payments-service` -> `postgres-payments` + `kafka`
+5. Agentic path (~25% of requests): `workflow-orchestrator` -> plan -> `memory-service` (search) ->
+   `agent-service` -> `llm-anthropic` (chat) + 1-3 tool spans -> `memory-service` (upsert)
 
-Approximately 30% of requests traverse both paths.
+Approximately 15% of requests traverse both the RAG and payments paths.
 
 ### Scenario engine
 
@@ -135,7 +148,9 @@ stateDiagram-v2
 
 ### GenAI span attributes
 
-All LLM inference spans follow OTel GenAI semconv. Key attributes:
+All spans follow OTel GenAI semconv 1.41.0. Key attributes by operation type:
+
+**Inference / chat**
 
 | Attribute | Example | Notes |
 |-----------|---------|-------|
@@ -149,6 +164,36 @@ All LLM inference spans follow OTel GenAI semconv. Key attributes:
 | `gen_ai.server.time_to_first_token` | `0.412` | Seconds (OTel spec) |
 | `gen_ai.server.ttft_ms` | `412.3` | Milliseconds (convenience, non-standard) |
 | `gen_ai.client.operation.duration` | `2340.1` | Full span duration in ms |
+
+**Agent / workflow**
+
+| Attribute | Example | Notes |
+|-----------|---------|-------|
+| `gen_ai.agent.id` | `agt-abc123` | Unique agent instance ID |
+| `gen_ai.agent.name` | `FinancialAnalystAgent` | Human-readable name |
+| `gen_ai.agent.description` | `Analyses financial...` | Short description |
+| `gen_ai.agent.version` | `2.1.0` | Agent version |
+| `gen_ai.conversation.id` | `conv-xyz789` | Multi-turn conversation identifier |
+| `gen_ai.workflow.name` | `MultiAgentResearchWorkflow` | Workflow name |
+
+**Tool execution**
+
+| Attribute | Example | Notes |
+|-----------|---------|-------|
+| `gen_ai.tool.name` | `fetch_stock_price` | Tool name |
+| `gen_ai.tool.type` | `extension` | `function` / `extension` / `datastore` |
+| `gen_ai.tool.call.id` | `call-abc123` | Call ID linking to parent invoke |
+| `gen_ai.tool.call.arguments` | `{"ticker": "AAPL"}` | JSON arguments |
+| `gen_ai.tool.call.result` | `{"price": 182.34}` | JSON result (success only) |
+
+**Memory operations**
+
+| Attribute | Example | Notes |
+|-----------|---------|-------|
+| `gen_ai.memory.store.id` | `mem-store-prod-1` | Memory store identifier |
+| `gen_ai.memory.query.text` | `user preferences...` | Query for search operations |
+| `gen_ai.memory.record.count` | `5` | Records returned / written |
+| `gen_ai.memory.record.id` | `mem-rec-abc` | Record ID for upsert/delete |
 
 A `gen_ai.content.first_token` SpanEvent is added at the TTFT offset on successful inference spans.
 
@@ -373,6 +418,11 @@ Run `python -m god --list-scenarios` for the current table. Built-in presets:
 | `rag_meltdown` | Vector DB slow + LLM spike + provider failover (95% errors) | vector-db, llm-anthropic | 3 staggered faults |
 | `payment_outage` | Payments errors (60%) + DB degradation | payments-service, postgres-payments | two faults |
 | `cascading_failure` | Auth DB -> auth outage -> payments cascade -> LLM spike | 4 services, chained | 4 staggered faults |
+| `tool_meltdown` | External tool timeouts + agent bootstrap failures | tool-executor, agent-service | 2 staggered faults |
+| `memory_incident` | Memory service latency spike + follow-on tool timeouts | memory-service, tool-executor | 2 staggered faults |
+| `agent_failure` | Agent creation failures (90% error rate) | agent-service | 60s burst |
+| `rag_quality_degradation` | Stale vector index + LLM latency spike | vector-db, llm-anthropic | 2 overlapping faults |
+| `agentic_cascading_failure` | Agent bootstrap -> tool timeouts -> memory degradation -> LLM spike | 4 services, chained | 4 staggered faults |
 | `quiet` | No faults injected | - | - |
 
 Pass a scenario with `--scenario <preset>`. Fault injection uses virtual time, not wall time, so
@@ -408,8 +458,25 @@ The included `docker-compose.yml` starts a complete observability stack:
 | Grafana | 3000 | http://localhost:3000 (admin/admin) |
 | Prometheus | 9090 | http://localhost:9090 |
 
-Grafana datasources (Jaeger, Loki, Prometheus) are auto-provisioned. No dashboards are provisioned
-by default - you need to build them or import community dashboards.
+Grafana datasources (Jaeger, Loki, Prometheus) are auto-provisioned. Fourteen dashboards are
+auto-provisioned from `infra/grafana/dashboards/`:
+
+| Dashboard | Focus |
+|-----------|-------|
+| GenAI Observability - Overview | Cross-model request rates, errors, token throughput |
+| GenAI - LLM Performance | TTFT latency (p50/p95), throughput by model and operation type |
+| GenAI - Finish Reasons | stop / length / tool_calls / content_filter breakdown by model |
+| GenAI - Token Economics | Input/output token ratios, embedding batch sizes, provider spend |
+| GenAI Operation Topology | Volume and error rate across all 12 `gen_ai.operation.name` values |
+| Provider and System Analysis | Per-provider (anthropic / openai) request rates, TTFT, token throughput |
+| RAG Pipeline | Stage latency, retrieval yield rate, vector search diagnostics |
+| Tool and MCP Usage | Tool call rates and error rates by type (MCP / extension / datastore / function) |
+| Agent Operations | Agent create/invoke rates, planning latency, invocation duration |
+| Workflow Orchestration | Workflow invocation rates, stage durations, error rates by workflow name |
+| Memory Store Operations | All 4 memory op types, record counts, search latency |
+| Service RED Metrics | Request/error rates for all 15 services, split infra vs GenAI+agentic |
+| Error Analysis | Error classification and log drill-down |
+| OTel Collector Metrics | Collector self-metrics: receive/export rates, queue depth, dropped spans |
 
 ```bash
 make stack-up       # start all services
@@ -493,11 +560,12 @@ make test-unit      # alias
 |------|-------|-------|
 | `test_models.py` | 11 | Serialisation: Span/Trace/LogEntry -> OTLP/Loki/logfmt |
 | `test_services.py` | 12 | LatencyProfile math, fault overrides, propagation, registry |
-| `test_scenarios.py` | 16 | State machine, fault lifecycle, presets, `from_preset` |
-| `test_generators.py` | 20 | Span builders, TTFT event, content capture, RAG trace shape |
+| `test_scenarios.py` | 16+ | State machine, fault lifecycle, all presets including agentic ones |
+| `test_generators.py` | 20+ | Span builders, TTFT event, content capture, RAG + agentic trace shape |
 | `test_orchestrator.py` | 12 | End-to-end trace assembly, dataset yield count, log correlation |
 | `test_sinks.py` | 14 | File formats, gzip, append, OTLP HTTP (mocked), multi-sink |
 | `test_agent.py` | 5 | Analysis agent, mock mode, severity signals |
+| `test_root_cli.py` | - | Root CLI (`god-cli`) integration tests |
 
 ---
 
@@ -549,15 +617,18 @@ GOD_AGENT_MODEL=claude-sonnet-4-20250514
 ```
 genai-observability-data/
   Makefile                         # Root build/run targets (primary)
+  god-cli                          # Rich terminal wrapper CLI
   docker-compose.yml               # OTel stack: Collector + Jaeger + Loki + Grafana + Prometheus
   infra/
     otel-collector-config.yaml     # Collector pipeline config
     prometheus.yml                 # Scrape config (collector self-metrics)
-    grafana/provisioning/
-      datasources/datasources.yaml # Auto-provisioned Jaeger + Loki + Prometheus
-  tasks/
-    plan.md                        # Refactor plan (package path flattening, in progress)
-    todo.md                        # Task checklist for the flatten
+    grafana/
+      dashboards/                  # Pre-built Grafana dashboards (GenAI overview, RAG, tools, etc.)
+      provisioning/
+        datasources/datasources.yaml   # Auto-provisioned Jaeger + Loki + Prometheus
+        dashboards/dashboards.yaml     # Auto-provisioned dashboard file provider
+  scripts/
+    semantic-conventions-genai/    # OTel GenAI semconv source (reference only)
   src/
     god/                           # The real package root
       pyproject.toml               # Canonical package declaration
@@ -565,17 +636,19 @@ genai-observability-data/
       uv.lock                      # Pinned dependencies
       __init__.py                  # Public API + __version__
       __main__.py                  # CLI entry point (python -m god)
+      cli.py                       # Rich CLI implementation (god-cli)
       agent.py                     # pydantic-ai analysis agent + ScenarioAnalysis model
       config.py                    # Settings (pydantic-settings, reads .env)
       deps.py                      # GodDeps dependency injection container
       models.py                    # Span, Trace, LogEntry, enums, OTLP serialisation
       orchestrator.py              # generate_trace + generate_dataset
-      scenarios.py                 # ScenarioEngine, Scenario, 8 built-in fault presets
-      services.py                  # ServiceRegistry, ServiceDef, LatencyProfile
+      scenarios.py                 # ScenarioEngine, Scenario, 12 built-in fault presets
+      services.py                  # ServiceRegistry, ServiceDef, LatencyProfile (15 services)
       sinks.py                     # StdoutSink, FileSink, OTLPHttpSink, MultiSink
       py.typed                     # PEP 561 marker
       generators/
-        genai.py                   # GenAI span builders (inference, embedding, retrieval, tool, MCP)
+        genai.py                   # GenAI span builders: inference, embed, retrieval, tool, MCP,
+                                   #   agent, invoke_agent, memory, workflow, plan + agentic trace
         infra.py                   # Infra span builders (HTTP, gRPC, DB, queue) + log generators
       mock/
         activate.py                # Process-level mock activation via agent.override()
@@ -585,6 +658,7 @@ genai-observability-data/
         test_generators.py
         test_models.py
         test_orchestrator.py
+        test_root_cli.py
         test_scenarios.py
         test_services.py
         test_sinks.py
@@ -684,8 +758,8 @@ class MySink(Sink):
 
 ### Changing the service topology
 
-Edit `src/god/services.py`. Add a `ServiceDef` to `_DEFAULT_SERVICES` and wire up dependencies in
-`_DEFAULT_DEPS`. Existing tests assert on specific service names - update `test_services.py`
+Edit `src/god/services.py`. Add a `ServiceDef` to `DEFAULT_SERVICES` and wire up dependencies via
+the `dependencies` list. Existing tests assert on specific service names - update `test_services.py`
 accordingly.
 
 ---
@@ -712,8 +786,8 @@ accordingly.
 6. **OTLPHttpSink is synchronous.** It uses `urllib.request`, not httpx. Large batches will block the
    main thread. Use a small `--batch-size` if this is a concern.
 
-7. **Grafana has no dashboards provisioned.** Datasources are auto-wired. You must build or import
-   dashboards manually after `make stack-up`.
+7. **Grafana dashboards are auto-provisioned** from `infra/grafana/dashboards/` on container start.
+   Edits in the UI are ephemeral unless `allowUiUpdates: true` in the provisioning config (it is).
 
 8. **`int` attribute values are serialised as strings in OTLP JSON** per the OTLP spec:
    `{"intValue": "1234"}`. Some downstream consumers may need this handled explicitly.

@@ -36,15 +36,15 @@ from god import (
     LogLevel, SpanKind, SpanStatus, FinishReason,
     GenAIOperation, GenAIProvider, ServiceType,
     # Service topology
-    ServiceDef, ServiceRegistry, LatencyProfile,
+    ServiceDef, ServiceRegistry, LatencyProfile, DEFAULT_SERVICES,
     # Scenarios
-    Scenario, ScenarioEngine, ScenarioState, SCENARIO_PRESETS,
+    Scenario, ScenarioEngine, SCENARIO_PRESETS,
     # Generation
     generate_trace, generate_dataset,
     # Sinks
     Sink, StdoutSink, FileSink, OTLPHttpSink, MultiSink,
-    # Config
-    get_settings, reset_settings,
+    # Utilities
+    new_id,
 )
 ```
 
@@ -149,14 +149,17 @@ EOF
 god/
   config.py        Settings singleton (pydantic-settings)
   models.py        Span, Trace, LogEntry + OTLP/Loki/logfmt serialisation
-  services.py      ServiceRegistry, ServiceDef, LatencyProfile, fault overrides
-  scenarios.py     Scenario state machine, ScenarioEngine, 8 built-in presets
+  services.py      ServiceRegistry, ServiceDef, LatencyProfile, 15-service topology
+  scenarios.py     Scenario state machine, ScenarioEngine, 12 built-in presets
   orchestrator.py  generate_trace + generate_dataset (the main generation loop)
   agent.py         pydantic-ai analysis agent + AnomalySignal, ScenarioAnalysis
+  cli.py           Rich terminal UI (god-cli)
   deps.py          GodDeps dependency injection container
   sinks.py         StdoutSink, FileSink, OTLPHttpSink, MultiSink
   generators/
-    genai.py       GenAI span builders (inference, embedding, retrieval, tool, MCP)
+    genai.py       GenAI span builders: inference, embed, retrieval, tool, MCP,
+                     create_agent, invoke_agent, memory (search/create/upsert/delete),
+                     workflow, plan + build_rag_trace, build_agentic_trace
     infra.py       Infra span builders (HTTP, gRPC, DB, queue) + log generators
   mock/
     activate.py    activate_mock_mode() / deactivate_mock_mode()
@@ -209,12 +212,12 @@ class Trace:
 ```python
 @dataclass
 class LogEntry:
-    trace_id: str
-    span_id: str
     timestamp_unix_nano: int
-    severity: LogLevel
-    body: str
     service_name: str
+    level: LogLevel
+    body: str
+    trace_id: str | None
+    span_id: str | None
     attributes: dict[str, Any]
     resource_attributes: dict[str, Any]
 
@@ -233,11 +236,32 @@ class LogEntry:
 | `list` | `arrayValue` |
 | `str` | `stringValue` |
 
+### GenAI operation types
+
+`gen_ai.operation.name` values produced by the generators:
+
+| Value | Span builder | Notes |
+|-------|-------------|-------|
+| `chat` | `build_inference_span` | LLM chat completion |
+| `embeddings` | `build_embedding_span` | Embedding generation |
+| `retrieve` | `build_retrieval_span` | Vector DB retrieval |
+| `execute_tool` | `build_rich_tool_span` | Tool call (function/extension/datastore) |
+| `create_agent` | `build_create_agent_span` | Agent provisioning |
+| `invoke_agent` | `build_invoke_agent_span` | Agent invocation (remote or in-process) |
+| `invoke_workflow` | `build_workflow_span` | Multi-agent workflow |
+| `plan` | `build_plan_span` | Agent planning step |
+| `search_memory` | `build_memory_span` | Memory store query |
+| `create_memory` | `build_memory_span` | Memory record creation |
+| `upsert_memory` | `build_memory_span` | Memory record update |
+| `delete_memory` | `build_memory_span` | Memory record deletion |
+
 ---
 
 ## Scenarios
 
 ### Built-in presets
+
+**Infrastructure scenarios**
 
 | Name | Faults | Services degraded |
 |------|--------|------------------|
@@ -246,6 +270,16 @@ class LogEntry:
 | `rag_meltdown` | Vector DB slow + LLM spike + provider failover | vector-db, llm-anthropic |
 | `payment_outage` | 60% payment errors + DB degradation | payments-service, postgres-payments |
 | `cascading_failure` | Auth DB -> auth outage -> payments -> LLM | 4 services, chained |
+
+**Agentic pipeline scenarios**
+
+| Name | Faults | Services degraded |
+|------|--------|------------------|
+| `tool_meltdown` | External tool timeouts + agent bootstrap failures | tool-executor, agent-service |
+| `memory_incident` | Memory latency spike + follow-on tool timeouts | memory-service, tool-executor |
+| `agent_failure` | Agent creation failures (90% error rate) | agent-service |
+| `rag_quality_degradation` | Stale vector index + LLM latency spike | vector-db, llm-anthropic |
+| `agentic_cascading_failure` | Agent bootstrap -> tool timeouts -> memory degradation -> LLM spike | 4 services, chained |
 | `quiet` | No faults | - |
 
 ### Scenario state machine
@@ -516,6 +550,11 @@ reasoning quality specifically.
 
 **Pass `engine` to `generate_dataset` for scenario-correlated data.** Without an engine, all
 generated data is baseline (no faults). The engine ticks automatically inside the generator loop.
+
+**Use agentic presets to populate agent/memory/tool spans.** Approximately 25% of traces in a
+baseline run already include the agentic path. For concentrated agentic signal, use `--scenario
+agent_failure`, `tool_meltdown`, `memory_incident`, `rag_quality_degradation`, or
+`agentic_cascading_failure`.
 
 **Set `capture_content=True` only when you need message bodies.** The attribute values are
 stringified Python lists, which increases output size substantially.

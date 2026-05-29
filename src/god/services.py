@@ -23,6 +23,9 @@ class ServiceType(StrEnum):
     GENAI_VECTOR_DB = "genai_vector_db"
     GENAI_RAG = "genai_rag"
     GENAI_AGENT = "genai_agent"
+    GENAI_TOOL_EXECUTOR = "genai_tool_executor"
+    GENAI_MEMORY = "genai_memory"
+    GENAI_WORKFLOW = "genai_workflow"
 
 
 @dataclass
@@ -187,6 +190,41 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         error_rate=0.01,
         dependencies=["kafka"],
     ),
+    # ── Agentic pipeline ──────────────────────────────────────────────────
+    # Remote agent service (OpenAI Assistants / Bedrock Agents style)
+    ServiceDef(
+        name="agent-service",
+        type=ServiceType.GENAI_AGENT,
+        latency=LatencyProfile(p50_ms=3000, p99_ms=15000, timeout_ms=60000),
+        error_rate=0.02,
+        provider="openai",
+        model="gpt-4o",
+        dependencies=["llm-anthropic", "memory-service", "tool-executor"],
+    ),
+    # Tool executor — handles function/extension/datastore calls on agent side
+    ServiceDef(
+        name="tool-executor",
+        type=ServiceType.GENAI_TOOL_EXECUTOR,
+        latency=LatencyProfile(p50_ms=80, p99_ms=600, timeout_ms=10000),
+        error_rate=0.04,
+        dependencies=[],
+    ),
+    # Memory service — persistent agent memory store (mem0 / Zep style)
+    ServiceDef(
+        name="memory-service",
+        type=ServiceType.GENAI_MEMORY,
+        latency=LatencyProfile(p50_ms=40, p99_ms=250, timeout_ms=5000),
+        error_rate=0.01,
+        dependencies=[],
+    ),
+    # Workflow orchestrator — coordinates multi-agent pipelines (CrewAI style)
+    ServiceDef(
+        name="workflow-orchestrator",
+        type=ServiceType.GENAI_WORKFLOW,
+        latency=LatencyProfile(p50_ms=5000, p99_ms=25000, timeout_ms=120000),
+        error_rate=0.015,
+        dependencies=["agent-service", "memory-service"],
+    ),
 ]
 
 
@@ -252,5 +290,8 @@ class ServiceRegistry:
                 ServiceType.GENAI_VECTOR_DB,
                 ServiceType.GENAI_RAG,
                 ServiceType.GENAI_AGENT,
+                ServiceType.GENAI_TOOL_EXECUTOR,
+                ServiceType.GENAI_MEMORY,
+                ServiceType.GENAI_WORKFLOW,
             )
         ]

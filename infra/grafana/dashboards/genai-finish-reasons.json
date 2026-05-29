@@ -5,7 +5,7 @@
   "tags": ["genai", "otel", "llm"],
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": { "from": "now-10m", "to": "now" },
   "templating": { "list": [] },
@@ -29,6 +29,16 @@
         },
         {
           "refId": "C",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"finish_reason=tool_calls\" [1h]))",
+          "legendFormat": "tool_calls"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"finish_reason=content_filter\" [1h]))",
+          "legendFormat": "content_filter"
+        },
+        {
+          "refId": "E",
           "expr": "sum(count_over_time({job=~\".+\"} |= \"LLM inference failed\" [1h]))",
           "legendFormat": "error"
         }
@@ -38,6 +48,8 @@
         "overrides": [
           { "matcher": { "id": "byName", "options": "stop" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
           { "matcher": { "id": "byName", "options": "length (truncated)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "tool_calls" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "content_filter" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] },
           { "matcher": { "id": "byName", "options": "error" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
         ]
       },
@@ -105,9 +117,9 @@
     },
     {
       "id": 4,
-      "title": "Successful completions/min",
+      "title": "Successful completions/min (stop)",
       "type": "stat",
-      "gridPos": { "x": 8, "y": 5, "w": 8, "h": 5 },
+      "gridPos": { "x": 8, "y": 5, "w": 4, "h": 5 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -119,16 +131,34 @@
       "fieldConfig": {
         "defaults": {
           "unit": "reqpm",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
-          }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
       "id": 5,
+      "title": "Tool-call completions/min",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 5, "w": 4, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"finish_reason=tool_calls\" [1m])) * 60",
+          "legendFormat": "tool_calls/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 6,
       "title": "Total LLM requests/min",
       "type": "stat",
       "gridPos": { "x": 16, "y": 5, "w": 8, "h": 5 },
@@ -143,16 +173,13 @@
       "fieldConfig": {
         "defaults": {
           "unit": "reqpm",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "blue", "value": null }]
-          }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
-      "id": 6,
+      "id": 7,
       "title": "Finish reasons over time",
       "type": "timeseries",
       "gridPos": { "x": 0, "y": 10, "w": 24, "h": 9 },
@@ -170,6 +197,16 @@
         },
         {
           "refId": "C",
+          "expr": "sum(rate({job=~\".+\"} |= \"finish_reason=tool_calls\" [1m])) * 60",
+          "legendFormat": "tool_calls"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(rate({job=~\".+\"} |= \"finish_reason=content_filter\" [1m])) * 60",
+          "legendFormat": "content_filter"
+        },
+        {
+          "refId": "E",
           "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |= \"LLM inference failed\" [1m])) * 60",
           "legendFormat": "error"
         }
@@ -182,16 +219,48 @@
         "overrides": [
           { "matcher": { "id": "byName", "options": "stop" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
           { "matcher": { "id": "byName", "options": "length (truncated)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "tool_calls" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "content_filter" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] },
           { "matcher": { "id": "byName", "options": "error" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
         ]
       },
       "options": { "tooltip": { "mode": "multi" } }
     },
     {
-      "id": 7,
+      "id": 8,
+      "title": "Finish reason by model -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 19, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model) (count_over_time({job=~\".+\"} |= \"finish_reason=stop\" | logfmt | model != \"\" [1h]))",
+          "legendFormat": "{{model}} stop"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (model) (count_over_time({job=~\".+\"} |= \"finish_reason=length\" | logfmt | model != \"\" [1h]))",
+          "legendFormat": "{{model}} truncated"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 9,
       "title": "Truncation warning logs",
       "type": "logs",
-      "gridPos": { "x": 0, "y": 19, "w": 24, "h": 6 },
+      "gridPos": { "x": 12, "y": 19, "w": 12, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {

@@ -14,10 +14,17 @@ from collections.abc import Generator
 import numpy as np
 
 from god.generators.genai import (
+    build_agentic_trace,
+    build_create_agent_span,
     build_embedding_span,
     build_inference_span,
+    build_invoke_agent_span,
+    build_memory_span,
+    build_plan_span,
     build_rag_trace,
     build_retrieval_span,
+    build_rich_tool_span,
+    build_workflow_span,
     generate_genai_logs,
 )
 from god.generators.infra import (
@@ -119,6 +126,31 @@ def _build_span_for_service(
         for s in rag_spans:
             svc_obj = _mock_svc_for_span(s)
             logs.extend(generate_genai_logs(s, svc_obj, rng))
+
+    elif svc.type == ServiceType.GENAI_TOOL_EXECUTOR:
+        span, end_ms = build_rich_tool_span(svc, trace_id, parent_span_id, start_ms, rng)
+        spans.append(span)
+        logs.extend(generate_genai_logs(span, svc, rng))
+
+    elif svc.type == ServiceType.GENAI_MEMORY:
+        span, end_ms = build_memory_span(svc, trace_id, parent_span_id, start_ms, rng)
+        spans.append(span)
+        logs.extend(generate_genai_logs(span, svc, rng))
+
+    elif svc.type == ServiceType.GENAI_WORKFLOW:
+        # Workflow builds its own multi-span agentic subtrace
+        agentic_spans, end_ms = build_agentic_trace(
+            None,  # registry injected in generate_trace
+            trace_id,
+            parent_span_id,
+            start_ms,
+            rng,
+        )
+        spans.extend(agentic_spans)
+        for s in agentic_spans:
+            svc_obj = _mock_svc_for_span(s)
+            logs.extend(generate_genai_logs(s, svc_obj, rng))
+
     else:
         end_ms = start_ms + 10
 
@@ -186,10 +218,10 @@ def generate_trace(
     all_logs.extend(generate_logs_for_span(pg_auth_span, pg_auth_svc, rng))
 
     # ── Decide which downstream path to take ─────────────────────────────
-    # 50% RAG, 35% payments, 15% both
+    # 35% RAG, 25% payments, 25% agentic workflow, 15% RAG + payments
     path_roll = rng.random()
 
-    if path_roll < 0.50 or path_roll >= 0.85:
+    if path_roll < 0.35 or path_roll >= 0.85:
         # RAG pipeline
         rag_start = auth_end + float(rng.uniform(2, 8))
         rag_spans, rag_end = build_rag_trace(
@@ -211,7 +243,7 @@ def generate_trace(
                 svc = _mock_svc_for_span(s)
             all_logs.extend(generate_genai_logs(s, svc, rng))
 
-    if path_roll >= 0.35:
+    if 0.35 <= path_roll < 0.60 or path_roll >= 0.85:
         # Payments path
         pay_svc = registry.get("payments-service")
         pay_start = auth_end + float(rng.uniform(2, 8))
@@ -232,6 +264,25 @@ def generate_trace(
         )
         all_spans.append(kafka_span)
         all_logs.extend(generate_logs_for_span(kafka_span, kafka_svc, rng))
+
+    if 0.60 <= path_roll < 0.85:
+        # Agentic workflow pipeline
+        agent_start = auth_end + float(rng.uniform(2, 8))
+        agentic_spans, _ = build_agentic_trace(
+            registry,
+            trace_id,
+            gw_span.span_id,
+            agent_start,
+            rng,
+        )
+        all_spans.extend(agentic_spans)
+        for s in agentic_spans:
+            svc_name = s.service_name
+            try:
+                svc = registry.get(svc_name)
+            except KeyError:
+                svc = _mock_svc_for_span(s)
+            all_logs.extend(generate_genai_logs(s, svc, rng))
 
     trace = Trace(trace_id=trace_id, spans=all_spans)
     return trace, all_logs

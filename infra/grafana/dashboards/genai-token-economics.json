@@ -5,14 +5,14 @@
   "tags": ["genai", "otel", "tokens"],
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": { "from": "now-10m", "to": "now" },
   "templating": { "list": [] },
   "panels": [
     {
       "id": 1,
-      "title": "Input tokens/min",
+      "title": "Input tokens/min by model",
       "type": "timeseries",
       "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
@@ -33,7 +33,7 @@
     },
     {
       "id": 2,
-      "title": "Output tokens/min",
+      "title": "Output tokens/min by model",
       "type": "timeseries",
       "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
@@ -153,17 +153,14 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "blue", "value": null }]
-          }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
       "id": 7,
-      "title": "Total token spend (input + output) by model -- last hour",
+      "title": "Total token spend by model -- last hour",
       "type": "bargauge",
       "gridPos": { "x": 0, "y": 13, "w": 14, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
@@ -182,10 +179,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
-          }
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
         }
       },
       "options": {
@@ -212,6 +206,67 @@
           "unit": "short",
           "custom": { "lineWidth": 2 }
         }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Agent invocation token spend -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum_over_time({job=~\".+\"} |= \"Agent invocation complete\" | logfmt | unwrap input_tokens [1h]))",
+          "legendFormat": "agent input"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(sum_over_time({job=~\".+\"} |= \"Agent invocation complete\" | logfmt | unwrap output_tokens [1h]))",
+          "legendFormat": "agent output"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Token spend by provider (anthropic vs openai) -- last hour",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum_over_time({job=~\".+\", service_name=~\"llm-anthropic|embed-service\"} |= \"complete\" | logfmt | unwrap input_tokens [1h]))",
+          "legendFormat": "anthropic"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(sum_over_time({job=~\".+\", service_name=\"agent-service\"} |= \"Agent invocation complete\" | logfmt | unwrap input_tokens [1h]))",
+          "legendFormat": "openai (agent)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "anthropic" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "openai (agent)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
+        ]
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"]
       }
     }
   ]

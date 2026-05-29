@@ -5,7 +5,7 @@
   "tags": ["genai", "otel", "rag"],
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": { "from": "now-10m", "to": "now" },
   "templating": { "list": [] },
@@ -74,7 +74,7 @@
     },
     {
       "id": 3,
-      "title": "Embedding avg latency (duration_ms)",
+      "title": "Embedding avg latency (ms)",
       "type": "timeseries",
       "gridPos": { "x": 0, "y": 8, "w": 8, "h": 7 },
       "datasource": { "type": "loki", "uid": "loki" },
@@ -146,9 +146,39 @@
     },
     {
       "id": 6,
+      "title": "Retrieval yield rate (returned / top_k) -- degradation signal",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 15, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Vector search complete\" | logfmt | unwrap returned [5m])) / avg(avg_over_time({job=~\".+\"} |= \"Vector search complete\" | logfmt | unwrap top_k [5m]))",
+          "legendFormat": "returned/top_k ratio"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "green", "value": 0.8 }
+            ]
+          },
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 7,
       "title": "RAG pipeline stage summary -- last hour",
       "type": "bargauge",
-      "gridPos": { "x": 0, "y": 15, "w": 12, "h": 6 },
+      "gridPos": { "x": 12, "y": 15, "w": 12, "h": 7 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -180,10 +210,10 @@
       }
     },
     {
-      "id": 7,
-      "title": "Traces -- search in Jaeger (rag-service)",
+      "id": 8,
+      "title": "Traces -- RAG service (Jaeger)",
       "type": "traces",
-      "gridPos": { "x": 12, "y": 15, "w": 12, "h": 6 },
+      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 7 },
       "datasource": { "type": "jaeger", "uid": "jaeger" },
       "targets": [
         {
@@ -196,10 +226,26 @@
       "options": {}
     },
     {
-      "id": 8,
+      "id": 9,
+      "title": "Traces -- llm-anthropic (Jaeger)",
+      "type": "traces",
+      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 7 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "search",
+          "service": "llm-anthropic",
+          "limit": 20
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 10,
       "title": "RAG pipeline logs (embed + vector + llm)",
       "type": "logs",
-      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 29, "w": 24, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {

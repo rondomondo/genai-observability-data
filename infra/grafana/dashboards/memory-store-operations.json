@@ -1,0 +1,304 @@
+{
+  "id": null,
+  "uid": "memory-store-operations",
+  "title": "Memory Store Operations",
+  "tags": ["genai", "otel", "memory", "agents"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-10m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Memory operation rate by type (ops/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory search complete\" [1m])) * 60",
+          "legendFormat": "search_memory"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory upsert_memory complete\" [1m])) * 60",
+          "legendFormat": "upsert_memory"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory create_memory complete\" [1m])) * 60",
+          "legendFormat": "create_memory"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory delete_memory complete\" [1m])) * 60",
+          "legendFormat": "delete_memory"
+        },
+        {
+          "refId": "E",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory operation failed\" [1m])) * 60",
+          "legendFormat": "failures"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "failures" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "search_memory" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Memory operation error rate",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory operation failed\" [1m])) / sum(rate({job=~\".+\"} |~ \"Memory (search|upsert_memory|create_memory|delete_memory) complete|Memory operation failed\" [1m]))",
+          "legendFormat": "overall error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "Memory ops -- last hour",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 4, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"Memory search complete|Memory upsert_memory complete|Memory create_memory complete|Memory delete_memory complete\" [1h]))",
+          "legendFormat": "total ops"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 4,
+      "title": "Memory op failures -- last hour",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 8, "w": 4, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Memory operation failed\" [1h]))",
+          "legendFormat": "failures"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 5,
+      "title": "Avg search latency (ms)",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 8, "w": 4, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Memory search complete\" | logfmt | unwrap duration_ms [1h]))",
+          "legendFormat": "avg ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 200 },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 6,
+      "title": "Op volume by type -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Memory search complete\" [1h]))",
+          "legendFormat": "search_memory"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Memory upsert_memory complete\" [1h]))",
+          "legendFormat": "upsert_memory"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Memory create_memory complete\" [1h]))",
+          "legendFormat": "create_memory"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Memory delete_memory complete\" [1h]))",
+          "legendFormat": "delete_memory"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Memory search latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Memory search complete\" | logfmt | unwrap duration_ms [1m]))",
+          "legendFormat": "search avg ms"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.95, {job=~\".+\"} |= \"Memory search complete\" | logfmt | unwrap duration_ms [5m])",
+          "legendFormat": "search p95 ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 8,
+      "title": "Records returned per search (avg)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Memory search complete\" | logfmt | unwrap records_returned [1m]))",
+          "legendFormat": "avg records_returned"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 9,
+      "title": "Records affected per write op (avg)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Memory upsert_memory complete\" | logfmt | unwrap records_affected [1m]))",
+          "legendFormat": "upsert avg"
+        },
+        {
+          "refId": "B",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Memory create_memory complete\" | logfmt | unwrap records_affected [1m]))",
+          "legendFormat": "create avg"
+        },
+        {
+          "refId": "C",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Memory delete_memory complete\" | logfmt | unwrap records_affected [1m]))",
+          "legendFormat": "delete avg"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 10,
+      "title": "Memory service logs",
+      "type": "logs",
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=~\".+\", service_name=\"memory-service\"} |~ \"Memory\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}

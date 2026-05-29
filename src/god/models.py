@@ -68,6 +68,12 @@ class GenAIOperation(StrEnum):
     EXECUTE_TOOL = "execute_tool"
     CREATE_AGENT = "create_agent"
     INVOKE_AGENT = "invoke_agent"
+    INVOKE_WORKFLOW = "invoke_workflow"
+    PLAN = "plan"
+    SEARCH_MEMORY = "search_memory"
+    CREATE_MEMORY = "create_memory"
+    UPSERT_MEMORY = "upsert_memory"
+    DELETE_MEMORY = "delete_memory"
 
 
 class GenAIProvider(StrEnum):

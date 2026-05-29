@@ -6,14 +6,18 @@ ServiceRegistry. They drive correlated failures across the dependency graph,
 producing realistic anomaly patterns in the generated data.
 
 Built-in scenarios:
-  - db_degradation        DB connection pool exhaustion → upstream timeouts
-  - llm_latency_spike     GPU saturation → high TTFT, timeouts
-  - token_budget_breach   LLM hitting max_tokens → LENGTH finish reason
-  - provider_failover     Primary LLM provider times out → retry on fallback
-  - vector_db_slowdown    Vector index contention → elevated retrieval latency
-  - payments_error_burst  Payment processor errors → cascading to gateway
-  - auth_outage           Auth service down → 401s across all services
-  - kafka_lag             Consumer lag spike → notification delivery delays
+  - db_degradation           DB connection pool exhaustion → upstream timeouts
+  - llm_latency_spike        GPU saturation → high TTFT, timeouts
+  - token_budget_breach      LLM hitting max_tokens → LENGTH finish reason
+  - provider_failover        Primary LLM provider times out → retry on fallback
+  - vector_db_slowdown       Vector index contention → elevated retrieval latency
+  - payments_error_burst     Payment processor errors → cascading to gateway
+  - auth_outage              Auth service down → 401s across all services
+  - kafka_lag                Consumer lag spike → notification delivery delays
+  - tool_call_timeout        External tool (extension type) starts timing out
+  - memory_store_degradation Memory service latency spikes → agent context loss
+  - agent_bootstrap_failure  Agent creation fails → invoke_agent errors cascade
+  - retrieval_quality_drop   Vector DB returns stale index → low-score documents
 """
 
 from __future__ import annotations
@@ -311,6 +315,143 @@ def kafka_lag(
     )
 
 
+def tool_call_timeout(
+    target: str = "tool-executor",
+    start_s: float = 30,
+    duration_s: float = 120,
+    error_rate: float = 0.55,
+    latency_multiplier: float = 12.0,
+) -> Scenario:
+    """
+    External API tool calls (extension type) begin timing out — e.g. a
+    downstream REST API is overloaded. The tool-executor error rate spikes
+    and latency balloons, causing invoke_agent spans to see cascading failures
+    as the agent retries or gives up.
+    """
+
+    def apply(reg: ServiceRegistry) -> None:
+        reg.propagate_fault(target, error_rate, latency_multiplier)
+
+    def recover(reg: ServiceRegistry) -> None:
+        svc = reg.get(target)
+        svc._error_rate_override = None
+        svc._latency_multiplier = 1.0
+        for caller in reg.dependents_of(target):
+            caller._error_rate_override = None
+            caller._latency_multiplier = max(caller._latency_multiplier * 0.5, 1.0)
+
+    return Scenario(
+        name="tool_call_timeout",
+        description=f"Extension tool timeouts on {target}: error_rate={error_rate:.0%}, latency x{latency_multiplier}",
+        start_offset_s=start_s,
+        end_offset_s=start_s + duration_s,
+        apply=apply,
+        recover=recover,
+        tags=["genai", "tool", "latency", "error_burst"],
+    )
+
+
+def memory_store_degradation(
+    target: str = "memory-service",
+    start_s: float = 20,
+    duration_s: float = 180,
+    latency_multiplier: float = 8.0,
+    error_rate: float = 0.25,
+) -> Scenario:
+    """
+    Memory service latency spikes and starts failing writes — simulates a
+    saturated or network-partitioned memory backend (mem0, Zep, etc.).
+    Agents lose the ability to retrieve prior context, causing degraded
+    response quality and write failures on upsert_memory spans.
+    """
+
+    def apply(reg: ServiceRegistry) -> None:
+        reg.propagate_fault(target, error_rate, latency_multiplier)
+
+    def recover(reg: ServiceRegistry) -> None:
+        svc = reg.get(target)
+        svc._error_rate_override = None
+        svc._latency_multiplier = 1.0
+
+    return Scenario(
+        name="memory_store_degradation",
+        description=f"Memory store degraded on {target}: latency x{latency_multiplier}, error_rate={error_rate:.0%}",
+        start_offset_s=start_s,
+        end_offset_s=start_s + duration_s,
+        apply=apply,
+        recover=recover,
+        tags=["genai", "memory", "latency", "agent"],
+    )
+
+
+def agent_bootstrap_failure(
+    agent_target: str = "agent-service",
+    start_s: float = 10,
+    duration_s: float = 60,
+) -> Scenario:
+    """
+    The remote agent provisioning endpoint becomes unavailable — create_agent
+    calls fail at 90% rate. Downstream invoke_agent spans see cascading errors
+    because agents cannot be initialised. Models an OpenAI Assistants or
+    Bedrock Agents service disruption.
+    """
+
+    def apply(reg: ServiceRegistry) -> None:
+        reg.propagate_fault(agent_target, error_rate=0.9, latency_multiplier=2.0)
+
+    def recover(reg: ServiceRegistry) -> None:
+        svc = reg.get(agent_target)
+        svc._error_rate_override = None
+        svc._latency_multiplier = 1.0
+        for caller in reg.dependents_of(agent_target):
+            caller._error_rate_override = None
+            caller._latency_multiplier = 1.0
+
+    return Scenario(
+        name="agent_bootstrap_failure",
+        description=f"Agent provisioning unavailable on {agent_target}: 90% create_agent failures",
+        start_offset_s=start_s,
+        end_offset_s=start_s + duration_s,
+        apply=apply,
+        recover=recover,
+        tags=["genai", "agent", "error_burst", "provider"],
+    )
+
+
+def retrieval_quality_drop(
+    target: str = "vector-db",
+    start_s: float = 0,
+    duration_s: float = 240,
+    latency_multiplier: float = 3.0,
+    error_rate: float = 0.08,
+) -> Scenario:
+    """
+    Vector DB is serving from a stale or partially rebuilt index — low latency
+    impact but elevated error rate and degraded retrieval quality. Documents
+    returned have lower relevance scores. Manifests in retrieval spans with
+    db.vector.query.returned dropping (fewer results above threshold) and
+    gen_ai.evaluation.result events showing low scores on downstream LLM calls.
+    """
+
+    def apply(reg: ServiceRegistry) -> None:
+        reg.propagate_fault(target, error_rate, latency_multiplier)
+
+    def recover(reg: ServiceRegistry) -> None:
+        svc = reg.get(target)
+        svc._error_rate_override = None
+        svc._latency_multiplier = 1.0
+
+    return Scenario(
+        name="retrieval_quality_drop",
+        description=f"Stale vector index on {target}: degraded retrieval quality, error_rate={error_rate:.0%}",
+        start_offset_s=start_s,
+        end_offset_s=start_s + duration_s,
+        apply=apply,
+        recover=recover,
+        tags=["genai", "vector_db", "quality", "retrieval"],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Named preset scenario sets
 # ---------------------------------------------------------------------------
@@ -340,6 +481,28 @@ SCENARIO_PRESETS: dict[str, Callable[[], list[Scenario]]] = {
         auth_outage(start_s=5, duration_s=25),
         payments_error_burst(start_s=15, duration_s=60),
         llm_latency_spike(start_s=40, duration_s=90),
+    ],
+    # Agentic pipeline scenarios
+    "tool_meltdown": lambda: [
+        tool_call_timeout(start_s=30, duration_s=120),
+        agent_bootstrap_failure(start_s=60, duration_s=60),
+    ],
+    "memory_incident": lambda: [
+        memory_store_degradation(start_s=20, duration_s=180),
+        tool_call_timeout(start_s=90, duration_s=60),
+    ],
+    "agent_failure": lambda: [
+        agent_bootstrap_failure(start_s=10, duration_s=60),
+    ],
+    "rag_quality_degradation": lambda: [
+        retrieval_quality_drop(start_s=0, duration_s=240),
+        llm_latency_spike(start_s=60, duration_s=90),
+    ],
+    "agentic_cascading_failure": lambda: [
+        agent_bootstrap_failure(start_s=0, duration_s=30),
+        tool_call_timeout(start_s=15, duration_s=120),
+        memory_store_degradation(start_s=30, duration_s=180),
+        llm_latency_spike(start_s=60, duration_s=90),
     ],
     "quiet": lambda: [],
 }

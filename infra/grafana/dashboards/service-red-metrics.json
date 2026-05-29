@@ -5,21 +5,21 @@
     "tags": ["genai", "otel", "red", "services"],
     "timezone": "browser",
     "schemaVersion": 38,
-    "version": 1,
+    "version": 2,
     "refresh": "10s",
     "time": { "from": "now-10m", "to": "now" },
     "templating": { "list": [] },
     "panels": [
         {
             "id": 1,
-            "title": "Log volume by service (request proxy -- req/min)",
+            "title": "Log volume by service (req/min)",
             "type": "timeseries",
             "gridPos": { "x": 0, "y": 0, "w": 24, "h": 9 },
             "datasource": { "type": "loki", "uid": "loki" },
             "targets": [
                 {
                     "refId": "A",
-                    "expr": "sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [1m])) * 60",
+                    "expr": "sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [1m])) * 60",
                     "legendFormat": "{{service_name}}"
                 }
             ],
@@ -40,7 +40,7 @@
             "targets": [
                 {
                     "refId": "A",
-                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [1m])) * 60",
+                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [1m])) * 60",
                     "legendFormat": "{{service_name}}"
                 }
             ],
@@ -88,14 +88,14 @@
         },
         {
             "id": 4,
-            "title": "Error rate per service -- last 5 min",
+            "title": "Error rate per service -- infrastructure (last 5 min)",
             "type": "bargauge",
             "gridPos": { "x": 0, "y": 18, "w": 12, "h": 9 },
             "datasource": { "type": "loki", "uid": "loki" },
             "targets": [
                 {
                     "refId": "A",
-                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [5m])) / sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service\"} [5m]))",
+                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|payments-service|postgres-payments|kafka|notifications-service\"} [5m])) / sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|payments-service|postgres-payments|kafka|notifications-service\"} [5m]))",
                     "legendFormat": "{{service_name}}"
                 }
             ],
@@ -120,9 +120,41 @@
         },
         {
             "id": 5,
+            "title": "Error rate per service -- GenAI + agentic (last 5 min)",
+            "type": "bargauge",
+            "gridPos": { "x": 12, "y": 18, "w": 12, "h": 9 },
+            "datasource": { "type": "loki", "uid": "loki" },
+            "targets": [
+                {
+                    "refId": "A",
+                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"rag-service|embed-service|vector-db|llm-anthropic|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [5m])) / sum by (service_name) (rate({job=~\".+\", service_name=~\"rag-service|embed-service|vector-db|llm-anthropic|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [5m]))",
+                    "legendFormat": "{{service_name}}"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "color": "green", "value": null },
+                            { "color": "yellow", "value": 0.01 },
+                            { "color": "red", "value": 0.05 }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "reduceOptions": { "calcs": ["lastNotNull"] },
+                "orientation": "horizontal",
+                "displayMode": "gradient"
+            }
+        },
+        {
+            "id": 6,
             "title": "Recent error logs",
             "type": "logs",
-            "gridPos": { "x": 12, "y": 18, "w": 12, "h": 9 },
+            "gridPos": { "x": 0, "y": 27, "w": 24, "h": 9 },
             "datasource": { "type": "loki", "uid": "loki" },
             "targets": [
                 {
