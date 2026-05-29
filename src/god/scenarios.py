@@ -316,6 +316,9 @@ def kafka_lag(
 # ---------------------------------------------------------------------------
 
 SCENARIO_PRESETS: dict[str, Callable[[], list[Scenario]]] = {
+    "event_degradation": lambda: [
+        kafka_lag(start_s=0, duration_s=600),
+    ],
     "db_incident": lambda: [
         db_degradation("postgres-payments", start_s=60, duration_s=120),
     ],
@@ -341,7 +344,9 @@ SCENARIO_PRESETS: dict[str, Callable[[], list[Scenario]]] = {
     "quiet": lambda: [],
 }
 
-SCENARIO_PRESETS["all"] = lambda: [s for name, factory in SCENARIO_PRESETS.items() if name not in ("all", "quiet") for s in factory()]
+SCENARIO_PRESETS["all"] = lambda: [
+    s for name, factory in SCENARIO_PRESETS.items() if name not in ("all", "quiet") for s in factory()
+]
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +382,10 @@ class ScenarioEngine:
 
     def active_scenario_names(self) -> list[str]:
         return [s.name for s in self.scenarios if s.state == ScenarioState.ACTIVE]
+
+    def activated_scenario_names(self) -> list[str]:
+        """Return names of all scenarios that were activated, including those already completed."""
+        return [s.name for s in self.scenarios if s.state in (ScenarioState.ACTIVE, ScenarioState.DONE)]
 
     def active_tags(self) -> set[str]:
         tags: set[str] = set()

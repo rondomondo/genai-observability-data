@@ -34,6 +34,10 @@ exporters:
   debug:
     verbosity: normal
 
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
 service:
   pipelines:
     traces:
@@ -45,7 +49,7 @@ service:
       processors: [memory_limiter, batch]
       exporters: [loki, debug]
 
-  extensions: []
+  extensions: [health_check]
   telemetry:
     logs:
       level: warn

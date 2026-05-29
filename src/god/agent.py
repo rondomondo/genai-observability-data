@@ -120,8 +120,10 @@ async def analyse_batch(
 
     settings = deps.settings
     summary = _summarise_batch(traces, logs)
-    active = deps.engine.active_scenario_names() if deps.engine else []
-    summary["active_scenarios_hint"] = active
+    if deps.scenario_preset:
+        summary["active_scenarios_hint"] = [deps.scenario_preset]
+    elif deps.engine:
+        summary["active_scenarios_hint"] = deps.engine.activated_scenario_names()
 
     prompt = f"Analyse this trace batch:\n\n{json.dumps(summary, indent=2)}"
 

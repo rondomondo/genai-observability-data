@@ -50,8 +50,10 @@ def _gen_scenario(argv: list[str]) -> int:
     """
     import argparse
 
+    from god.config import get_settings
     from god.scenarios import SCENARIO_PRESETS
 
+    settings = get_settings()
     all_scenario_names = list(SCENARIO_PRESETS.keys())
 
     p = argparse.ArgumentParser(
@@ -65,15 +67,21 @@ def _gen_scenario(argv: list[str]) -> int:
         choices=[*all_scenario_names, "all"],
         help="scenario preset name, or 'all' to generate every preset",
     )
-    p.add_argument("--traces", "-n", type=int, default=100, metavar="N", help="traces per scenario (default: 100)")
-    p.add_argument("--rate", type=float, default=10.0, metavar="N", help="traces/sec (default: 10.0)")
+    p.add_argument(
+        "--traces", "-n", type=int, default=settings.default_traces, metavar="N",
+        help=f"traces per scenario (default: {settings.default_traces})",
+    )
+    p.add_argument(
+        "--rate", type=float, default=settings.default_rate, metavar="N",
+        help=f"traces/sec (default: {settings.default_rate})",
+    )
     p.add_argument(
         "--format",
         nargs="+",
         choices=["otlp_traces", "otlp_logs", "logfmt", "loki"],
-        default=["otlp_traces", "otlp_logs", "logfmt"],
+        default=settings.default_format,
         metavar="FMT",
-        help="output formats (default: otlp_traces otlp_logs logfmt)",
+        help=f"output formats (default: {' '.join(settings.default_format)})",
     )
     p.add_argument(
         "--output",
@@ -84,6 +92,9 @@ def _gen_scenario(argv: list[str]) -> int:
         help="root output directory; each scenario writes to DIR/<scenario>/ (default: ./output)",
     )
     p.add_argument("--seed", type=int, default=None, metavar="N", help="RNG seed for deterministic output")
+    p.add_argument("--otlp", type=str, default=None, metavar="URL", help="stream to OTLP HTTP endpoint instead of files")
+    p.add_argument("--otlp-header", action="append", default=[], metavar="KEY=VALUE", help="extra headers for OTLP sink (repeatable)")
+    p.add_argument("--compress", action="store_true", default=False, help="gzip-compress file output")
     p.add_argument("--mock", action="store_true", default=False, help="mock mode - no API key or network needed")
     p.add_argument("--quiet", "-q", action="store_true", default=False, help="suppress progress output per scenario")
 
@@ -103,8 +114,14 @@ def _gen_scenario(argv: list[str]) -> int:
             "--rate", str(args.rate),
             "--scenario", scenario_name,
             "--format", *args.format,
-            "--output", str(scenario_out),
         ]
+        god_argv += ["--output", str(scenario_out)]
+        if args.otlp:
+            god_argv += ["--otlp", args.otlp]
+            for h in args.otlp_header:
+                god_argv += ["--otlp-header", h]
+        if args.compress:
+            god_argv.append("--compress")
         if args.seed is not None:
             god_argv += ["--seed", str(args.seed)]
         if args.mock:
@@ -146,6 +163,10 @@ def _print_wrapper_help(version: str) -> None:
     t.add_row("[bold dim]Subcommands[/bold dim]", "")
     for name, (desc, _) in _SUBCOMMANDS.items():
         t.add_row(f"  {name}", desc)
+    t.add_row("", "")
+    t.add_row("[bold dim]Examples[/bold dim]", "")
+    t.add_row("  [dim]./god-cli gen-scenario all[/dim]", "generate all scenarios (100 traces, otlp_traces+otlp_logs+logfmt, mock)")
+    t.add_row("  [dim]./god-cli gen-scenario cascading_failure --traces 200 --seed 42[/dim]", "single scenario, deterministic")
     t.add_row("", "")
     t.add_row("[bold dim]Core flags[/bold dim]", "pass any god-cli flag directly (see below)")
     console.print(Panel(t, title="[bold]Usage[/bold]: god-cli [SUBCOMMAND | OPTIONS]", box=box.ROUNDED, border_style="blue"))

@@ -20,14 +20,15 @@ RUFF   := $(UV) run --extra dev ruff
 MYPY   := $(UV) run --extra dev mypy
 
 # -- Paths ----------------------------------------------------
+REPO_DIR   := .
 PKG_DIR    := src/god
 OUT_DIR    := ./output
 DATA_DIR   := ./data
 
 # -- Generation defaults (override on command line) -----------
-TRACES    := 100
-RATE      := 10.0
-SCENARIO  :=
+TRACES    := 200
+RATE      := 20.0
+SCENARIO  := all
 SEED      :=
 FORMAT    := logfmt
 BATCH     := 50
@@ -180,7 +181,7 @@ gen-fixtures: check-uv ## Generate deterministic test fixtures (seed=42, 200 tra
 	  --quiet
 	@printf "$(GREEN)Fixtures written to $(DATA_DIR)/fixtures/$(RESET)\n"
 
-ALL_SCENARIOS := db_incident llm_degradation rag_meltdown payment_outage cascading_failure quiet
+ALL_SCENARIOS := db_incident llm_degradation events_degradation rag_meltdown payment_outage cascading_failure quiet
 
 .PHONY: gen-scenario
 gen-scenario: check-uv ## Generate a specific scenario (SCENARIO=<name>|all required)
@@ -193,6 +194,7 @@ gen-scenario: check-uv ## Generate a specific scenario (SCENARIO=<name>|all requ
 	      --traces $(TRACES) \
 	      --scenario $$s \
 	      --format otlp_traces otlp_logs logfmt \
+	      --otlp $(OTLP) \
 	      --output $(CURDIR)/$(OUT_DIR)/$$s) || exit 1; \
 	  done; \
 	  printf "$(GREEN)All scenarios written to $(OUT_DIR)/$(RESET)\n"; \
@@ -201,6 +203,7 @@ gen-scenario: check-uv ## Generate a specific scenario (SCENARIO=<name>|all requ
 	    --traces $(TRACES) \
 	    --scenario $(SCENARIO) \
 	    --format otlp_traces otlp_logs logfmt \
+        --otlp $(OTLP) \
 	    --output $(CURDIR)/$(OUT_DIR); \
 	fi
 
@@ -223,6 +226,10 @@ stack-up: ## Start the full OTel stack (Collector, Jaeger, Loki, Grafana, Promet
 	@printf "  Jaeger:     http://jaeger:16686\n"
 	@printf "  Prometheus: http://prometheus:9090\n"
 	@printf "  OTel OTLP:  http://otlp:4318\n"
+	@printf "$(GREEN)Dashboards:$(RESET)\n"
+	@printf "  Grafana:    http://grafana:3000/dashboards\n"
+	@printf "$(GREEN)Admin:$(RESET)\n"
+	@printf "  AdminApp:   http://grafana:3000/a/grafana-lokioperational-app\n"
 
 .PHONY: stack-down
 stack-down: ## Stop the OTel stack
@@ -235,7 +242,7 @@ stack-logs: ## Tail logs from all stack services
 .PHONY: stack-reset
 stack-reset: ## Wipe stack volumes and restart fresh
 	docker compose down -v
-	docker compose up -d
+	$(MAKE) stack-up;
 
 # -- Demo workflow --------------------------------------------
 .PHONY: demo
@@ -319,7 +326,8 @@ clean-output: ## Remove generated data files from output/ and data/fixtures/
 	@printf "  $(GREEN)output cleared$(RESET)\n"
 
 .PHONY: clean-all
-clean-all: clean ## Remove all artifacts, caches, and the virtualenv (full reset)
+clean-all: clean clean-output ## Remove all artifacts, caches, and the virtualenv (full reset)
 	@printf "$(CYAN)Removing$(RESET) .venv...\n"
-	@rm -rf $(PKG_DIR)/.venv
+	@rm -rf $(PKG_DIR)/.venv $(REPO_DIR)/.venv
+	@find $(REPO_DIR) -type f -name 'uv.lock' -exec rm -rf {} + 2>/dev/null || true
 	@printf "  $(GREEN)ok$(RESET)\n"

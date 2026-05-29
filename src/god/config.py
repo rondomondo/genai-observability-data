@@ -22,15 +22,20 @@ class Settings(BaseSettings):
     agent_model: str = Field(default="claude-haiku-4-5-20251001", alias="GOD_AGENT_MODEL")
 
     # When True the pydantic-ai agent is replaced with a FunctionModel (no API key needed)
-    mock_mode: bool = Field(default=False, alias="GOD_MOCK_MODE")
+    mock_mode: bool = Field(default=True, alias="GOD_MOCK_MODE")
 
-    # Optional Anthropic key — only needed when mock_mode=False
+    # Optional Anthropic key -- only needed when mock_mode=False
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
 
     # Generation defaults (all overridable via CLI args)
     default_traces: int = Field(default=100, alias="GOD_DEFAULT_TRACES")
     default_rate: float = Field(default=10.0, alias="GOD_DEFAULT_RATE")
     default_batch_size: int = Field(default=50, alias="GOD_DEFAULT_BATCH_SIZE")
+    default_seed: int | None = Field(default=None, alias="GOD_DEFAULT_SEED")
+
+    # Output defaults
+    default_format: list[str] = Field(default=["otlp_traces", "otlp_logs", "logfmt"], alias="GOD_DEFAULT_FORMAT")
+    default_otlp: str | None = Field(default=None, alias="GOD_DEFAULT_OTLP")
 
 
 _settings: Settings | None = None

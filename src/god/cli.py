@@ -135,7 +135,8 @@ def _status_panel(settings, args) -> Panel:
         count = len(SCENARIO_PRESETS[args.scenario]())
         add("  scenario-count", str(count), "")
 
-    add("format", ", ".join(args.format), "cli" if args.format != ["logfmt"] else "default")
+    effective_format = args.format if args.format is not None else settings.default_format
+    add("format", ", ".join(effective_format), "cli" if args.format is not None else "default")
 
     if args.otlp:
         add("otlp", args.otlp, "cli", style="cyan")
@@ -144,11 +145,21 @@ def _status_panel(settings, args) -> Panel:
     else:
         add("output", "stdout", "default")
 
-    add("capture-content", str(args.capture_content), "cli" if args.capture_content else "default", style="warn" if args.capture_content else "dim")
+    add(
+        "capture-content",
+        str(args.capture_content),
+        "cli" if args.capture_content else "default",
+        style="warn" if args.capture_content else "dim",
+    )
     add("analyse", str(args.analyse), "cli" if args.analyse else "default")
 
     api_key_set = bool(settings.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY"))
-    add("anthropic-api-key", "set" if api_key_set else "NOT SET", "env" if api_key_set else "default", style="success" if api_key_set else ("warn" if args.analyse and not use_mock else "dim"))
+    add(
+        "anthropic-api-key",
+        "set" if api_key_set else "NOT SET",
+        "env" if api_key_set else "default",
+        style="success" if api_key_set else ("warn" if args.analyse and not use_mock else "dim"),
+    )
     add("agent-model", settings.agent_model, _src("GOD_AGENT_MODEL", args.agent_model, None))
 
     return Panel(t, title="[bold]Runtime status[/bold]", box=box.ROUNDED, border_style="blue", padding=(0, 1))
@@ -264,7 +275,7 @@ def build_arg_parser():
         "--format",
         nargs="+",
         choices=["otlp_traces", "otlp_logs", "logfmt", "loki"],
-        default=["logfmt"],
+        default=None,
         metavar="FMT",
     )
     out_grp.add_argument("--output", "-o", type=str, default=None, metavar="DIR")
@@ -287,7 +298,7 @@ def build_arg_parser():
 
 
 def _build_sinks(args):
-    from god.sinks import FileSink, MultiSink, OTLPHttpSink, Sink, StdoutSink
+    from god.sinks import FileSink  , MultiSink, OTLPHttpSink, Sink, StdoutSink
 
     sinks: list[Sink] = []
 
@@ -367,6 +378,10 @@ def main(argv: list[str] | None = None) -> int:
     n_traces = args.traces or settings.default_traces
     rate = args.rate or settings.default_rate
     batch_size = args.batch_size or settings.default_batch_size
+    if args.format is None:
+        args.format = settings.default_format
+    if args.otlp is None and settings.default_otlp:
+        args.otlp = settings.default_otlp
 
     registry = ServiceRegistry()
     engine: ScenarioEngine | None = None
@@ -378,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.analyse:
         from god.deps import GodDeps
 
-        deps = GodDeps(settings=settings, registry=registry, engine=engine)
+        deps = GodDeps(settings=settings, registry=registry, engine=engine, scenario_preset=args.scenario)
 
     if not args.quiet:
         console.print(_header(__version__))

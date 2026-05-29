@@ -16,6 +16,7 @@ class GodDeps:
     settings: Settings = field(default_factory=get_settings)
     registry: ServiceRegistry = field(default_factory=ServiceRegistry)
     engine: ScenarioEngine | None = None
+    scenario_preset: str | None = None
 
     @classmethod
     def from_settings(cls, s: Settings) -> GodDeps:
