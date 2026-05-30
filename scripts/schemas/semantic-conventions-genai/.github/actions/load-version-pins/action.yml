@@ -1,0 +1,23 @@
+name: Load shared version pins
+description: >-
+  Parse pinned tool versions from the repo-root versions.env file and expose
+  them as step outputs.
+
+outputs:
+  weaver_version:
+    description: WEAVER_VERSION from versions.env (leading 'v' stripped).
+    value: ${{ steps.parse.outputs.weaver_version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Parse versions.env
+      id: parse
+      shell: bash
+      run: |
+        weaver_version="$(sed -n 's/^WEAVER_VERSION=v\{0,1\}//p' versions.env)"
+        if [[ -z "$weaver_version" ]]; then
+          echo "Failed to load WEAVER_VERSION from versions.env" >&2
+          exit 1
+        fi
+        echo "weaver_version=$weaver_version" >> "$GITHUB_OUTPUT"

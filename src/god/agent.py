@@ -15,7 +15,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models.fallback import FallbackModel
-from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.models.google import GoogleModel
 
 from god.deps import GodDeps
 from god.models import LogEntry, SpanStatus, Trace
@@ -132,13 +132,13 @@ async def analyse_batch(
     raw_model = model_name or settings.agent_model
     fallback_model = None if model_name else settings.agent_fallback_model
 
-    def _to_gemini(name: str) -> GeminiModel:
-        # pydantic-ai GeminiModel accepts bare names; strip any "google-gla:" prefix callers may pass
+    def _to_google(name: str) -> GoogleModel:
+        # GoogleModel accepts bare names; strip any "google-gla:" prefix callers may pass
         bare = name.removeprefix("google-gla:")
-        return GeminiModel(bare)
+        return GoogleModel(bare)
 
     if fallback_model:
-        effective_model: FallbackModel | str = FallbackModel(_to_gemini(raw_model), _to_gemini(fallback_model))
+        effective_model: FallbackModel | str = FallbackModel(_to_google(raw_model), _to_google(fallback_model))
     else:
         effective_model = raw_model if raw_model.startswith("google-") else f"google-gla:{raw_model}"
 

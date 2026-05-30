@@ -1,0 +1,9 @@
+# Weaver results (generated under scenarios/<lib>/results/<eco>/).
+scenarios/*/results/
+
+# Python
+.cache/
+.ruff_cache/
+__pycache__/
+.venv/
+*.egg-info/

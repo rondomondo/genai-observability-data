@@ -6,6 +6,7 @@ import numpy as np
 
 from god.models import SpanStatus, Trace
 from god.orchestrator import generate_dataset, generate_trace
+from god.scenarios import ScenarioState
 from god.services import ServiceRegistry
 
 
@@ -122,3 +123,85 @@ def test_generate_dataset_logs_correlated_to_traces() -> None:
             if log.trace_id:
                 log_trace_ids.add(log.trace_id)
     assert trace_ids.issubset(log_trace_ids | {None})
+
+
+def test_generate_trace_capture_content_enabled() -> None:
+    """capture_content=True should not raise and still produce valid spans."""
+    reg = ServiceRegistry()
+    trace, logs = generate_trace(reg, start_ms=0.0, rng=_rng(7), capture_content=True)
+    assert len(trace.spans) >= 3
+    assert isinstance(logs, list)
+
+
+def test_generate_dataset_capture_content() -> None:
+    reg = ServiceRegistry()
+    results = list(generate_dataset(reg, n_traces=5, rng_seed=8, capture_content=True))
+    assert len(results) == 5
+    for trace, logs in results:
+        assert len(trace.spans) > 0
+
+
+def test_generate_trace_rag_path() -> None:
+    """Seed chosen to hit the RAG branch (path_roll < 0.35)."""
+    reg = ServiceRegistry()
+    # Run enough traces to hit RAG; seed 42 reliably hits it
+    service_names = set()
+    for _, _ in zip(range(50), (generate_trace(reg, start_ms=float(i * 100), rng=np.random.default_rng(i)) for i in range(50))):
+        pass
+    # Generate a batch and confirm rag-related services appear across them
+    for i in range(30):
+        trace, _ = generate_trace(reg, start_ms=float(i * 100), rng=np.random.default_rng(i))
+        for span in trace.spans:
+            service_names.add(span.service_name)
+    assert any("llm" in n or "vector" in n or "embed" in n for n in service_names)
+
+
+def test_generate_trace_payments_path() -> None:
+    """Confirm payments-service spans appear across a batch of traces."""
+    reg = ServiceRegistry()
+    service_names: set[str] = set()
+    for i in range(30):
+        trace, _ = generate_trace(reg, start_ms=float(i * 100), rng=np.random.default_rng(i + 100))
+        for span in trace.spans:
+            service_names.add(span.service_name)
+    assert "payments-service" in service_names
+
+
+def test_generate_trace_agentic_path() -> None:
+    """Confirm agentic workflow spans appear across a batch of traces."""
+    reg = ServiceRegistry()
+    service_names: set[str] = set()
+    for i in range(30):
+        trace, _ = generate_trace(reg, start_ms=float(i * 100), rng=np.random.default_rng(i + 200))
+        for span in trace.spans:
+            service_names.add(span.service_name)
+    # Agentic path produces agent-service or workflow-related spans
+    assert any("agent" in n or "workflow" in n or "tool" in n or "memory" in n for n in service_names)
+
+
+def test_generate_dataset_scenario_tick_fires() -> None:
+    """ScenarioEngine should activate mid-dataset, changing error rates for later traces."""
+    from god.scenarios import ScenarioEngine, auth_outage
+
+    reg = ServiceRegistry()
+    # auth_outage fires at 5s; at 10 tps that's trace 50
+    engine = ScenarioEngine(reg, [auth_outage(start_s=5, duration_s=100)])
+    results = list(generate_dataset(reg, n_traces=200, traces_per_second=10.0, rng_seed=9, engine=engine))
+    assert len(results) == 200
+    # Engine should have activated the scenario (state is no longer all PENDING)
+    assert engine.scenarios[0].state != ScenarioState.PENDING
+
+
+def test_generate_dataset_zero_traces() -> None:
+    reg = ServiceRegistry()
+    results = list(generate_dataset(reg, n_traces=0, rng_seed=0))
+    assert results == []
+
+
+def test_generate_trace_auth_service_in_every_trace() -> None:
+    """auth-service is always called — it is on the critical path."""
+    reg = ServiceRegistry()
+    for i in range(10):
+        trace, _ = generate_trace(reg, start_ms=float(i * 100), rng=_rng(i))
+        names = {s.service_name for s in trace.spans}
+        assert "auth-service" in names

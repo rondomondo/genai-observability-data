@@ -34,9 +34,10 @@ class Settings(BaseSettings):
     default_rate: float = Field(default=10.0, alias="GOD_DEFAULT_RATE")
     default_batch_size: int = Field(default=50, alias="GOD_DEFAULT_BATCH_SIZE")
     default_seed: int | None = Field(default=None, alias="GOD_DEFAULT_SEED")
+    default_scenario: str | None = Field(default=None, alias="GOD_DEFAULT_SCENARIO")
 
     # Output defaults
-    default_format: list[str] = Field(default=["otlp_traces", "otlp_logs", "logfmt"], alias="GOD_DEFAULT_FORMAT")
+    default_format: list[str] = Field(default=["otlp_traces", "otlp_logs"], alias="GOD_DEFAULT_FORMAT")
     default_otlp: str | None = Field(default=None, alias="GOD_DEFAULT_OTLP")
 
 

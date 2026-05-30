@@ -1,0 +1,20 @@
+.build/
+__pycache__/
+.venv/
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+.lycheecache
+.coverage
+
+# Reference scenario live output and per-scenario uv cache
+reference/.cache/
+reference/scenarios/*/results/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor/IDE local state
+.idea/
+.vscode/

@@ -1,0 +1,49 @@
+# Local v2 markdown templates. See plan at .claude/plans/encapsulated-exploring-flamingo.md.
+#
+# Filters operate on the resolved registry that `weaver registry generate --v2`
+# hands to templates. Shape:
+#   .registry.attributes -- fully inlined attribute objects, contains only
+#                           locally-owned attributes (verified empirically).
+#   .registry.{spans,metrics,events,attribute_groups,entities} -- local signals.
+#   .refinements.{spans,metrics,events,...} -- refinement definitions.
+#   .schema_url -- the local registry's schema URL.
+# Each attribute carries `provenance.path` pointing at the model file.
+#
+# Namespace bucketing: split the attribute key on `.` and group by the first
+# segment. `aws.bedrock.*` therefore lands under "aws"; refine by hand-list if
+# we ever need finer granularity.
+templates:
+  - pattern: attributes_readme.md.j2
+    filter: >-
+      .registry.attributes
+      | group_by(.key | split(".") | .[0])
+      | map({
+          id: .[0].key | split(".") | .[0],
+          attributes: .
+        })
+    application_mode: single
+    file_name: attributes/README.md
+
+  - pattern: attribute_namespace.md.j2
+    filter: >-
+      .registry.attributes
+      | group_by(.key | split(".") | .[0])
+      | map({
+          id: .[0].key | split(".") | .[0],
+          attributes: .
+        })
+    application_mode: each
+    file_name: "attributes/{{ ctx.id | kebab_case }}.md"
+
+  - pattern: registry_readme.md.j2
+    filter: "."
+    application_mode: single
+    file_name: README.md
+
+acronyms:
+  - AI
+  - AWS
+  - Bedrock
+  - GenAI
+  - MCP
+  - OpenAI

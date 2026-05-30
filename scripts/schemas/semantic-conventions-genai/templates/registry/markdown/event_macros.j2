@@ -1,0 +1,13 @@
+{# v2 event objects expose: name, brief, note, stability, attributes. #}
+{% import 'stability.j2' as stability %}
+{% macro header(event) -%}
+**Status:** {{ stability.badge(event.stability, event.deprecated, event.brief) }}
+
+The event name MUST be `{{ event.name }}`.
+
+{{ event.brief | trim }}
+{%- if event.note %}
+
+{{ event.note | trim }}{% endif %}
+
+{% endmacro %}

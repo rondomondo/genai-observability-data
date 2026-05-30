@@ -5,8 +5,8 @@ and OTel GenAI semantic conventions (semconv 1.41.0, experimental).
 
 Examples
 --------
-# 500 traces to stdout (logfmt), no API key needed:
-python -m god --traces 500 --mock
+# 500 traces to stdout (logfmt), mock mode is on by default:
+python -m god --traces 500
 
 # 1000 traces with a cascading failure scenario, OTLP JSON files:
 python -m god --traces 1000 --scenario cascading_failure \\
@@ -15,11 +15,11 @@ python -m god --traces 1000 --scenario cascading_failure \\
 # Deterministic dataset for test fixtures:
 python -m god --traces 200 --seed 42 --format logfmt --output ./fixtures
 
-# Stream to an OTLP collector:
-python -m god --traces 10000 --rate 50 --otlp http://localhost:4318
+# Stream to an OTLP collector (disable mock to use real API):
+python -m god --traces 10000 --rate 50 --otlp http://localhost:4318 --no-mock
 
-# Run the scenario analysis agent on a batch (mock mode):
-python -m god --traces 50 --scenario rag_meltdown --analyse --mock
+# Run the scenario analysis agent on a batch (mock mode is default):
+python -m god --traces 50 --scenario rag_meltdown --analyse
 
 # List available scenarios:
 python -m god --list-scenarios

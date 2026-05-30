@@ -1,0 +1,39 @@
+{% import 'examples_macros.j2' as examples %}
+
+{# v2 attribute_catalog entries use `key`. v1 used `name`. We accept both for compatibility with snippet contexts that pass v1-shaped attribute objects. #}
+{% macro name(attribute) -%}
+{%- if attribute.key is defined %}{{ attribute.key }}{% else %}{{ attribute.name }}{% endif %}
+{%- endmacro %}
+
+{% macro type(attribute) %}{%- if attribute.type is mapping %}
+{%- if attribute.type.members[0].value is string %}string{%- endif %}
+{%- if attribute.type.members[0].value is int %}int{%- endif %}
+{%- if attribute.type.members[0].value is float %}double{%- endif %}
+{%- elif attribute.type == "template[boolean]" %}boolean
+{%- elif attribute.type == "template[int]" %}int
+{%- elif attribute.type == "template[double]" %}double
+{%- elif attribute.type == "template[string]" %}string
+{%- elif attribute.type == "template[boolean[]]" %}boolean[]
+{%- elif attribute.type == "template[int[]]" %}int[]
+{%- elif attribute.type == "template[double[]]" %}double[]
+{%- elif attribute.type == "template[string[]]" %}string[]
+{%- else %}{{ attribute.type | trim }}{%- endif %}{% endmacro %}
+
+{% macro display_name(group_id) -%}
+{{ group_id | split_id | join(" ") | title_case | acronym }} Attributes
+{%- endmacro %}
+
+{# v2 link rendering: attribute.provenance is set for locally-defined attributes
+   (their YAML file lives under ./model/) and is null for attributes imported
+   from a dependency. Local attributes link to /docs/registry/attributes/<ns>.md;
+   imported attributes link to the pinned upstream registry page. #}
+{% macro name_with_link(attribute, attribute_registry_base_url, upstream_docs_base) -%}
+{%- set ns_id = name(attribute) | trim | split_id | first -%}
+[`{{ name(attribute) | trim }}`]({% if attribute.provenance %}{{ attribute_registry_base_url }}/{{ ns_id | kebab_case }}.md{% else %}{{ upstream_docs_base }}/docs/registry/attributes/{{ ns_id | kebab_case }}.md{% endif %})
+{%- endmacro %}
+
+{% macro heading_link_fragments(title) %}{{ title | trim | lower | replace(" ", "-") | replace("(", "") | replace(")", "") | replace("/", "") | replace("\\", "") | replace(".", "") | replace("!", "") | replace("?", "") | replace("~", "") | replace("#", "")}}{% endmacro %}
+
+{% macro humanize(text) %}{{- text.replace('_', ' ') -}}{% endmacro %}
+
+{% macro sentence_case(text) %}{{- text[:1].upper() + text[1:].lower() -}}{% endmacro %}

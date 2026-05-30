@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "semconv-genai-reference"
+version = "0.1.0"
+description = "Reference implementations that validate OpenTelemetry Semantic Conventions for Generative AI against real LLM client libraries in Python"
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff==0.15.14",
+    "mypy==2.1.0",
+]
+
+[project.scripts]
+update-reports = "semconv_genai.report:main"
+run-scenario = "semconv_genai.run_scenario:main"
+genai-run-scenario = "semconv_genai.run_scenario:main"
+mock-server = "semconv_genai.mock_server:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+    ".cache",
+    ".ruff_cache",
+    "scenarios/*/results",
+]
+
+[tool.ruff.lint]
+select = ["B", "BLE", "E4", "E7", "E9", "F", "I", "PIE", "RUF", "SIM", "UP", "W"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["semconv_genai*"]

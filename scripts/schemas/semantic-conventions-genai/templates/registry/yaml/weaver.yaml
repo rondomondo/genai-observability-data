@@ -1,0 +1,5 @@
+templates:
+  - pattern: registry.yaml.j2
+    filter: "."
+    application_mode: single
+    file_name: registry.yaml

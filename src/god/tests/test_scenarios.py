@@ -8,9 +8,17 @@ from god.scenarios import (
     SCENARIO_PRESETS,
     ScenarioEngine,
     ScenarioState,
+    agent_bootstrap_failure,
     auth_outage,
     db_degradation,
+    kafka_lag,
     llm_latency_spike,
+    memory_store_degradation,
+    payments_error_burst,
+    provider_failover,
+    retrieval_quality_drop,
+    token_budget_breach,
+    tool_call_timeout,
     vector_db_slowdown,
 )
 from god.services import ServiceRegistry
@@ -146,3 +154,207 @@ def test_all_presets_return_list() -> None:
 def test_scenario_duration_property() -> None:
     s = db_degradation(start_s=10, duration_s=90)
     assert s.duration_s == pytest.approx(90)
+
+
+def test_llm_latency_spike_recover_restores_multiplier() -> None:
+    reg = _registry()
+    llm = reg.get("llm-anthropic")
+    original_multiplier = llm._latency_multiplier
+    s = llm_latency_spike(start_s=0, duration_s=5, ttft_multiplier=4.0, error_rate=0.1)
+    s.tick(0.0, reg)
+    assert llm._latency_multiplier == pytest.approx(4.0)
+    s.tick(5.0, reg)
+    assert llm._latency_multiplier == pytest.approx(original_multiplier)
+    assert llm._error_rate_override is None
+
+
+def test_token_budget_breach_sets_zero_error_rate() -> None:
+    reg = _registry()
+    s = token_budget_breach(start_s=0, duration_s=10)
+    s.tick(0.0, reg)
+    llm = reg.get("llm-anthropic")
+    assert llm._error_rate_override == pytest.approx(0.0)
+
+
+def test_token_budget_breach_clears_on_recover() -> None:
+    reg = _registry()
+    s = token_budget_breach(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    assert reg.get("llm-anthropic")._error_rate_override is None
+
+
+def test_provider_failover_applies_high_error_rate() -> None:
+    reg = _registry()
+    s = provider_failover(start_s=0, duration_s=10)
+    s.tick(0.0, reg)
+    assert reg.get("llm-anthropic").effective_error_rate == pytest.approx(0.95)
+
+
+def test_provider_failover_recovers() -> None:
+    reg = _registry()
+    s = provider_failover(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    llm = reg.get("llm-anthropic")
+    assert llm._error_rate_override is None
+    assert llm._latency_multiplier == pytest.approx(1.0)
+
+
+def test_payments_error_burst_applies_fault() -> None:
+    reg = _registry()
+    s = payments_error_burst(start_s=0, duration_s=10)
+    s.tick(0.0, reg)
+    assert reg.get("payments-service").effective_error_rate == pytest.approx(0.6)
+
+
+def test_payments_error_burst_recovers() -> None:
+    reg = _registry()
+    s = payments_error_burst(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    assert reg.get("payments-service")._error_rate_override is None
+    assert reg.get("postgres-payments")._error_rate_override is None
+
+
+def test_kafka_lag_applies_latency() -> None:
+    reg = _registry()
+    s = kafka_lag(start_s=0, duration_s=10)
+    s.tick(0.0, reg)
+    assert reg.get("kafka")._latency_multiplier == pytest.approx(10.0)
+
+
+def test_kafka_lag_recovers() -> None:
+    reg = _registry()
+    s = kafka_lag(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    assert reg.get("kafka")._error_rate_override is None
+    assert reg.get("kafka")._latency_multiplier == pytest.approx(1.0)
+
+
+def test_tool_call_timeout_applies_fault() -> None:
+    reg = _registry()
+    s = tool_call_timeout(start_s=0, duration_s=10, error_rate=0.55, latency_multiplier=12.0)
+    s.tick(0.0, reg)
+    svc = reg.get("tool-executor")
+    assert svc.effective_error_rate == pytest.approx(0.55)
+    assert svc._latency_multiplier == pytest.approx(12.0)
+
+
+def test_tool_call_timeout_recovers() -> None:
+    reg = _registry()
+    s = tool_call_timeout(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    svc = reg.get("tool-executor")
+    assert svc._error_rate_override is None
+    assert svc._latency_multiplier == pytest.approx(1.0)
+
+
+def test_memory_store_degradation_applies_fault() -> None:
+    reg = _registry()
+    s = memory_store_degradation(start_s=0, duration_s=10, latency_multiplier=8.0, error_rate=0.25)
+    s.tick(0.0, reg)
+    svc = reg.get("memory-service")
+    assert svc.effective_error_rate == pytest.approx(0.25)
+    assert svc._latency_multiplier == pytest.approx(8.0)
+
+
+def test_memory_store_degradation_recovers() -> None:
+    reg = _registry()
+    s = memory_store_degradation(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    svc = reg.get("memory-service")
+    assert svc._error_rate_override is None
+    assert svc._latency_multiplier == pytest.approx(1.0)
+
+
+def test_agent_bootstrap_failure_applies_fault() -> None:
+    reg = _registry()
+    s = agent_bootstrap_failure(start_s=0, duration_s=10)
+    s.tick(0.0, reg)
+    assert reg.get("agent-service").effective_error_rate == pytest.approx(0.9)
+
+
+def test_agent_bootstrap_failure_recovers() -> None:
+    reg = _registry()
+    s = agent_bootstrap_failure(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    svc = reg.get("agent-service")
+    assert svc._error_rate_override is None
+    assert svc._latency_multiplier == pytest.approx(1.0)
+
+
+def test_retrieval_quality_drop_applies_fault() -> None:
+    reg = _registry()
+    s = retrieval_quality_drop(start_s=0, duration_s=10, latency_multiplier=3.0, error_rate=0.08)
+    s.tick(0.0, reg)
+    svc = reg.get("vector-db")
+    assert svc.effective_error_rate == pytest.approx(0.08)
+    assert svc._latency_multiplier == pytest.approx(3.0)
+
+
+def test_retrieval_quality_drop_recovers() -> None:
+    reg = _registry()
+    s = retrieval_quality_drop(start_s=0, duration_s=5)
+    s.tick(0.0, reg)
+    s.tick(5.0, reg)
+    svc = reg.get("vector-db")
+    assert svc._error_rate_override is None
+    assert svc._latency_multiplier == pytest.approx(1.0)
+
+
+def test_engine_activated_scenario_names_includes_done() -> None:
+    reg = _registry()
+    engine = ScenarioEngine(reg, [auth_outage(start_s=0, duration_s=5)])
+    engine.tick(0.0)
+    engine.tick(5.0)
+    assert engine.active_scenario_names() == []
+    assert "auth_outage" in engine.activated_scenario_names()
+
+
+def test_engine_activated_names_includes_active_and_done() -> None:
+    reg = _registry()
+    engine = ScenarioEngine(
+        reg,
+        [
+            auth_outage(start_s=0, duration_s=5),
+            db_degradation(start_s=0, duration_s=100),
+        ],
+    )
+    engine.tick(0.0)
+    engine.tick(5.0)
+    activated = engine.activated_scenario_names()
+    assert "auth_outage" in activated
+    assert "db_degradation" in activated
+
+
+def test_engine_active_tags_empty_when_no_active_scenarios() -> None:
+    reg = _registry()
+    engine = ScenarioEngine(reg, [auth_outage(start_s=100, duration_s=10)])
+    assert engine.active_tags() == set()
+
+
+@pytest.mark.parametrize(
+    "preset,expected_count",
+    [
+        ("event_degradation", 1),
+        ("db_incident", 1),
+        ("llm_degradation", 2),
+        ("rag_meltdown", 3),
+        ("payment_outage", 2),
+        ("cascading_failure", 4),
+        ("tool_meltdown", 2),
+        ("memory_incident", 2),
+        ("agent_failure", 1),
+        ("rag_quality_degradation", 2),
+        ("agentic_cascading_failure", 4),
+        ("quiet", 0),
+    ],
+)
+def test_preset_scenario_counts(preset: str, expected_count: int) -> None:
+    scenarios = SCENARIO_PRESETS[preset]()
+    assert len(scenarios) == expected_count

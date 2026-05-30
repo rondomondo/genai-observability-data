@@ -1,51 +1,60 @@
 [build-system]
-requires = ["setuptools>=72"]
+requires = ["setuptools>=72", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "genai-observability-data"
 version = "0.1.0"
-description = "genai-observability-data"
+description = "Generate realistic GenAI distributed traces and logs with OTel semantic conventions"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 authors = [{ name = "David Kierans", email = "dkierans@gmail.com" }]
-keywords = []
+keywords = [
+    "opentelemetry", "observability", "genai", "traces", "logs",
+    "synthetic-data", "testing", "pydantic-ai",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Logging",
+    "Topic :: System :: Monitoring",
 ]
+
 dependencies = [
-    "jsonschema>=4.23",
-    "numpy>=1.26",
-    "pydantic>=2.0",
-    "pydantic-ai>=0.0.14",
-    "pydantic-settings>=2.0",
-    "pyyaml>=6.0",
+    "braintrust>=0.23.0",
+    "numpy>=1.26.0",
+    "pydantic-ai-slim[google]>=1.0.0",
+    "pydantic-settings>=2.2.0",
+    "pydantic>=2.7.0",
     "rich>=13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "mypy>=1.9",
-    "black>=24.0",
-    "isort>=5.13",
-    "autopep8",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+[project.scripts]
+god = "god.__main__:main"
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
-addopts = "-v --tb=short --cov=src --cov-report=term-missing"
+[project.urls]
+Homepage = "https://github.com/davek/genai-observability-data"
+Issues = "https://github.com/davek/genai-observability-data/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["god*"]
+
+[tool.setuptools.package-data]
+god = ["py.typed"]
 
 [tool.ruff]
 line-length = 119
@@ -59,10 +68,8 @@ python_version = "3.12"
 strict = false
 ignore_missing_imports = true
 
-[tool.black]
-line-length = 119
-target-version = ["py312"]
-
-[tool.isort]
-profile = "black"
-line_length = 119
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["src/god/tests"]
+pythonpath = ["src"]
+addopts = "-v --tb=short"

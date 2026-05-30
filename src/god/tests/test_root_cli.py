@@ -2,11 +2,12 @@
 
 The script lives at the repo root and resolves src/god via sys.path injection.
 These tests invoke it via importlib (same process) to avoid subprocess overhead,
-but stay isolated by calling god.main() directly after patching sys.argv.
+dispatching through the wrapper's _dispatch() which delegates to god.cli.main().
 """
 
 from __future__ import annotations
 
+import os
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -37,14 +38,14 @@ def _run(argv: list[str]) -> tuple[int, str, str]:
     stderr_buf = StringIO()
     from rich.console import Console
 
-    out_console = Console(file=stdout_buf, theme=_root_cli.THEME, highlight=False, force_terminal=False)
-    err_console = Console(file=stderr_buf, theme=_root_cli.THEME, highlight=False, force_terminal=False)
+    out_console = Console(file=stdout_buf, theme=_cli.THEME, highlight=False, force_terminal=False)
+    err_console = Console(file=stderr_buf, theme=_cli.THEME, highlight=False, force_terminal=False)
 
     with (
         patch.object(_cli, "console", err_console),
         patch.object(_cli, "out", out_console),
     ):
-        code = _root_cli.main(argv)
+        code = _root_cli._dispatch(argv)
 
     return code, stdout_buf.getvalue(), stderr_buf.getvalue()
 
@@ -71,9 +72,15 @@ def test_list_scenarios_exits_zero() -> None:
     assert "quiet" in stderr
 
 
-def test_generate_stdout_quiet_mock(capsys: pytest.CaptureFixture[str]) -> None:
-    """--quiet + --mock: data on real stdout, nothing on Rich stderr console."""
-    code, _rich_stdout, stderr = _run(["--traces", "10", "--mock", "--quiet"])
+def test_generate_stdout_quiet(capsys: pytest.CaptureFixture[str]) -> None:
+    """--quiet --format logfmt: logfmt lines on real stdout, nothing on Rich stderr."""
+    from god.config import get_settings, reset_settings
+    reset_settings()
+    get_settings().default_otlp = None
+    try:
+        code, _rich_stdout, stderr = _run(["--traces", "10", "--quiet", "--format", "logfmt"])
+    finally:
+        reset_settings()
     assert code == 0
     assert stderr == ""
     real = capsys.readouterr()
@@ -86,7 +93,6 @@ def test_generate_to_file_mock(tmp_path: Path) -> None:
         [
             "--traces",
             "15",
-            "--mock",
             "--quiet",
             "--output",
             str(tmp_path),
@@ -103,14 +109,14 @@ def test_generate_to_file_mock(tmp_path: Path) -> None:
 
 
 def test_generate_with_scenario_mock() -> None:
-    code, stdout, stderr = _run(["--traces", "10", "--mock", "--quiet", "--scenario", "db_incident"])
+    code, stdout, stderr = _run(["--traces", "10", "--quiet", "--scenario", "db_incident"])
     assert code == 0
     assert stderr == ""
 
 
 def test_generate_with_seed_is_deterministic() -> None:
     def _run_stdout(seed: int) -> str:
-        _, stdout, _ = _run(["--traces", "5", "--mock", "--quiet", "--seed", str(seed)])
+        _, stdout, _ = _run(["--traces", "5", "--quiet", "--seed", str(seed)])
         return stdout
 
     a = _run_stdout(99)
@@ -119,8 +125,14 @@ def test_generate_with_seed_is_deterministic() -> None:
 
 
 def test_generate_stderr_progress_not_quiet(capsys: pytest.CaptureFixture[str]) -> None:
-    """Without --quiet, progress/config go to Rich stderr; data to real stdout."""
-    code, _rich_stdout, stderr = _run(["--traces", "5", "--mock"])
+    """Without --quiet, progress/config go to Rich stderr; logfmt data to real stdout."""
+    from god.config import get_settings, reset_settings
+    reset_settings()
+    get_settings().default_otlp = None
+    try:
+        code, _rich_stdout, stderr = _run(["--traces", "5", "--format", "logfmt"])
+    finally:
+        reset_settings()
     assert code == 0
     real = capsys.readouterr()
     assert "level=" in real.out
@@ -133,7 +145,6 @@ def test_generate_otlp_traces_format(tmp_path: Path) -> None:
         [
             "--traces",
             "5",
-            "--mock",
             "--quiet",
             "--output",
             str(tmp_path),

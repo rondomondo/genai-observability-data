@@ -1,0 +1,143 @@
+file_format: definition/2
+attribute_groups:
+  - id: metric_attributes.gen_ai
+    visibility: internal
+    attributes:
+      - ref_group: attributes.gen_ai.address_and_port
+      - ref_group: attributes.gen_ai.common
+      - ref: gen_ai.response.model
+        requirement_level: recommended
+      - ref: gen_ai.provider.name
+        requirement_level: required
+
+  - id: metric_attributes.openai
+    visibility: internal
+    attributes:
+      - ref: openai.response.service_tier
+        requirement_level: recommended
+      - ref: openai.response.system_fingerprint
+        requirement_level: recommended
+metrics:
+  - name: gen_ai.client.token.usage
+    instrument: histogram
+    unit: "{token}"
+    brief: 'Number of input and output tokens used.'
+    stability: development
+    annotations:
+      code_generation:
+        metric_value_type: int
+    attributes:
+      - ref_group: metric_attributes.gen_ai
+      - ref: gen_ai.token.type
+        requirement_level: required
+  - name: gen_ai.client.operation.duration
+    instrument: histogram
+    unit: "s"
+    brief: 'GenAI operation duration.'
+    stability: development
+    annotations:
+      code_generation:
+        metric_value_type: double
+    attributes:
+      - ref_group: metric_attributes.gen_ai
+      - ref_group: attributes.gen_ai.error
+  - name: gen_ai.client.operation.time_to_first_chunk
+    instrument: histogram
+    unit: "s"
+    brief: 'Time to receive the first chunk, measured from when the client issues the generation request to when the first chunk is received in the response stream.'
+    note: >
+      This metrics SHOULD be reported for streaming calls and SHOULD NOT be reported otherwise.
+    stability: development
+    annotations:
+      code_generation:
+        metric_value_type: double
+    attributes:
+      - ref_group: metric_attributes.gen_ai
+  - name: gen_ai.client.operation.time_per_output_chunk
+    instrument: histogram
+    unit: "s"
+    brief: >
+      Time per output chunk, recorded for each chunk received after the first one, measured as the time elapsed from the end of the previous chunk to the end of the current chunk.
+    note: >
+      This metrics SHOULD be reported for streaming calls and SHOULD NOT be reported otherwise.
+    stability: development
+    annotations:
+      code_generation:
+        metric_value_type: double
+    attributes:
+      - ref_group: metric_attributes.gen_ai
+  - name: gen_ai.server.request.duration
+    instrument: histogram
+    unit: "s"
+    brief: 'Generative AI server request duration such as time-to-last byte or last output token.'
+    stability: development
+    annotations:
+      code_generation:
+        metric_value_type: double
+    attributes:
+      - ref_group: metric_attributes.gen_ai
+      - ref_group: attributes.gen_ai.error
+  - name: gen_ai.server.time_per_output_token
+    instrument: histogram
+    unit: "s"
+    brief: 'Time per output token generated after the first token for successful responses.'
+    stability: development
+    annotations:
+      code_generation:
+        metric_value_type: double
+    attributes:
+      - ref_group: metric_attributes.gen_ai
+  - name: gen_ai.server.time_to_first_token
+    instrument: histogram
+    unit: "s"
+    brief: 'Time to generate first token for successful responses.'
+    stability: development
+    annotations:
+      code_generation:
+        metric_value_type: double
+    attributes:
+      - ref_group: metric_attributes.gen_ai
+  - name: gen_ai.workflow.duration
+    annotations:
+      code_generation:
+        metric_value_type: double
+    brief: 'GenAI workflow duration.'
+    note: >
+      This metric instrument describes an operation that executes a coordinated process
+      composed of multiple agents or other operations involving generative AI.
+    instrument: histogram
+    unit: "s"
+    stability: development
+    attributes:
+      - ref_group: attributes.gen_ai.error
+      - ref: gen_ai.workflow.name
+        requirement_level:
+          conditionally_required: If available.
+
+metric_refinements:
+  - id: openai.client.token.usage
+    ref: gen_ai.client.token.usage
+    brief: >
+      OpenAI-specific extension to `gen_ai.client.token.usage`. Adds
+      `openai.response.service_tier` and `openai.response.system_fingerprint`
+      when the provider is `openai`.
+    stability: development
+    attributes:
+      # - ref_group: metric_attributes.openai - does not work, https://github.com/open-telemetry/weaver/issues/1411
+      - ref: openai.response.service_tier
+        requirement_level: recommended
+      - ref: openai.response.system_fingerprint
+        requirement_level: recommended
+  - id: openai.client.operation.duration
+    ref: gen_ai.client.operation.duration
+    brief: >
+      OpenAI-specific extension to `gen_ai.client.operation.duration`. Adds
+      `openai.response.service_tier` and `openai.response.system_fingerprint`
+      when the provider is `openai`.
+    stability: development
+    attributes:
+      # - ref_group: metric_attributes.openai - does not work, https://github.com/open-telemetry/weaver/issues/1411
+      - ref: openai.response.service_tier
+        requirement_level: recommended
+      - ref: openai.response.system_fingerprint
+        requirement_level: recommended

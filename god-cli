@@ -1,61 +1,66 @@
 #!/usr/bin/env python3
-"""god-cli - GenAI Observability Data generator CLI.
+"""god-cli -- GenAI Observability Data generator CLI.
 
-A rich terminal interface around the god package (src/god).
-Run from the repo root; the package is resolved via sys.path.
-
-Subcommands:
-  gen-scenario  Generate one or all fault-injection scenarios into output/<scenario>/
-                (mirrors `make gen-scenario SCENARIO=<name>|all`)
-
-All other arguments are forwarded to the core god CLI.
+A thin wrapper around the god package (src/god) that adds a gen-scenario
+subcommand for batch scenario generation.
 """
+
 from __future__ import annotations
 
+import argparse
+import asyncio
 import os
-import subprocess
+import shutil
 import sys
 from pathlib import Path
+from typing import Callable
 
-# Resolve src/god from the repo root regardless of cwd
-_REPO_ROOT = Path(__file__).resolve().parent
-_SRC = _REPO_ROOT / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# -----------------------------------------------------------------------------
+# Environment & Dependency Bootstrapping
+# -----------------------------------------------------------------------------
+def _bootstrap_environment() -> Path:
+    """Configures sys.path and auto-executes via 'uv' if dependencies are missing."""
+    repo_root = Path(__file__).resolve().parent
+    src_dir = repo_root / "src"
 
-# Re-exec under uv if dependencies are not available (e.g. venv not activated)
-try:
-    import rich  # noqa: F401
-except ImportError:
-    _uv = subprocess.run(["which", "uv"], capture_output=True, text=True).stdout.strip()
-    if not _uv:
-        print("ERROR: 'uv' not found and 'rich' is not installed. Run: pip install rich", file=sys.stderr)
-        sys.exit(1)
-    os.execvp(_uv, [_uv, "run", "--project", str(_REPO_ROOT / "src" / "god"), "python", __file__, *sys.argv[1:]])
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
 
-from god.cli import THEME, console, main, out  # noqa: E402
+    try:
+        import rich  # noqa: F401
+    except ImportError:
+        uv_path = shutil.which("uv")
+        if not uv_path:
+            print(
+                "ERROR: 'uv' not found and 'rich' is not installed. Run: pip install rich", 
+                file=sys.stderr
+            )
+            sys.exit(1)
+            
+        project_path = src_dir / "god"
+        os.execvp(uv_path, [uv_path, "run", "--project", str(project_path), "python", __file__, *sys.argv[1:]])
+
+    return repo_root
 
 
-def _gen_scenario(argv: list[str]) -> int:
-    """Run gen-scenario subcommand: generate one or all scenarios into subdirectories.
+_REPO_ROOT = _bootstrap_environment()
 
-    Mirrors `make gen-scenario SCENARIO=<name>|all` with the same defaults:
-      TRACES=100, RATE=10.0, FORMAT=otlp_traces otlp_logs logfmt, OUT_DIR=./output
+# Core package imports (safe to import now that environment is established)
+from god.cli import _header, _print_help, console, main
+from god.config import get_settings
+from god.scenarios import SCENARIO_PRESETS
 
-    Args:
-        argv: arguments after the 'gen-scenario' token
+_VALID_FORMATS = ("otlp_traces", "otlp_logs", "logfmt", "loki")
 
-    Returns:
-        exit code
-    """
+
+# -----------------------------------------------------------------------------
+# Argument Parsing & Argument Construction
+# -----------------------------------------------------------------------------
+def _build_scenario_parser() -> argparse.ArgumentParser:
+    """Builds the argument parser for the gen-scenario subcommand."""
     import argparse
 
-    from god.config import get_settings
-    from god.scenarios import SCENARIO_PRESETS
-
     settings = get_settings()
-    all_scenario_names = list(SCENARIO_PRESETS.keys())
-
     p = argparse.ArgumentParser(
         prog="god-cli gen-scenario",
         description="Generate one or all fault-injection scenarios into output/<scenario>/.",
@@ -64,124 +69,179 @@ def _gen_scenario(argv: list[str]) -> int:
     p.add_argument(
         "scenario",
         metavar="SCENARIO",
-        choices=[*all_scenario_names, "all"],
+        nargs="?",
+        default=settings.default_scenario,
+        choices=[*SCENARIO_PRESETS.keys(), "all", None],
         help="scenario preset name, or 'all' to generate every preset",
     )
     p.add_argument(
-        "--traces", "-n", type=int, default=settings.default_traces, metavar="N",
+        "--traces", "-n",
+        type=int,
+        default=settings.default_traces,
+        metavar="N",
         help=f"traces per scenario (default: {settings.default_traces})",
     )
     p.add_argument(
-        "--rate", type=float, default=settings.default_rate, metavar="N",
+        "--rate",
+        type=float,
+        default=settings.default_rate,
+        metavar="N",
         help=f"traces/sec (default: {settings.default_rate})",
     )
     p.add_argument(
         "--format",
         nargs="+",
-        choices=["otlp_traces", "otlp_logs", "logfmt", "loki"],
+        choices=list(_VALID_FORMATS),
         default=settings.default_format,
         metavar="FMT",
         help=f"output formats (default: {' '.join(settings.default_format)})",
     )
     p.add_argument(
-        "--output",
-        "-o",
+        "--output", "-o",
         type=Path,
         default=Path("./output"),
         metavar="DIR",
-        help="root output directory; each scenario writes to DIR/<scenario>/ (default: ./output)",
+        help="root output directory (default: ./output)",
     )
     p.add_argument("--seed", type=int, default=None, metavar="N", help="RNG seed for deterministic output")
     p.add_argument("--otlp", type=str, default=None, metavar="URL", help="stream to OTLP HTTP endpoint instead of files")
     p.add_argument("--otlp-header", action="append", default=[], metavar="KEY=VALUE", help="extra headers for OTLP sink (repeatable)")
-    p.add_argument("--compress", action="store_true", default=False, help="gzip-compress file output")
-    p.add_argument("--mock", action="store_true", default=False, help="mock mode - no API key or network needed")
-    p.add_argument("--quiet", "-q", action="store_true", default=False, help="suppress progress output per scenario")
+    
+    # Boolean flags
+    p.add_argument("--compress", action="store_true", help="gzip-compress file output")
+    p.add_argument("--no-mock", dest="mock", action="store_false", default=True, help="disable mock mode (default: mock on)")
+    p.add_argument("--quiet", "-q", action="store_true", help="suppress progress output per scenario")
+    
+    return p
 
-    args = p.parse_args(argv)
 
-    scenarios = all_scenario_names if args.scenario == "all" else [args.scenario]
+def _build_god_argv(args: argparse.Namespace, scenario_out: Path) -> list[str]:
+    """Translates parsed gen-scenario args into a core god CLI argv list."""
+    argv: list[str] = [
+        "--traces", str(args.traces),
+        "--rate", str(args.rate),
+        "--scenario", args.scenario,
+        "--format", *args.format,
+        "--output", str(scenario_out),
+    ]
+    
+    if args.otlp:
+        argv += ["--otlp", args.otlp]
+        for header in args.otlp_header:
+            argv += ["--otlp-header", header]
+            
+    if args.seed is not None:
+        argv += ["--seed", str(args.seed)]
 
-    for scenario_name in scenarios:
-        scenario_out = args.output / scenario_name
-        scenario_out.mkdir(parents=True, exist_ok=True)
+    # Dynamic boolean flag mapping
+    for flag in ("compress", "quiet"):
+        if getattr(args, flag):
+            argv.append(f"--{flag}")
 
-        if not args.quiet:
-            console.print(f"[info]Generating scenario:[/info] [scenario]{scenario_name}[/scenario]")
+    if not args.mock:
+        argv.append("--no-mock")
+            
+    return argv
 
-        god_argv: list[str] = [
-            "--traces", str(args.traces),
-            "--rate", str(args.rate),
-            "--scenario", scenario_name,
-            "--format", *args.format,
-        ]
-        god_argv += ["--output", str(scenario_out)]
-        if args.otlp:
-            god_argv += ["--otlp", args.otlp]
-            for h in args.otlp_header:
-                god_argv += ["--otlp-header", h]
-        if args.compress:
-            god_argv.append("--compress")
-        if args.seed is not None:
-            god_argv += ["--seed", str(args.seed)]
-        if args.mock:
-            god_argv.append("--mock")
-        if args.quiet:
-            god_argv.append("--quiet")
 
-        rc = main(god_argv)
-        if rc != 0:
-            console.print(f"[error]Failed on scenario:[/error] {scenario_name}")
-            return rc
+# -----------------------------------------------------------------------------
+# Core Logic Execution
+# -----------------------------------------------------------------------------
+async def _run_scenario(scenario_name: str, args: argparse.Namespace) -> int:
+    """Generates data for a single scenario inside an execution thread."""
+    scenario_out = args.output / scenario_name
+    scenario_out.mkdir(parents=True, exist_ok=True)
 
     if not args.quiet:
-        if args.scenario == "all":
-            console.print(f"[success]All scenarios written to[/success] [value]{args.output}/[/value]")
-        else:
-            console.print(f"[success]Scenario written to[/success] [value]{args.output / args.scenario}/[/value]")
+        console.print(f"[info]Generating scenario:[/info] [scenario]{scenario_name}[/scenario]")
+
+    scenario_args = argparse.Namespace(**vars(args), scenario=scenario_name)
+    god_argv = _build_god_argv(scenario_args, scenario_out)
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, main, god_argv)
+
+
+async def _gen_scenario_async(argv: list[str]) -> int:
+    """Asynchronous orchestrator for the gen-scenario subcommand."""
+    parser = _build_scenario_parser()
+    args = parser.parse_args(argv)
+
+    if args.scenario is None:
+        parser.error("SCENARIO is required (or set GOD_DEFAULT_SCENARIO)")
+
+    scenarios = list(SCENARIO_PRESETS.keys()) if args.scenario == "all" else [args.scenario]
+
+    # Run all targeted scenarios concurrently
+    results = await asyncio.gather(*[_run_scenario(name, args) for name in scenarios])
+
+    if any(rc != 0 for rc in results):
+        console.print("[error]One or more scenarios failed to generate.[/error]")
+        return 1
+
+    if not args.quiet:
+        target_dir = args.output if args.scenario == "all" else args.output / args.scenario
+        console.print(f"[success]Scenario generation complete ->[/success] [value]{target_dir}/[/value]")
 
     return 0
 
 
-_SUBCOMMANDS = {
+def _gen_scenario(argv: list[str]) -> int:
+    """Synchronous entry point that safely invokes the async loop."""
+    return asyncio.run(_gen_scenario_async(argv))
+
+
+# -----------------------------------------------------------------------------
+# Subcommand Dispatching & UI Help
+# -----------------------------------------------------------------------------
+_SUBCOMMANDS: dict[str, tuple[str, Callable[[list[str]], int]]] = {
     "gen-scenario": ("Generate one or all scenarios into output/<scenario>/", _gen_scenario),
 }
 
 
 def _print_wrapper_help(version: str) -> None:
-    from rich import box
+    """Renders a beautiful combined help UI using Rich panels."""
+    from rich.box import ROUNDED, SIMPLE
     from rich.panel import Panel
     from rich.table import Table
 
-    from god.cli import _header, _print_help  # type: ignore[attr-defined]
-
     console.print(_header(version))
 
-    t = Table(box=box.SIMPLE, show_header=False, padding=(0, 1), border_style="dim")
-    t.add_column("cmd", style="cyan", no_wrap=True)
-    t.add_column("desc", style="white")
-    t.add_row("[bold dim]Subcommands[/bold dim]", "")
-    for name, (desc, _) in _SUBCOMMANDS.items():
-        t.add_row(f"  {name}", desc)
-    t.add_row("", "")
-    t.add_row("[bold dim]Examples[/bold dim]", "")
-    t.add_row("  [dim]./god-cli gen-scenario all[/dim]", "generate all scenarios (100 traces, otlp_traces+otlp_logs+logfmt, mock)")
-    t.add_row("  [dim]./god-cli gen-scenario cascading_failure --traces 200 --seed 42[/dim]", "single scenario, deterministic")
-    t.add_row("", "")
-    t.add_row("[bold dim]Core flags[/bold dim]", "pass any god-cli flag directly (see below)")
-    console.print(Panel(t, title="[bold]Usage[/bold]: god-cli [SUBCOMMAND | OPTIONS]", box=box.ROUNDED, border_style="blue"))
+    table = Table(box=SIMPLE, show_header=False, padding=(0, 1), border_style="dim")
+    table.add_column("cmd", style="cyan", no_wrap=True)
+    table.add_column("desc", style="white")
 
+    table.add_row("[bold dim]Subcommands[/bold dim]", "")
+    for name, (desc, _) in _SUBCOMMANDS.items():
+        table.add_row(f"  {name}", desc)
+
+    table.add_row("", "")
+    table.add_row("[bold dim]Examples[/bold dim]", "")
+    table.add_row("  [dim]./god-cli gen-scenario all[/dim]", "Generate all scenarios asynchronously")
+    table.add_row("  [dim]./god-cli gen-scenario cascading_failure --traces 200[/dim]", "Single deterministic run")
+
+    table.add_row("", "")
+    table.add_row("[bold dim]Core Flags[/bold dim]", "Directly pass core flags to underlying engine (see below)")
+    
+    console.print(
+        Panel(table, title="[bold]Usage[/bold]: god-cli [SUBCOMMAND | OPTIONS]", box=ROUNDED, border_style="blue")
+    )
     _print_help(version)
 
 
-if __name__ == "__main__":
-    raw = sys.argv[1:]
-    if raw and raw[0] in _SUBCOMMANDS:
-        _, fn = _SUBCOMMANDS[raw[0]]
-        sys.exit(fn(raw[1:]))
+def _dispatch(raw: list[str]) -> int:
+    """Dispatches CLI input to either a specialized subcommand or falls back to core."""
     if not raw:
         from god import __version__
-
         _print_wrapper_help(__version__)
-        sys.exit(0)
-    sys.exit(main())
+        return 0
+
+    if raw[0] in _SUBCOMMANDS:
+        _, command_fn = _SUBCOMMANDS[raw[0]]
+        return command_fn(raw[1:])
+
+    return main(raw)
+
+
+if __name__ == "__main__":
+    sys.exit(_dispatch(sys.argv[1:]))

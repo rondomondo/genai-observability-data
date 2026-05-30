@@ -1,0 +1,14 @@
+[project]
+name = "vertexai-reference-test"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "google-cloud-aiplatform==1.153.1",
+    "genai-reference-shared",
+]
+
+[tool.uv.sources]
+genai-reference-shared = { path = "../../shared", editable = true }
+
+[tool.uv]
+package = false

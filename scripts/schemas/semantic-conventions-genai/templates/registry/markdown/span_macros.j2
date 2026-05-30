@@ -1,0 +1,29 @@
+{# v2 span objects expose: type (semantic id like gen_ai.inference.client),
+   kind (client/server/internal), brief, note, stability, attributes,
+   and `name.note` -- a markdown blob describing the span name template
+   (e.g. "**Span name** SHOULD be `{gen_ai.operation.name} {gen_ai.request.model}`."). #}
+{% import 'stability.j2' as stability %}
+
+{# Span-name rendering is disabled until weaver PR 1401 ships:
+   https://github.com/open-telemetry/weaver/pull/1401
+   Until then `span.name.note` collapses to the span's id instead of the
+   model-defined markdown, so the output would be wrong. Re-enable the
+   `if span.name and span.name.note` block below once weaver is upgraded. #}
+{% macro header(span) -%}
+**Status:** {{ stability.badge(span.stability, span.deprecated) }}
+
+{{ span.brief | trim }}
+{%- if span.note %}
+
+{{ span.note | trim }}{% endif %}
+{#- if span.name and span.name.note %}
+
+**Span name** SHOULD be {{ span.name.note | trim }}.{% endif #}
+{%- if "**Span kind" not in (span.note or "") %}
+
+**Span kind** SHOULD be `{{ span.kind | upper }}`.{% endif %}
+{%- if "**Span status" not in (span.note or "") %}
+
+**Span status** SHOULD follow the [Recording Errors]({{ params.upstream_docs_base }}/docs/general/recording-errors.md) document.{% endif %}
+
+{% endmacro %}

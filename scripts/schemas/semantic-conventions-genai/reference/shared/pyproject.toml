@@ -1,0 +1,19 @@
+[project]
+name = "genai-reference-shared"
+version = "0.1.0"
+description = "Shared OTel SDK setup for GenAI semantic-conventions reference scenarios"
+requires-python = ">=3.12"
+# Default OTel SDK pin used by all reference scenarios. Scenarios whose SDK
+# requires a different OTel version override this via [tool.uv] override-dependencies
+# in their own pyproject.toml.
+dependencies = [
+    "opentelemetry-api==1.42.1",
+    "opentelemetry-sdk==1.42.1",
+    "opentelemetry-exporter-otlp-proto-grpc==1.42.1",
+]
+
+[tool.ruff]
+extend = "../pyproject.toml"
+
+[tool.setuptools]
+py-modules = ["reference_shared"]

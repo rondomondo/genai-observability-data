@@ -104,7 +104,7 @@ def _status_panel(settings, args) -> Panel:
 
     from god.scenarios import SCENARIO_PRESETS
 
-    use_mock = args.mock or settings.mock_mode
+    use_mock = args.mock
     n_traces = args.traces or settings.default_traces
     rate = args.rate or settings.default_rate
     batch_size = args.batch_size or settings.default_batch_size
@@ -124,16 +124,18 @@ def _status_panel(settings, args) -> Panel:
     def add(key: str, val: str, source: str, style: str = "value") -> None:
         t.add_row(key, Text(val, style=style), source)
 
-    add("mock", str(use_mock), _src("GOD_MOCK_MODE", args.mock or None, False), style="warn" if use_mock else "dim")
+    mock_source = "cli" if not args.mock else _src("GOD_MOCK_MODE", None, None)
+    add("mock", str(use_mock), mock_source, style="warn" if use_mock else "dim")
     add("traces", str(n_traces), _src("GOD_DEFAULT_TRACES", args.traces, None))
     add("rate", f"{rate}/s", _src("GOD_DEFAULT_RATE", args.rate, None))
     add("batch-size", str(batch_size), _src("GOD_DEFAULT_BATCH_SIZE", args.batch_size, None))
 
-    scenario_src = "cli" if args.scenario else "default"
-    add("scenario", args.scenario or "none", scenario_src, style="scenario" if args.scenario else "dim")
+    effective_scenario = args.scenario or settings.default_scenario
+    scenario_src = "cli" if args.scenario else ("config" if settings.default_scenario else "default")
+    add("scenario", effective_scenario or "none", scenario_src, style="scenario" if effective_scenario else "dim")
 
-    if args.scenario:
-        count = len(SCENARIO_PRESETS[args.scenario]())
+    if effective_scenario:
+        count = len(SCENARIO_PRESETS[effective_scenario]())
         add("  scenario-count", str(count), "")
 
     effective_format = args.format if args.format is not None else settings.default_format
@@ -220,7 +222,7 @@ def _print_help(version: str) -> None:
         ("Agent", ""),
         ("  --analyse", "Run pydantic-ai analysis on generated batch"),
         ("  --agent-model MODEL", "Override analysis model"),
-        ("  --mock", "Mock mode - no API key or network needed"),
+        ("  --no-mock", "Disable mock mode (default: mock on, no API key needed)"),
         ("", ""),
         ("Meta", ""),
         ("  --list-scenarios", "List available scenario presets"),
@@ -288,7 +290,7 @@ def build_arg_parser():
     agent_grp = p.add_argument_group("Agent")
     agent_grp.add_argument("--analyse", action="store_true", default=False)
     agent_grp.add_argument("--agent-model", type=str, default=None, metavar="MODEL")
-    agent_grp.add_argument("--mock", action="store_true", default=False)
+    agent_grp.add_argument("--no-mock", dest="mock", action="store_false", default=True)
 
     meta = p.add_argument_group("Meta")
     meta.add_argument("--list-scenarios", action="store_true", default=False)
@@ -375,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
         console.print(_header(__version__))
         console.print(_status_panel(settings, args))
         return 0
-    use_mock = args.mock or settings.mock_mode
+    use_mock = args.mock
 
     if use_mock:
         from god.mock.activate import activate_mock_mode
@@ -389,6 +391,9 @@ def main(argv: list[str] | None = None) -> int:
         args.format = settings.default_format
     if args.otlp is None and settings.default_otlp:
         args.otlp = settings.default_otlp
+
+    if args.scenario is None and settings.default_scenario:
+        args.scenario = settings.default_scenario
 
     registry = ServiceRegistry()
     engine: ScenarioEngine | None = None
