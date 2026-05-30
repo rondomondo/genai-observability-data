@@ -1,0 +1,52 @@
+{
+  "active_scenarios": [
+    "memory_incident"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "109 errors out of 520 spans — ~21% error rate, the single largest error contributor in the batch. Strongly consistent with an active memory_incident scenario."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "48 errors out of 530 spans (~9.1% error rate) alongside 53 genai_tool_failures globally. Tool execution is severely degraded, likely downstream of memory-service failures affecting agent context retrieval."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "40 errors out of 520 spans (~7.7% error rate). Agents are failing at an elevated rate, consistent with cascading failures from memory-service and tool-executor."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "21 errors out of 260 spans (~8.1% error rate). p99 latency across the stack is 31,730 ms — over 31 seconds — pointing to orchestration stalls, likely due to retries or timeouts waiting on degraded memory/tool services."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "13 errors out of 893 spans and 28 token truncation events globally. Truncations may indicate oversized context payloads being constructed due to memory-service returning partial or corrupt data."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "14 errors out of 402 spans (~3.5% error rate), echoed by 3 postgres-payments errors. Payments flow is experiencing elevated failures, possibly due to workflow orchestration delays or agent failures impacting payment steps."
+    }
+  ],
+  "error_rate": 0.0337,
+  "p99_latency_ms": 31730.3,
+  "recommended_action": "Immediately investigate and restart/isolate memory-service pods — it is the epicentre of the incident with a ~21% error rate. Check memory-service logs for OOM events, connection pool exhaustion, or backing store failures. Verify tool-executor and agent-service recover once memory-service stabilises. Review the 28 LLM token truncations for context-size anomalies that may indicate corrupted memory retrievals inflating prompt payloads. Consider enabling circuit-breakers on memory-service dependencies to prevent further cascading into payments and workflow flows.",
+  "summary": "An active memory_incident is causing a cascading failure across the stack: memory-service is erroring on ~21% of its spans, directly triggering elevated failures in tool-executor (~9%), agent-service (~7.7%), and workflow-orchestrator (~8.1%). The p99 latency has blown out to over 31.7 seconds, and 53 tool failures plus 28 LLM token truncations indicate significant GenAI pipeline degradation across the board.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211702",
+    "scenario": "memory_incident"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "active_scenarios": [
+    "event_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "kafka",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "Kafka showing 7 errors across 375 spans (1.87% error rate). Consistent with event_degradation scenario — event pipeline is experiencing failures, likely causing downstream cascade."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "18 errors out of 375 spans (4.8% error rate) — highest absolute error count and one of the highest per-service rates. Likely downstream victim of Kafka/event degradation disrupting payment event processing."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "17 errors across 495 spans (3.43% error rate) combined with 23 global tool failures. Tool execution reliability is significantly degraded, impacting agent workflows."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "16 errors across 494 spans (3.24% error rate). Closely correlated with tool-executor failures — agent tasks are failing or retrying due to broken tool calls."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "16 errors across 896 spans (1.79% error rate). p99 latency of 10,880ms system-wide is heavily influenced by LLM call durations. Possible timeout-driven errors under load."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "50 token truncation events recorded globally. LLM responses are being cut short, likely causing incomplete or malformed outputs in agent and workflow pipelines."
+    },
+    {
+      "service": "embed-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "8 errors across 513 spans (1.56% error rate). Embedding generation is degraded, potentially impacting retrieval quality in vector-db lookups."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "6 errors across 494 spans (1.21% error rate). Memory read/write failures could be causing agents to operate without proper context."
+    }
+  ],
+  "error_rate": 0.0127,
+  "p99_latency_ms": 10880.7,
+  "recommended_action": "Investigate Kafka broker health and consumer lag immediately — event_degradation is cascading into payments-service (4.8% error rate) and destabilising the full agent pipeline. Simultaneously: (1) review tool-executor failure logs to identify which tools are failing and restore reliability, (2) audit LLM context window usage to reduce the 50 token truncations (consider prompt trimming or chunking), and (3) assess LLM timeout thresholds given p99 latency exceeding 10.8s.",
+  "summary": "An active event_degradation scenario is stressing the Kafka event pipeline, cascading failures into payments-service (highest per-service error rate at 4.8%) and the broader GenAI agent stack. Compounding issues include 23 tool execution failures, 50 LLM token truncations, and a severe p99 latency of ~10.9 seconds, indicating the system is under significant multi-vector strain.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211605",
+    "scenario": "event_degradation"
+  }
+}

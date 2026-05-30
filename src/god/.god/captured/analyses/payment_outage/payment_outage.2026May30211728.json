@@ -1,0 +1,52 @@
+{
+  "active_scenarios": [
+    "payment_outage"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "136 errors out of 411 spans — 33.1% error rate on payments-service, strongly indicating a payment outage scenario."
+    },
+    {
+      "service": "postgres-payments",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "50 errors out of 411 spans — 12.2% error rate on the payments database, suggesting DB-layer failures cascading from or causing the payment outage."
+    },
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "193 errors out of 1000 spans — 19.3% error rate, likely reflecting upstream propagation of payment and downstream failures to clients."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "35 genai_tool_failures recorded across the batch; tool-executor also shows 26 error spans (5.5% of its 472 spans), indicating degraded tool execution reliability."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "26 token truncation events detected on llm-gemini, which also has 24 error spans (2.7% of 875 spans). Truncations may be causing incomplete responses or tool-call failures downstream."
+    },
+    {
+      "service": "api-gateway",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 11,433 ms (>11 seconds) across the batch — far above healthy thresholds, consistent with payment path timeouts and retries propagating through the gateway."
+    }
+  ],
+  "error_rate": 0.0589,
+  "p99_latency_ms": 11433.3,
+  "recommended_action": "Immediately investigate payments-service and postgres-payments for the root cause of the payment outage (connection exhaustion, query timeouts, or schema issues). Consider circuit-breaking the payment path at the api-gateway to stop cascading client-facing errors. Simultaneously review llm-gemini token truncation config to reduce tool failures, and audit tool-executor error logs for failed tool categories.",
+  "summary": "A confirmed payment_outage scenario is causing severe degradation: payments-service is failing at a 33% rate and postgres-payments at 12%, together driving a fleet-wide p99 latency of 11.4 seconds and a 5.9% overall error rate. Secondary signals include 35 GenAI tool failures and 26 LLM token truncations, suggesting additional instability in the agent/tool execution layer.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211728",
+    "scenario": "payment_outage"
+  }
+}

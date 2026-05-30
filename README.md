@@ -217,19 +217,21 @@ Set `GOD_AGENT_MODEL` to a Claude model and provide `ANTHROPIC_API_KEY` if you p
 
 ## Installation
 
+From the repo root:
+
+```bash
+make install
+```
+
+Or via clone & uv
+
 ```bash
 git clone <repo-url>
 cd genai-observability-data/src/god
 uv sync --all-extras
 ```
 
-Or from the repo root:
-
-```bash
-make install
-```
-
-This creates `src/god/.venv/` and installs all runtime and dev dependencies.
+This creates `.venv/` and installs all runtime and dev dependencies.
 
 ---
 
@@ -276,7 +278,7 @@ No Elasticsearch or Redis keys are used by this project.
 
 ```bash
 cd src/god
-uv run python -m god --traces 20 --mock
+uv run python -m god --traces 20
 ```
 
 ### Stream to a local OTel stack
@@ -367,11 +369,11 @@ uv run python -m god -n 500 --scenario rag_meltdown --rate 5 \
   --otlp-header "Authorization=Bearer mytoken"
 
 # Run the analysis agent in mock mode (no API key needed)
-uv run python -m god -n 100 --scenario llm_degradation --mock --analyse
+uv run python -m god -n 100 --scenario llm_degradation --analyse
 
 # Run the analysis agent with a specific model
 uv run python -m god -n 100 --scenario llm_degradation --analyse \
-  --agent-model claude-haiku-4-5-20251001
+  --agent-model claude-sonnet-4-6
 
 # List all available scenarios
 uv run python -m god --list-scenarios
@@ -388,9 +390,9 @@ requires no installation beyond the existing `uv` environment - just run it from
 # From the repo root (no cd required)
 ./god-cli --help
 ./god-cli --list-scenarios
-./god-cli -n 50 --mock
-./god-cli -n 500 --scenario cascading_failure --mock -o ./output --format otlp_traces otlp_logs logfmt
-./god-cli -n 200 --scenario llm_degradation --mock --analyse
+./god-cli -n 50
+./god-cli -n 500 --scenario cascading_failure -o ./output --format otlp_traces otlp_logs logfmt
+./god-cli -n 200 --scenario llm_degradation --analyse
 ```
 
 The script resolves `src/god` via `sys.path` automatically, so it works without activating the venv
@@ -441,7 +443,7 @@ have an API key and want real analysis.
 `--quiet` (`-q`) suppresses all Rich output to stderr. Stdout stays clean data, suitable for piping:
 
 ```bash
-./god-cli -n 1000 --mock -q | grep "level=ERROR" | wc -l
+./god-cli -n 1000 -q | grep "level=ERROR" | wc -l
 ```
 
 ---
@@ -655,7 +657,7 @@ Pass `--mock` to activate a deterministic `FunctionModel` that replicates the an
 Mock mode is on by default (`GOD_MOCK_MODE=true`).
 
 ```bash
-uv run python -m god -n 200 --scenario cascading_failure --mock --analyse
+uv run python -m god -n 200 --scenario cascading_failure --analyse
 ```
 
 ### Model override

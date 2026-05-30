@@ -1,0 +1,58 @@
+{
+  "active_scenarios": [
+    "llm_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "llm-gemini",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "75 errors out of 872 spans (~8.6% error rate) — far above fleet average of ~2%. Primary driver of overall degradation."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "critical",
+      "detail": "p99 latency of 11,808ms is extremely elevated, consistent with LLM backend timeouts or throttling under llm_degradation scenario."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "high",
+      "detail": "37 GenAI token truncation events detected — incomplete responses likely propagating to downstream agent and workflow logic."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "20 tool failures recorded alongside 18 error spans out of 500 (3.6% error rate). Likely cascading from truncated or malformed LLM outputs."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "14 errors out of 402 spans (~3.5% error rate) — elevated above baseline, possibly caused by upstream tool-executor or workflow failures."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "10 errors out of 506 spans (~2.0% error rate) — borderline elevated, likely absorbing LLM degradation impact via retries or failed completions."
+    },
+    {
+      "service": "postgres-payments",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "5 errors out of 402 spans (~1.2%) — minor but worth correlating with payments-service errors for potential transaction integrity issues."
+    }
+  ],
+  "error_rate": 0.0199,
+  "p99_latency_ms": 11808.2,
+  "recommended_action": "Immediately investigate llm-gemini backend: check for rate limiting, quota exhaustion, or model endpoint degradation. Apply circuit-breaker or fallback model routing to stem the 8.6% LLM error rate. Audit token truncation events for prompt-size violations and validate tool-executor input schemas to prevent further cascade into payments-service.",
+  "summary": "The batch is dominated by an active llm_degradation scenario: llm-gemini is the primary fault epicentre with an 8.6% error rate, 37 token truncations, and a p99 latency of ~11.8 seconds. Downstream services — tool-executor, agent-service, and payments-service — are showing cascading error elevation driven by malformed or incomplete LLM responses.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30204736",
+    "scenario": "llm_degradation"
+  }
+}

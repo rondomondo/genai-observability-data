@@ -1,0 +1,52 @@
+{
+  "active_scenarios": [
+    "db_incident"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "postgres-payments",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "60 errors out of 407 spans — 14.7% error rate on the payments DB. Primary driver of the db_incident scenario, likely causing cascading failures upstream."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "36 errors out of 407 spans — 8.8% error rate. Directly downstream of postgres-payments degradation; failing queries are propagating to the payments service layer."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "23 errors out of 537 spans (4.3% error rate) plus 25 genai_tool_failures cluster here. Tools are failing at an elevated rate, likely impacting agent task completion."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "34 token truncation events recorded across 863 spans (~3.9% truncation rate). Responses may be incomplete, causing downstream agent/workflow logic errors."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 11,777.8 ms across the stack is significantly elevated. LLM inference latency is a prime contributor given its high span count (863) and known susceptibility to tail latency spikes."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "9 errors out of 520 spans (1.7% error rate). Likely a secondary effect of tool-executor failures and LLM truncations degrading agent task execution."
+    }
+  ],
+  "error_rate": 0.0204,
+  "p99_latency_ms": 11777.8,
+  "recommended_action": "Immediately investigate postgres-payments: check for connection pool exhaustion, slow queries, or disk/IO saturation driving the 14.7% DB error rate and cascading failures into payments-service. In parallel, review tool-executor logs for the 25 GenAI tool failures and audit LLM context window sizing to address 34 token truncations. Consider circuit-breaking payments-service from postgres-payments to limit blast radius while the DB incident is remediated.",
+  "summary": "A confirmed db_incident is centred on postgres-payments (14.7% error rate), cascading failures into payments-service (8.8%) and contributing to an elevated system-wide p99 latency of ~11.8 s. Compounding issues include 25 GenAI tool failures in tool-executor and 34 LLM token truncations in llm-gemini, suggesting the agent/workflow layer is also degraded independently of the DB incident.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211536",
+    "scenario": "db_incident"
+  }
+}

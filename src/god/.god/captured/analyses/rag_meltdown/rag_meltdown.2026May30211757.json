@@ -1,0 +1,58 @@
+{
+  "active_scenarios": [
+    "rag_meltdown"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "llm-gemini",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "150 errors out of 856 spans — ~17.5% error rate. Dominant error source in the entire trace batch, strongly indicative of LLM-layer instability under the rag_meltdown scenario."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "high",
+      "detail": "35 GenAI token truncation events detected globally, likely concentrated on llm-gemini given its high error rate. Truncated context will degrade RAG response quality."
+    },
+    {
+      "service": "vector-db",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "25 errors out of 500 spans — 5% error rate. Vector retrieval failures are upstream triggers for RAG pipeline degradation and LLM context starvation."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "21 GenAI tool failures detected globally, with tool-executor logging 17 errors out of 483 spans (~3.5%). Tool call reliability is significantly impaired."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "23 errors out of 474 spans (~4.9% error rate). Agent orchestration is being disrupted, likely cascading from vector-db and llm-gemini failures."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "14 errors out of 419 spans (~3.3% error rate). Elevated for a payments path; may indicate downstream propagation from upstream agent/workflow failures."
+    },
+    {
+      "service": "api-gateway",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of ~11,976ms (~12s) across the batch is severely elevated. End-users are experiencing near-12s tail latencies, consistent with LLM and vector-db stalls cascading upward."
+    }
+  ],
+  "error_rate": 0.032,
+  "p99_latency_ms": 11976.9,
+  "recommended_action": "Immediately investigate llm-gemini and vector-db: circuit-break or throttle LLM requests experiencing truncations/errors, check vector-db index health and query latency, and verify tool-executor retry/fallback configuration. Consider enabling a degraded-mode RAG path (e.g., reduced top-k retrieval or cached embeddings) to stabilise tail latency while the root cause is resolved.",
+  "summary": "A rag_meltdown scenario is actively degrading the RAG pipeline: llm-gemini is the epicentre with a ~17.5% span error rate, 35 token truncations, and 21 tool failures, while vector-db (5% errors) and agent-service (4.9% errors) are amplifying the cascade. P99 latency has ballooned to ~12 seconds, signalling severe end-to-end user impact.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211757",
+    "scenario": "rag_meltdown"
+  }
+}

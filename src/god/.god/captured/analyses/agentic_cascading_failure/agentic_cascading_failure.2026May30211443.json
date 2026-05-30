@@ -1,0 +1,58 @@
+{
+  "active_scenarios": [
+    "agentic_cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "critical",
+      "detail": "239 errors out of 485 spans (~49.3% error rate) and 246 genai_tool_failures recorded — nearly every other tool invocation is failing, triggering cascading failures upstream."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "177 errors out of 490 spans (~36.1% error rate). Likely propagating failures from tool-executor, destabilising the agentic loop."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "93 errors out of 490 spans (~19.0% error rate). Memory read/write failures are compounding agent context loss and retry storms."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "67 errors out of 874 spans (~7.7% error rate) combined with a system-wide p99 of 32,693 ms strongly suggests LLM inference timeouts and upstream back-pressure contributing to the cascading failure."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "26 token truncation events detected. Likely caused by bloated prompts from retry/context accumulation during the agentic failure loop."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "44 errors out of 245 spans (~18.0% error rate). Orchestrator is struggling to manage failed agentic steps, suggesting inadequate dead-letter/fallback handling."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "21 errors out of 418 spans (~5.0% error rate). Downstream payment processing is being affected, raising risk of incomplete financial transactions."
+    }
+  ],
+  "error_rate": 0.0848,
+  "p99_latency_ms": 32693.7,
+  "recommended_action": "Immediately circuit-break tool-executor to halt the cascading failure loop; investigate and fix the root cause of tool invocation failures (misconfigured tools, downstream dependency outage, or malformed LLM-generated tool calls). Simultaneously throttle agent retry storms via workflow-orchestrator rate limits, stabilise memory-service, and review LLM prompt sizes to eliminate token truncations. Monitor payments-service closely for transaction integrity issues during the incident.",
+  "summary": "A severe agentic cascading failure is active: tool-executor is failing on ~49% of invocations (246 genai_tool_failures), causing a chain reaction of errors through agent-service (36%), memory-service (19%), and workflow-orchestrator (18%), with a system-wide p99 latency of ~32.7 seconds and an 8.5% overall error rate. The LLM layer is exhibiting token truncations and elevated errors, indicating the agentic retry loop is amplifying prompt sizes and overwhelming the entire stack.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211443",
+    "scenario": "agentic_cascading_failure"
+  }
+}

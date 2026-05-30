@@ -196,8 +196,15 @@ def _gen_scenario(argv: list[str]) -> int:
 # -----------------------------------------------------------------------------
 # Subcommand Dispatching & UI Help
 # -----------------------------------------------------------------------------
+def _list_scenarios(_: list[str]) -> int:
+    """Print all available scenario preset names, space-separated, on one line."""
+    print(" ".join(sorted(SCENARIO_PRESETS.keys())))
+    return 0
+
+
 _SUBCOMMANDS: dict[str, tuple[str, Callable[[list[str]], int]]] = {
     "gen-scenario": ("Generate one or all scenarios into output/<scenario>/", _gen_scenario),
+    "list-scenarios": ("Print all scenario preset names on one line", _list_scenarios),
 }
 
 

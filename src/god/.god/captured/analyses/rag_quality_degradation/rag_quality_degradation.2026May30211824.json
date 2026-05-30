@@ -1,0 +1,52 @@
+{
+  "active_scenarios": [
+    "rag_quality_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "llm-gemini",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "71 errors out of 893 spans (~7.9% error rate) — the highest absolute error count in the batch, strongly linked to RAG quality degradation causing downstream LLM failures."
+    },
+    {
+      "service": "vector-db",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "42 errors out of 534 spans (~7.9% error rate) — elevated failure rate consistent with rag_quality_degradation scenario; degraded retrieval likely poisoning LLM context."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "44 GenAI token truncation events detected. Oversized or malformed retrieval chunks from vector-db are likely inflating prompt size and causing truncations."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "medium",
+      "detail": "25 GenAI tool failures and 21 error spans out of 469 (~4.5% error rate). Tool calls are failing at a meaningful rate, likely cascading from LLM response degradation."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "14 errors out of 397 spans (~3.5% error rate). Elevated for a critical-path financial service; warrants investigation for downstream workflow failures."
+    },
+    {
+      "service": "api-gateway",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 12,424.5ms across the full trace batch is critically high. End-to-end request latency is likely dominated by slow vector-db retrievals and LLM retries under the RAG degradation scenario."
+    }
+  ],
+  "error_rate": 0.0223,
+  "p99_latency_ms": 12424.5,
+  "recommended_action": "Immediately inspect vector-db query quality and index health — degraded retrieval is the root cause of the rag_quality_degradation scenario. Audit chunk sizes returned to llm-gemini to resolve token truncations, throttle or circuit-break LLM retries to reduce p99 latency, and investigate payments-service errors independently to rule out a secondary fault.",
+  "summary": "A rag_quality_degradation scenario is actively impacting the stack, with vector-db and llm-gemini both running near 8% error rates, 44 token truncations, and 25 tool failures. P99 latency has spiked to over 12 seconds, indicating severe end-to-end degradation driven by poor retrieval quality inflating LLM context and triggering cascading failures.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211824",
+    "scenario": "rag_quality_degradation"
+  }
+}

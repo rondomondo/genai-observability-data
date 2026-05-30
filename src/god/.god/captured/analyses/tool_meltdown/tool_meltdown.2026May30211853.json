@@ -1,0 +1,52 @@
+{
+  "active_scenarios": [
+    "tool_meltdown"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "critical",
+      "detail": "209 errors out of 530 spans (~39.4% error rate) and 213 genai_tool_failures recorded — tool-executor is in a meltdown state, failing nearly 2 in 5 calls."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "213 errors out of 510 spans (~41.8% error rate), directly correlated with tool-executor failures — agent tasks are cascading into errors as tools fail to respond."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "24 errors out of 255 spans (~9.4% error rate), likely propagated upstream from agent-service/tool-executor failures disrupting orchestrated workflows."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 17,601.6 ms (~17.6s) across the stack is consistent with LLM calls stalling while waiting on broken tool calls or retrying failed tool responses."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "35 token truncation events detected — tool failure retries and error payloads may be inflating context windows, causing responses to be cut short."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "14 errors out of 397 spans (~3.5% error rate) — minor but notable; could indicate tool-executor failures affecting payment-related tool calls."
+    }
+  ],
+  "error_rate": 0.0631,
+  "p99_latency_ms": 17601.6,
+  "recommended_action": "Immediately investigate and restart the tool-executor service — with a ~40% error rate and 213 confirmed GenAI tool failures, it is the blast radius epicentre. Engage circuit-breaker logic on agent-service to stop cascading failures into workflow-orchestrator and llm-gemini. Review tool timeout configs and retry budgets to prevent LLM context bloat (evidenced by 35 token truncations). Monitor payments-service closely for further degradation.",
+  "summary": "A tool_meltdown scenario is active and confirmed: tool-executor and agent-service are both experiencing ~40% error rates, accounting for the bulk of the 495 error spans (6.3% overall). The p99 latency of 17.6 seconds reflects severe downstream stalling across the LLM and orchestration layers, with 213 tool failures and 35 token truncations compounding the impact.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211853",
+    "scenario": "tool_meltdown"
+  }
+}

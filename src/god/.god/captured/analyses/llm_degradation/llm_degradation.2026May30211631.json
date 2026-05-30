@@ -1,0 +1,58 @@
+{
+  "active_scenarios": [
+    "llm_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "llm-gemini",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "91 errors out of 896 spans (~10.2% local error rate). Dominant error source in the entire trace batch, strongly consistent with llm_degradation scenario."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "critical",
+      "detail": "p99 latency of 11,826.8ms across all spans is most likely driven by LLM response delays under degradation. Upstream services (agent-service, workflow-orchestrator) will inherit this latency."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "high",
+      "detail": "39 GenAI token truncation events detected. Incomplete LLM responses will cause downstream agent logic failures and degraded user experience."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "23 tool failures and 15 error spans. Likely cascading from malformed or truncated LLM outputs that produce invalid tool invocations."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "11 errors out of 387 spans (~2.8% local error rate). Elevated above baseline; may be a cascade from upstream agent/orchestrator timeouts caused by LLM degradation."
+    },
+    {
+      "service": "embed-service",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "7 errors out of 524 spans (~1.3% local error rate). Minor elevation; monitor for worsening if llm_degradation persists and request retries increase load."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "7 errors out of 494 spans (~1.4% local error rate). Consistent with failed LLM calls propagating back through agent orchestration logic."
+    }
+  ],
+  "error_rate": 0.0189,
+  "p99_latency_ms": 11826.8,
+  "recommended_action": "Immediately investigate llm-gemini service health: check quota exhaustion, upstream API rate limits, and model endpoint availability. Enable LLM fallback routing (e.g., switch to a backup model or provider) to restore latency. Audit tool-executor error logs for truncated prompt payloads and add input validation guards. Review payments-service errors to confirm they are cascade-only and not an independent fault.",
+  "summary": "The trace batch is dominated by an active llm_degradation scenario centred on llm-gemini, which accounts for 61% of all error spans (~10.2% local error rate), 39 token truncations, and is the primary driver of the 11.8 s p99 latency. Downstream services — tool-executor, agent-service, payments-service, and workflow-orchestrator — all show secondary error elevation consistent with cascading failures from slow or malformed LLM responses.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211631",
+    "scenario": "llm_degradation"
+  }
+}

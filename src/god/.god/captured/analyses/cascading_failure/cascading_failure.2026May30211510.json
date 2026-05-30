@@ -1,0 +1,64 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "448 errors out of 1000 spans — 44.8% error rate. Likely the primary blast radius entry point of the cascading failure, rejecting or failing nearly half of all requests."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "256 errors out of 1000 spans — 25.6% error rate. Severe downstream impact from postgres-auth degradation; auth failures propagate upstream to api-gateway."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "108 errors out of 1000 spans — 10.8% error rate. Database-layer failures driving auth-service and api-gateway error cascade."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "147 errors out of 404 spans — 36.4% error rate. Over a third of payment transactions failing, posing direct business/revenue risk."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "76 errors out of 865 spans (8.8% error rate) combined with system-wide p99 latency of 11,605 ms strongly suggests LLM timeouts or overload contributing to tail latency."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "37 GenAI token truncation events detected across the batch. Responses may be incomplete, degrading agent/workflow output quality."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "medium",
+      "detail": "27 GenAI tool call failures alongside 17 tool-executor error spans. Agent tool use is unreliable; tasks dependent on external tools will produce degraded or incorrect results."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "10 errors out of 470 spans (2.1%). Secondary downstream effect of LLM and tool-executor instability."
+    }
+  ],
+  "error_rate": 0.1404,
+  "p99_latency_ms": 11605.0,
+  "recommended_action": "Immediately investigate postgres-auth stability (connection pool exhaustion, disk I/O, or query timeouts) as the likely cascade origin — restoring it should relieve auth-service and api-gateway error rates. In parallel, cap or circuit-break payments-service retries to prevent revenue loss, throttle llm-gemini request concurrency to reduce tail latency and token truncations, and review tool-executor failure logs to identify which tools are flapping.",
+  "summary": "A cascading failure is actively propagating from the database layer (postgres-auth) through auth-service and into api-gateway, causing a system-wide 14% error rate and p99 latency of ~11.6 seconds. Payments-service is concurrently failing at 36%, and the GenAI layer is compounding the incident with 37 token truncations and 27 tool failures.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211510",
+    "scenario": "cascading_failure"
+  }
+}

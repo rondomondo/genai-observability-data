@@ -1,0 +1,88 @@
+{
+  "active_scenarios": [
+    "db_degradation",
+    "llm_latency_spike",
+    "auth_failure_spike",
+    "tool_failure_surge",
+    "api_gateway_overload",
+    "payment_service_errors",
+    "token_truncation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "623 errors out of 1000 spans — 62.3% error rate. Gateway is the primary blast radius amplifier, suggesting upstream failures are cascading hard into ingress."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "257 errors out of 1000 spans — 25.7% error rate. Likely compounded by postgres-auth degradation (126/1000 errors). Auth failures are propagating to api-gateway."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "126 errors out of 1000 spans — 12.6% error rate. Indicates active DB degradation on the auth database backend, root cause of auth-service failures."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "253 errors out of 524 spans — 48.3% error rate. Nearly half of all agent invocations are failing, likely driven by tool-executor and LLM failures downstream."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "253 errors out of 529 spans (47.8%) plus 261 GenAI tool failures globally. Tool execution is critically degraded, directly impairing agent-service reliability."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "164 errors out of 874 spans — 18.8% error rate. Combined with p99 latency of 25,334ms system-wide, LLM calls are a major latency and error contributor."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "36 GenAI token truncation events detected. Prompts or responses are being cut short, indicating context window breaches or aggressive timeout/truncation policies under load."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "132 errors out of 403 spans — 32.8% error rate. Correlated with postgres-payments showing 70/403 errors (17.4%). Payment DB degradation is causing payment service instability."
+    },
+    {
+      "service": "postgres-payments",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "70 errors out of 403 spans — 17.4% error rate. DB-level failures confirm a db_degradation scenario active on the payments data plane."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "75 errors out of 524 spans — 14.3% error rate. Memory retrieval failures will degrade agent context quality and compound agent-service errors."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "52 errors out of 262 spans — 19.8% error rate. Orchestration layer is absorbing downstream failures from agents and tools, reducing overall workflow completion."
+    }
+  ],
+  "error_rate": 0.2603,
+  "p99_latency_ms": 25334.2,
+  "recommended_action": "IMMEDIATE: Declare a multi-service incident. (1) Investigate and remediate postgres-auth and postgres-payments for DB degradation — these are root causes propagating up through auth-service and payments-service. (2) Circuit-break or throttle tool-executor calls from agent-service to stop the 48%+ failure cascade. (3) Review llm-gemini timeout and retry configuration — reduce p99 latency exposure and address token truncation by enforcing stricter prompt size limits. (4) Scale or restart api-gateway instances if connection pool exhaustion is contributing to the 62% error rate at ingress. (5) Enable chaos/fault injection kill-switch if \"all\" scenarios are intentionally active in staging — otherwise treat as full production incident.",
+  "summary": "A catastrophic multi-scenario fault is active across the entire stack: 26% global error rate and p99 latency exceeding 25 seconds. Root causes include DB degradation on both postgres-auth and postgres-payments, a near-50% tool-executor failure rate driving 261 GenAI tool failures, LLM latency and error elevation on llm-gemini (including 36 token truncations), and cascading errors amplifying through auth-service and api-gateway. All major service layers are simultaneously degraded.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30205112",
+    "scenario": "all"
+  }
+}

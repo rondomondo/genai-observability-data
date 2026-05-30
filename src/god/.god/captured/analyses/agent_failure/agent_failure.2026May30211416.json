@@ -1,0 +1,58 @@
+{
+  "active_scenarios": [
+    "agent_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "236 errors out of 480 spans — ~49% error rate. This is the dominant failure source and primary indicator of the agent_failure scenario."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "38 errors out of 240 spans (~15.8% error rate), likely cascading from agent-service failures upstream."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "23 errors out of 476 spans (~4.8% error rate) alongside 30 genai_tool_failures globally, indicating widespread tool invocation breakdowns."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "16 errors out of 846 spans and p99 latency of 13,398.5ms system-wide. LLM calls are a likely contributor to tail latency regression."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "32 genai token truncation events detected across the batch, suggesting prompts or responses are exceeding context/token limits."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "7 errors out of 480 spans (~1.5% error rate), possibly caused by agent-service failures disrupting memory read/write operations."
+    },
+    {
+      "service": "embed-service",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "6 errors out of 487 spans (~1.2% error rate), minor but consistent with broader agent pipeline degradation."
+    }
+  ],
+  "error_rate": 0.0445,
+  "p99_latency_ms": 13398.5,
+  "recommended_action": "Immediately investigate agent-service crash loops or misconfigurations (49% error rate is critical); inspect tool-executor invocation logs to address 30 tool failures; review LLM prompt sizes to resolve 32 token truncations and reduce p99 latency — consider prompt compression or context windowing. Check workflow-orchestrator retry/backoff logic to prevent cascade amplification.",
+  "summary": "The trace batch shows a clear agent_failure scenario in progress, dominated by a ~49% error rate in agent-service (236/480 spans failing) that cascades into workflow-orchestrator, tool-executor, and memory-service degradation. Compounding issues include 30 genAI tool failures, 32 token truncations, and a severe p99 latency of 13.4 seconds, indicating the entire agent execution pipeline is critically impaired.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30211416",
+    "scenario": "agent_failure"
+  }
+}

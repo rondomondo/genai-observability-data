@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
+from datetime import datetime
+from pathlib import Path
 
 from rich import box
 from rich.console import Console
@@ -77,6 +80,8 @@ def _config_table(
     mock: bool,
     capture_content: bool,
     batch_size: int,
+    analyse: bool = False,
+    agent_model: str | None = None,
 ) -> Table:
     t = Table(box=box.SIMPLE, show_header=False, padding=(0, 1), border_style="dim")
     t.add_column("key", style="dim", no_wrap=True)
@@ -96,6 +101,8 @@ def _config_table(
     add("batch-size", str(batch_size))
     add("mock", str(mock), style="warn" if mock else "dim")
     add("capture-content", str(capture_content), style="warn" if capture_content else "dim")
+    if analyse and agent_model:
+        add("agent-model", agent_model, style="cyan" if not mock else "dim")
     return t
 
 
@@ -244,6 +251,40 @@ async def _run_analysis(traces: list, logs: list, deps, model_override: str | No
     from god.agent import analyse_batch
 
     return await analyse_batch(traces, logs, deps, model_name=model_override)
+
+
+def _capture_analysis(result, scenario: str | None, model: str) -> Path:
+    """Write a real-model ScenarioAnalysis to the captured-analyses store.
+
+    Creates .god/captured/analyses/<scenario>/<timestamp>.json and updates
+    latest.json as a symlink to the new file.
+
+    Args:
+        result: ScenarioAnalysis instance to serialise
+        scenario: scenario preset name, or 'unknown' if none was set
+        model: effective model identifier used for the analysis
+
+    Returns:
+        Path to the written timestamped file
+    """
+    slot = scenario or "unknown"
+    base = Path(__file__).parent / ".god" / "captured" / "analyses" / slot
+    base.mkdir(parents=True, exist_ok=True)
+
+    ts = datetime.now().strftime("%Y%b%d%H%M%S")
+    filename = f"{slot}.{ts}.json"
+    target = base / filename
+
+    payload = result.model_dump()
+    payload["_meta"] = {"model": model, "captured_at": ts, "scenario": slot}
+    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    latest = base / "latest.json"
+    if latest.is_symlink() or latest.exists():
+        latest.unlink()
+    latest.symlink_to(filename)
+
+    return target
 
 
 def build_arg_parser():
@@ -422,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
                     use_mock,
                     args.capture_content,
                     batch_size,
+                    analyse=args.analyse,
+                    agent_model=args.agent_model or settings.agent_model,
                 ),
                 title="[bold]Run configuration[/bold]",
                 box=box.ROUNDED,
@@ -500,6 +543,10 @@ def main(argv: list[str] | None = None) -> int:
         console.print("[info]Running scenario analysis agent...[/info]")
         result = asyncio.run(_run_analysis(all_traces, all_logs, deps, args.agent_model))
         console.print(_analysis_panel(result))
+        if not use_mock:
+            effective_model = args.agent_model or settings.agent_model
+            captured_path = _capture_analysis(result, args.scenario, effective_model)
+            console.print(f"[dim]Captured analysis -> {captured_path}[/dim]")
 
     if os.environ.get("BRAINTRUST_API_KEY"):
         import braintrust

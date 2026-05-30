@@ -4,19 +4,18 @@ Scenarios are composable, time-bounded perturbations applied to the
 ServiceRegistry. They drive correlated failures across the dependency graph,
 producing realistic anomaly patterns in the generated data.
 
-Built-in scenarios:
-  - db_degradation           DB connection pool exhaustion -> upstream timeouts
-  - llm_latency_spike        GPU saturation -> high TTFT, timeouts
-  - token_budget_breach      LLM hitting max_tokens -> LENGTH finish reason
-  - provider_failover        Primary LLM provider times out -> retry on fallback
-  - vector_db_slowdown       Vector index contention -> elevated retrieval latency
-  - payments_error_burst     Payment processor errors -> cascading to gateway
-  - auth_outage              Auth service down -> 401s across all services
-  - kafka_lag                Consumer lag spike -> notification delivery delays
-  - tool_call_timeout        External tool (extension type) starts timing out
-  - memory_store_degradation Memory service latency spikes -> agent context loss
-  - agent_bootstrap_failure  Agent creation fails -> invoke_agent errors cascade
-  - retrieval_quality_drop   Vector DB returns stale index -> low-score documents
+Scenario presets (SCENARIO_PRESETS):
+  - event_degradation          Kafka consumer lag spike -> notification delivery delays
+  - db_incident                DB connection pool exhaustion -> upstream timeouts
+  - llm_degradation            GPU saturation + token budget breach
+  - rag_meltdown               Vector DB slowdown + LLM spike + provider failover
+  - payment_outage             Payment processor errors + DB degradation
+  - cascading_failure          Auth DB -> auth outage -> payments -> LLM spike
+  - tool_meltdown              Tool call timeouts + agent bootstrap failures
+  - memory_incident            Memory store degradation + tool call timeouts
+  - agent_failure              Agent creation fails -> invoke_agent errors cascade
+  - rag_quality_degradation    Stale vector index + LLM latency spike
+  - agentic_cascading_failure  Agent bootstrap -> tool timeouts -> memory -> LLM
 
 Extension points:
   - ScenarioSpec: serialisable config - load from YAML/JSON for dynamic discovery
