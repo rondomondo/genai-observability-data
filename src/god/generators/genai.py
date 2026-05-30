@@ -92,7 +92,7 @@ _VECTOR_DB_COLLECTIONS = [
 
 _MODELS: dict[str, dict] = {
     # Anthropic
-    "claude-sonnet-4-20250514": {
+    "gemini-2.5-flash": {
         "provider": GenAIProvider.ANTHROPIC,
         "input_token_rate": 1.0,  # relative cost multiplier
         "context_window": 200000,
@@ -198,7 +198,7 @@ _MODELS: dict[str, dict] = {
 
 
 _CHAT_MODELS = [
-    "claude-sonnet-4-20250514",
+    "gemini-2.5-flash",
     "claude-haiku-4-5-20251001",
     "gpt-4o",
     "gemini-2.5-flash",
@@ -228,7 +228,7 @@ def _token_count(rng: np.random.Generator, lo: int, hi: int) -> int:
 
 
 def _model_info(model: str) -> dict:
-    return _MODELS.get(model, _MODELS["claude-sonnet-4-20250514"])
+    return _MODELS.get(model, _MODELS["gemini-2.5-flash"])
 
 
 # ---------------------------------------------------------------------------
@@ -673,7 +673,7 @@ def build_rag_trace(
 
     embed_svc = registry.get("embed-service")
     vector_svc = registry.get("vector-db")
-    llm_svc = registry.get("llm-anthropic")
+    llm_svc = registry.get("llm-gemini")
 
     # 1. Embedding
     embed_span, cursor = build_embedding_span(
@@ -975,7 +975,7 @@ def build_rich_tool_span(
         "gen_ai.tool.type": t_type,
         "gen_ai.tool.call.id": f"call_{new_id(24)}",
         "gen_ai.tool.description": f"{t_type.capitalize()} tool: {tool_name.replace('_', ' ')}",
-        "gen_ai.tool.call.arguments": f'{{"service": "payments-service", "window": "1h"}}',
+        "gen_ai.tool.call.arguments": '{"service": "payments-service", "window": "1h"}',
     }
     if not is_err:
         attrs["gen_ai.tool.call.result"] = '{"status": "ok", "records": 42}'
@@ -1052,7 +1052,9 @@ def build_memory_span(
     if op in (GenAIOperation.CREATE_MEMORY, GenAIOperation.UPSERT_MEMORY):
         attrs["gen_ai.memory.record.id"] = f"mem_{new_id(20)}"
     if is_err:
-        attrs["error.type"] = random.choice(["memory_store_unavailable", "memory_write_failed", "store_quota_exceeded"])
+        attrs["error.type"] = random.choice(
+            ["memory_store_unavailable", "memory_write_failed", "store_quota_exceeded"]
+        )
 
     span = Span(
         trace_id=trace_id,
@@ -1199,7 +1201,7 @@ def build_agentic_trace(
     agent_svc = registry.get("agent-service")
     memory_svc = registry.get("memory-service")
     tool_svc = registry.get("tool-executor")
-    llm_svc = registry.get("llm-anthropic")
+    llm_svc = registry.get("llm-gemini")
 
     # 1. Workflow root span
     wf_span, wf_end = build_workflow_span(workflow_svc, trace_id, parent_span_id, start_ms, rng)
@@ -1234,9 +1236,7 @@ def build_agentic_trace(
     n_tools = int(rng.integers(1, 4))
     tool_cursor = llm_end + float(rng.uniform(2, 10))
     for _ in range(n_tools):
-        tool_span, tool_cursor = build_rich_tool_span(
-            tool_svc, trace_id, invoke_span.span_id, tool_cursor, rng
-        )
+        tool_span, tool_cursor = build_rich_tool_span(tool_svc, trace_id, invoke_span.span_id, tool_cursor, rng)
         spans.append(tool_span)
         tool_cursor += float(rng.uniform(1, 5))
 
@@ -1367,22 +1367,18 @@ def generate_genai_logs(
         count = span.attributes.get("gen_ai.memory.record.count", 0)
         if is_err:
             body = (
-                f"Memory operation failed op={op} store={store} "
-                f"error={span.attributes.get('error.type', 'unknown')}"
+                f"Memory operation failed op={op} store={store} error={span.attributes.get('error.type', 'unknown')}"
             )
             level = LogLevel.ERROR
         elif op == GenAIOperation.SEARCH_MEMORY.value:
             query = span.attributes.get("gen_ai.memory.query.text", "")
             body = (
                 f"Memory search complete store={store} records_returned={count} "
-                f"duration_ms={span.duration_ms:.1f} query=\"{query}\""
+                f'duration_ms={span.duration_ms:.1f} query="{query}"'
             )
             level = LogLevel.DEBUG
         else:
-            body = (
-                f"Memory {op} complete store={store} records_affected={count} "
-                f"duration_ms={span.duration_ms:.1f}"
-            )
+            body = f"Memory {op} complete store={store} records_affected={count} duration_ms={span.duration_ms:.1f}"
             level = LogLevel.DEBUG
 
     elif op == GenAIOperation.INVOKE_WORKFLOW.value:

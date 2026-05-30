@@ -102,8 +102,8 @@ class ServiceDef:
 #
 #   api-gateway
 #     ├── auth-service         → postgres-auth
-#     ├── rag-service          → embed-service, vector-db, llm-anthropic
-#     │     llm-anthropic      → tool: retrieval (vector-db)
+#     ├── rag-service          → embed-service, vector-db, llm-gemini
+#     │     llm-gemini      → tool: retrieval (vector-db)
 #     └── payments-service     → postgres-payments, kafka
 #
 #   notifications-service (kafka consumer) → (no outbound deps in traces)
@@ -137,7 +137,7 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         type=ServiceType.GENAI_RAG,
         latency=LatencyProfile(p50_ms=800, p99_ms=4000),
         error_rate=0.02,
-        dependencies=["embed-service", "vector-db", "llm-anthropic"],
+        dependencies=["embed-service", "vector-db", "llm-gemini"],
     ),
     ServiceDef(
         name="embed-service",
@@ -154,12 +154,12 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         error_rate=0.005,
     ),
     ServiceDef(
-        name="llm-anthropic",
+        name="llm-gemini",
         type=ServiceType.GENAI_LLM,
         latency=LatencyProfile(p50_ms=1200, p99_ms=8000, timeout_ms=30000),
         error_rate=0.015,
-        provider="anthropic",
-        model="claude-sonnet-4-20250514",
+        provider="google",
+        model="gemini-2.5-flash",
         dependencies=["vector-db"],  # tool call dependency
     ),
     # ── Payments ──────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ DEFAULT_SERVICES: list[ServiceDef] = [
         error_rate=0.02,
         provider="openai",
         model="gpt-4o",
-        dependencies=["llm-anthropic", "memory-service", "tool-executor"],
+        dependencies=["llm-gemini", "memory-service", "tool-executor"],
     ),
     # Tool executor — handles function/extension/datastore calls on agent side
     ServiceDef(

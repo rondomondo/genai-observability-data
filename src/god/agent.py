@@ -3,19 +3,19 @@
 The agent analyses a batch of generated traces and produces a structured
 summary: active scenarios, anomaly signals, and recommended next actions.
 
-In mock mode (GOD_MOCK_MODE=true or no GEMINI_API_KEY) the agent uses
-a FunctionModel -- no network calls, no API key required.
+In mock mode (GOD_MOCK_MODE=true) the agent uses a FunctionModel -- no
+network calls, no API key required.
 """
 
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
-from pydantic_ai.models.fallback import FallbackModel
-from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models import Model, parse_model_id
 
 from god.deps import GodDeps
 from god.models import LogEntry, SpanStatus, Trace
@@ -102,6 +102,48 @@ def _summarise_batch(traces: list[Trace], logs: list[LogEntry]) -> dict[str, Any
     }
 
 
+def _normalise_model_id(raw: str) -> str:
+    """Return a canonical 'provider:model' string from any supported model identifier.
+
+    Accepts legacy bare names ('claude-sonnet-4-6', 'gemini-2.5-flash') and
+    already-prefixed names ('anthropic:claude-sonnet-4-6', 'google-gla:gemini-2.5-flash').
+    The google-gla provider alias is kept as-is so callers can target specific GCP endpoints.
+    """
+    if ":" in raw:
+        return raw
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        provider, model = parse_model_id(raw)
+    if provider:
+        return f"{provider}:{model}"
+    return raw
+
+
+def _resolve_model(primary: str, fallback: str | None) -> Model | str:
+    """Build a pydantic-ai model object from primary and optional fallback model strings.
+
+    Falls back only when both models share the same provider -- cross-provider fallback
+    is not supported by FallbackModel since providers use incompatible auth and APIs.
+    """
+    from pydantic_ai.models import infer_model
+
+    norm_primary = _normalise_model_id(primary)
+
+    if not fallback:
+        return norm_primary
+
+    norm_fallback = _normalise_model_id(fallback)
+    primary_provider = norm_primary.split(":")[0]
+    fallback_provider = norm_fallback.split(":")[0]
+
+    if primary_provider != fallback_provider:
+        return norm_primary
+
+    from pydantic_ai.models.fallback import FallbackModel
+
+    return FallbackModel(infer_model(norm_primary), infer_model(norm_fallback))
+
+
 async def analyse_batch(
     traces: list[Trace],
     logs: list[LogEntry],
@@ -129,22 +171,13 @@ async def analyse_batch(
 
     prompt = f"Analyse this trace batch:\n\n{json.dumps(summary, indent=2)}"
 
-    raw_model = model_name or settings.agent_model
-    fallback_model = None if model_name else settings.agent_fallback_model
+    from god.mock.activate import is_active as _mock_is_active
 
-    def _to_google(name: str) -> GoogleModel:
-        # GoogleModel accepts bare names; strip any "google-gla:" prefix callers may pass
-        bare = name.removeprefix("google-gla:")
-        return GoogleModel(bare)
-
-    if fallback_model:
-        effective_model: FallbackModel | str = FallbackModel(_to_google(raw_model), _to_google(fallback_model))
+    if _mock_is_active():
+        result = await scenario_agent.run(prompt, deps=deps)
     else:
-        effective_model = raw_model if raw_model.startswith("google-") else f"google-gla:{raw_model}"
-
-    result = await scenario_agent.run(
-        prompt,
-        deps=deps,
-        model=effective_model,
-    )
+        primary = model_name or settings.agent_model
+        fallback = None if model_name else settings.agent_fallback_model
+        effective_model: Model | str = _resolve_model(primary, fallback)
+        result = await scenario_agent.run(prompt, deps=deps, model=effective_model)
     return result.output

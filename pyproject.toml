@@ -27,10 +27,11 @@ classifiers = [
 dependencies = [
     "braintrust>=0.23.0",
     "numpy>=1.26.0",
-    "pydantic-ai-slim[google]>=1.0.0",
+    "pydantic-ai-slim[anthropic,google,openai]>=1.0.0",
     "pydantic-settings>=2.2.0",
     "pydantic>=2.7.0",
     "rich>=13.0",
+    "arize-phoenix-otel",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "mypy>=1.9",
+    "arize-phoenix-otel",
 ]
 
 [project.scripts]

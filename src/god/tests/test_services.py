@@ -50,13 +50,13 @@ def test_service_def_resource_attributes() -> None:
         type=ServiceType.GENAI_LLM,
         version="2.0.0",
         environment="staging",
-        provider="anthropic",
+        provider="google",
     )
     attrs = svc.resource_attributes()
     assert attrs["service.name"] == "my-svc"
     assert attrs["service.version"] == "2.0.0"
     assert attrs["deployment.environment"] == "staging"
-    assert attrs["gen_ai.provider.name"] == "anthropic"
+    assert attrs["gen_ai.provider.name"] == "google"
 
 
 def test_registry_get_known_service() -> None:
@@ -76,7 +76,7 @@ def test_registry_all_returns_all_defaults() -> None:
     reg = ServiceRegistry()
     names = {s.name for s in reg.all()}
     assert "api-gateway" in names
-    assert "llm-anthropic" in names
+    assert "llm-gemini" in names
     assert "vector-db" in names
 
 
@@ -86,7 +86,7 @@ def test_registry_dependencies_of() -> None:
     dep_names = {d.name for d in deps}
     assert "embed-service" in dep_names
     assert "vector-db" in dep_names
-    assert "llm-anthropic" in dep_names
+    assert "llm-gemini" in dep_names
 
 
 def test_registry_dependents_of() -> None:

@@ -75,7 +75,7 @@
       "gridPos": { "x": 0, "y": 20, "w": 24, "h": 3 },
       "options": {
         "mode": "markdown",
-        "content": "**Traces** are in Jaeger: [http://localhost:16686](http://localhost:16686)  \nServices generating traces: `api-gateway`, `llm-anthropic`, and others emitted by the `god` generator."
+        "content": "**Traces** are in Jaeger: [http://localhost:16686](http://localhost:16686)  \nServices generating traces: `api-gateway`, `llm-gemini`, and others emitted by the `god` generator."
       }
     }
   ],

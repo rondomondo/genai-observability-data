@@ -15,16 +15,12 @@ import numpy as np
 
 from god.generators.genai import (
     build_agentic_trace,
-    build_create_agent_span,
     build_embedding_span,
     build_inference_span,
-    build_invoke_agent_span,
     build_memory_span,
-    build_plan_span,
     build_rag_trace,
     build_retrieval_span,
     build_rich_tool_span,
-    build_workflow_span,
     generate_genai_logs,
 )
 from god.generators.infra import (

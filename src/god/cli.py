@@ -301,7 +301,7 @@ def build_arg_parser():
 
 
 def _build_sinks(args):
-    from god.sinks import FileSink  , MultiSink, OTLPHttpSink, Sink, StdoutSink
+    from god.sinks import FileSink, MultiSink, OTLPHttpSink, Sink, StdoutSink
 
     sinks: list[Sink] = []
 

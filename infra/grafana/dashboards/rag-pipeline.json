@@ -30,7 +30,7 @@
         {
           "refId": "C",
           "expr": "sum(rate({job=~\".+\"} |= \"LLM inference\" [1m])) * 60",
-          "legendFormat": "3. llm-anthropic"
+          "legendFormat": "3. llm-gemini"
         }
       ],
       "fieldConfig": {
@@ -60,8 +60,8 @@
         },
         {
           "refId": "C",
-          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\", service_name=\"llm-anthropic\"} [1m])) * 60",
-          "legendFormat": "llm-anthropic errors/min"
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\", service_name=\"llm-gemini\"} [1m])) * 60",
+          "legendFormat": "llm-gemini errors/min"
         }
       ],
       "fieldConfig": {
@@ -127,12 +127,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(avg_over_time({job=~\".+\", service_name=\"llm-anthropic\"} |= \"LLM inference complete\" | logfmt | unwrap ttft_ms [1m]))",
+          "expr": "avg(avg_over_time({job=~\".+\", service_name=\"llm-gemini\"} |= \"LLM inference complete\" | logfmt | unwrap ttft_ms [1m]))",
           "legendFormat": "avg TTFT ms"
         },
         {
           "refId": "B",
-          "expr": "quantile_over_time(0.95, {job=~\".+\", service_name=\"llm-anthropic\"} |= \"LLM inference complete\" | logfmt | unwrap ttft_ms [5m])",
+          "expr": "quantile_over_time(0.95, {job=~\".+\", service_name=\"llm-gemini\"} |= \"LLM inference complete\" | logfmt | unwrap ttft_ms [5m])",
           "legendFormat": "p95 TTFT ms"
         }
       ],
@@ -193,7 +193,7 @@
         },
         {
           "refId": "C",
-          "expr": "sum(count_over_time({job=~\".+\", service_name=\"llm-anthropic\"} |= \"LLM inference\" [1h]))",
+          "expr": "sum(count_over_time({job=~\".+\", service_name=\"llm-gemini\"} |= \"LLM inference\" [1h]))",
           "legendFormat": "llm calls"
         }
       ],
@@ -227,7 +227,7 @@
     },
     {
       "id": 9,
-      "title": "Traces -- llm-anthropic (Jaeger)",
+      "title": "Traces -- llm-gemini (Jaeger)",
       "type": "traces",
       "gridPos": { "x": 12, "y": 22, "w": 12, "h": 7 },
       "datasource": { "type": "jaeger", "uid": "jaeger" },
@@ -235,7 +235,7 @@
         {
           "refId": "A",
           "queryType": "search",
-          "service": "llm-anthropic",
+          "service": "llm-gemini",
           "limit": 20
         }
       ],
@@ -250,7 +250,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=~\".+\", service_name=~\"embed-service|vector-db|llm-anthropic|rag-service\"}",
+          "expr": "{job=~\".+\", service_name=~\"embed-service|vector-db|llm-gemini|rag-service\"}",
           "legendFormat": ""
         }
       ],

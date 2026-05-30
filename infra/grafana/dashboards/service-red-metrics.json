@@ -19,7 +19,7 @@
             "targets": [
                 {
                     "refId": "A",
-                    "expr": "sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [1m])) * 60",
+                    "expr": "sum by (service_name) (rate({job=~\".+\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-gemini|payments-service|postgres-payments|kafka|notifications-service|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [1m])) * 60",
                     "legendFormat": "{{service_name}}"
                 }
             ],
@@ -40,7 +40,7 @@
             "targets": [
                 {
                     "refId": "A",
-                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-anthropic|payments-service|postgres-payments|kafka|notifications-service|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [1m])) * 60",
+                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"api-gateway|auth-service|postgres-auth|rag-service|embed-service|vector-db|llm-gemini|payments-service|postgres-payments|kafka|notifications-service|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [1m])) * 60",
                     "legendFormat": "{{service_name}}"
                 }
             ],
@@ -127,7 +127,7 @@
             "targets": [
                 {
                     "refId": "A",
-                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"rag-service|embed-service|vector-db|llm-anthropic|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [5m])) / sum by (service_name) (rate({job=~\".+\", service_name=~\"rag-service|embed-service|vector-db|llm-anthropic|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [5m]))",
+                    "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\", service_name=~\"rag-service|embed-service|vector-db|llm-gemini|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [5m])) / sum by (service_name) (rate({job=~\".+\", service_name=~\"rag-service|embed-service|vector-db|llm-gemini|agent-service|tool-executor|memory-service|workflow-orchestrator\"} [5m]))",
                     "legendFormat": "{{service_name}}"
                 }
             ],

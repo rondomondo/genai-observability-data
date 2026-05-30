@@ -71,7 +71,7 @@ def _analysis_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse
     if p99 > 5000:
         signals.append(
             {
-                "service": "llm-anthropic",
+                "service": "llm-gemini",
                 "signal_type": "latency_spike",
                 "severity": "high",
                 "detail": f"p99 latency {p99:.0f}ms exceeds 5s threshold",
@@ -80,7 +80,7 @@ def _analysis_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse
     if truncations > 0:
         signals.append(
             {
-                "service": "llm-anthropic",
+                "service": "llm-gemini",
                 "signal_type": "token_truncation",
                 "severity": "medium",
                 "detail": f"{truncations} responses truncated at token limit",
@@ -89,7 +89,7 @@ def _analysis_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse
     if tool_failures > 0:
         signals.append(
             {
-                "service": "llm-anthropic",
+                "service": "llm-gemini",
                 "signal_type": "tool_failure",
                 "severity": "medium",
                 "detail": f"{tool_failures} tool calls failed",

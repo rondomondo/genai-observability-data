@@ -146,7 +146,9 @@ def test_generate_trace_rag_path() -> None:
     reg = ServiceRegistry()
     # Run enough traces to hit RAG; seed 42 reliably hits it
     service_names = set()
-    for _, _ in zip(range(50), (generate_trace(reg, start_ms=float(i * 100), rng=np.random.default_rng(i)) for i in range(50))):
+    for _, _ in zip(
+        range(50), (generate_trace(reg, start_ms=float(i * 100), rng=np.random.default_rng(i)) for i in range(50))
+    ):
         pass
     # Generate a batch and confirm rag-related services appear across them
     for i in range(30):

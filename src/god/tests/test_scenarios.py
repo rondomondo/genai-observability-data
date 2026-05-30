@@ -82,7 +82,7 @@ def test_llm_latency_spike_applies_multiplier() -> None:
     reg = _registry()
     s = llm_latency_spike(start_s=0, duration_s=10, ttft_multiplier=4.0, error_rate=0.2)
     s.tick(0.0, reg)
-    llm = reg.get("llm-anthropic")
+    llm = reg.get("llm-gemini")
     assert llm._latency_multiplier == pytest.approx(4.0)
     assert llm.effective_error_rate == pytest.approx(0.2)
 
@@ -158,7 +158,7 @@ def test_scenario_duration_property() -> None:
 
 def test_llm_latency_spike_recover_restores_multiplier() -> None:
     reg = _registry()
-    llm = reg.get("llm-anthropic")
+    llm = reg.get("llm-gemini")
     original_multiplier = llm._latency_multiplier
     s = llm_latency_spike(start_s=0, duration_s=5, ttft_multiplier=4.0, error_rate=0.1)
     s.tick(0.0, reg)
@@ -172,7 +172,7 @@ def test_token_budget_breach_sets_zero_error_rate() -> None:
     reg = _registry()
     s = token_budget_breach(start_s=0, duration_s=10)
     s.tick(0.0, reg)
-    llm = reg.get("llm-anthropic")
+    llm = reg.get("llm-gemini")
     assert llm._error_rate_override == pytest.approx(0.0)
 
 
@@ -181,14 +181,14 @@ def test_token_budget_breach_clears_on_recover() -> None:
     s = token_budget_breach(start_s=0, duration_s=5)
     s.tick(0.0, reg)
     s.tick(5.0, reg)
-    assert reg.get("llm-anthropic")._error_rate_override is None
+    assert reg.get("llm-gemini")._error_rate_override is None
 
 
 def test_provider_failover_applies_high_error_rate() -> None:
     reg = _registry()
     s = provider_failover(start_s=0, duration_s=10)
     s.tick(0.0, reg)
-    assert reg.get("llm-anthropic").effective_error_rate == pytest.approx(0.95)
+    assert reg.get("llm-gemini").effective_error_rate == pytest.approx(0.95)
 
 
 def test_provider_failover_recovers() -> None:
@@ -196,7 +196,7 @@ def test_provider_failover_recovers() -> None:
     s = provider_failover(start_s=0, duration_s=5)
     s.tick(0.0, reg)
     s.tick(5.0, reg)
-    llm = reg.get("llm-anthropic")
+    llm = reg.get("llm-gemini")
     assert llm._error_rate_override is None
     assert llm._latency_multiplier == pytest.approx(1.0)
 

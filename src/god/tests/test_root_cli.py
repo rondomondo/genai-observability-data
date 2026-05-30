@@ -7,7 +7,6 @@ dispatching through the wrapper's _dispatch() which delegates to god.cli.main().
 
 from __future__ import annotations
 
-import os
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -75,6 +74,7 @@ def test_list_scenarios_exits_zero() -> None:
 def test_generate_stdout_quiet(capsys: pytest.CaptureFixture[str]) -> None:
     """--quiet --format logfmt: logfmt lines on real stdout, nothing on Rich stderr."""
     from god.config import get_settings, reset_settings
+
     reset_settings()
     get_settings().default_otlp = None
     try:
@@ -127,6 +127,7 @@ def test_generate_with_seed_is_deterministic() -> None:
 def test_generate_stderr_progress_not_quiet(capsys: pytest.CaptureFixture[str]) -> None:
     """Without --quiet, progress/config go to Rich stderr; logfmt data to real stdout."""
     from god.config import get_settings, reset_settings
+
     reset_settings()
     get_settings().default_otlp = None
     try:

@@ -240,15 +240,15 @@
     },
     {
       "id": 10,
-      "title": "Token spend by provider (anthropic vs openai) -- last hour",
+      "title": "Token spend by provider (google vs openai) -- last hour",
       "type": "piechart",
       "gridPos": { "x": 12, "y": 21, "w": 12, "h": 7 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(sum_over_time({job=~\".+\", service_name=~\"llm-anthropic|embed-service\"} |= \"complete\" | logfmt | unwrap input_tokens [1h]))",
-          "legendFormat": "anthropic"
+          "expr": "sum(sum_over_time({job=~\".+\", service_name=~\"llm-gemini|embed-service\"} |= \"complete\" | logfmt | unwrap input_tokens [1h]))",
+          "legendFormat": "google"
         },
         {
           "refId": "B",
@@ -259,7 +259,7 @@
       "fieldConfig": {
         "defaults": {},
         "overrides": [
-          { "matcher": { "id": "byName", "options": "anthropic" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "google" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
           { "matcher": { "id": "byName", "options": "openai (agent)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
         ]
       },

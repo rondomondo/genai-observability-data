@@ -20,7 +20,7 @@
         {
           "refId": "A",
           "expr": "sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated|Agent invocation complete|Agent invocation failed\" |~ \"model=claude\" [1m])) * 60",
-          "legendFormat": "anthropic"
+          "legendFormat": "google"
         },
         {
           "refId": "B",
@@ -34,7 +34,7 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8 }
         },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "anthropic" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "google" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
           { "matcher": { "id": "byName", "options": "openai" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
         ]
       },
@@ -50,7 +50,7 @@
         {
           "refId": "A",
           "expr": "sum(rate({job=~\".+\"} |= \"LLM inference failed\" |~ \"model=claude\" [2m])) / sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed\" |~ \"model=claude\" [2m]))",
-          "legendFormat": "anthropic error rate"
+          "legendFormat": "google error rate"
         },
         {
           "refId": "B",
@@ -84,7 +84,7 @@
         {
           "refId": "A",
           "expr": "sum(count_over_time({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated\" |~ \"model=claude|model=voyage\" [1h]))",
-          "legendFormat": "anthropic"
+          "legendFormat": "google"
         }
       ],
       "fieldConfig": {
@@ -126,7 +126,7 @@
         {
           "refId": "A",
           "expr": "sum(count_over_time({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated\" |~ \"model=claude|model=voyage\" [1h]))",
-          "legendFormat": "anthropic"
+          "legendFormat": "google"
         },
         {
           "refId": "B",
@@ -136,7 +136,7 @@
       ],
       "fieldConfig": {
         "overrides": [
-          { "matcher": { "id": "byName", "options": "anthropic" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "google" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
           { "matcher": { "id": "byName", "options": "openai" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
         ]
       },
@@ -151,8 +151,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({job=~\".+\"} |= \"model=claude-sonnet-4-20250514\" [1h]))",
-          "legendFormat": "claude-sonnet-4"
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"model=gemini-2.5-flash\" [1h]))",
+          "legendFormat": "gemini-2.5-flash"
         },
         {
           "refId": "B",
@@ -197,12 +197,12 @@
         {
           "refId": "A",
           "expr": "avg(avg_over_time({job=~\".+\"} |= \"LLM inference complete\" |~ \"model=claude\" | logfmt | unwrap ttft_ms [1m]))",
-          "legendFormat": "anthropic avg ms"
+          "legendFormat": "google avg ms"
         },
         {
           "refId": "B",
           "expr": "quantile_over_time(0.95, {job=~\".+\"} |= \"LLM inference complete\" |~ \"model=claude\" | logfmt | unwrap ttft_ms [5m])",
-          "legendFormat": "anthropic p95 ms"
+          "legendFormat": "google p95 ms"
         },
         {
           "refId": "C",
@@ -233,7 +233,7 @@
         {
           "refId": "A",
           "expr": "sum(sum_over_time({job=~\".+\"} |= \"LLM inference complete\" |~ \"model=claude\" | logfmt | unwrap output_tokens [1m])) * 60",
-          "legendFormat": "anthropic output tokens/min"
+          "legendFormat": "google output tokens/min"
         },
         {
           "refId": "B",
@@ -251,7 +251,7 @@
     },
     {
       "id": 9,
-      "title": "Traces -- llm-anthropic (Jaeger)",
+      "title": "Traces -- llm-gemini (Jaeger)",
       "type": "traces",
       "gridPos": { "x": 0, "y": 21, "w": 12, "h": 7 },
       "datasource": { "type": "jaeger", "uid": "jaeger" },
@@ -259,7 +259,7 @@
         {
           "refId": "A",
           "queryType": "search",
-          "service": "llm-anthropic",
+          "service": "llm-gemini",
           "limit": 20
         }
       ],
@@ -274,7 +274,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=~\".+\", service_name=~\"llm-anthropic|embed-service|agent-service\"} |~ \"(LLM inference|Embeddings|Agent invocation)\"",
+          "expr": "{job=~\".+\", service_name=~\"llm-gemini|embed-service|agent-service\"} |~ \"(LLM inference|Embeddings|Agent invocation)\"",
           "legendFormat": ""
         }
       ],

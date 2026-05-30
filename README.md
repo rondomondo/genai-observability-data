@@ -13,6 +13,7 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
       |
       +-- ScenarioEngine   (time-bounded fault injection)
       |       |
+      |       +-- ScenarioSpec (Pydantic config) + ScenarioHandler (stateless fault logic)
       |       +-- db_degradation / llm_latency_spike / provider_failover / ...
       |       +-- tool_call_timeout / memory_store_degradation / agent_bootstrap_failure / ...
       |
@@ -22,13 +23,13 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
       |       |
       |       +-- api-gateway root span
       |       +-- auth-service + postgres-auth
-      |       +-- RAG path: embed -> vector-db -> llm-anthropic (+ tool/MCP)
+      |       +-- RAG path: embed -> vector-db -> llm-gemini (+ tool/MCP)
       |       +-- payments path: payments-service -> postgres-payments + kafka
       |       +-- agentic path: workflow-orchestrator -> agent-service -> llm + tools + memory
       |
       +-- Sinks: stdout | FileSink | OTLPHttpSink | MultiSink
       |
-      +-- Optional: scenario_agent (pydantic-ai, claude-haiku)
+      +-- Optional: scenario_agent (pydantic-ai, gemini-2.5-flash default)
                     analyses batch -> ScenarioAnalysis
 ```
 
@@ -84,7 +85,7 @@ flowchart LR
     RAG["rag-service<br>RAG p50=800ms"]
     EMB["embed-service<br>Embed p50=120ms"]
     VDB["vector-db<br>VectorDB p50=20ms"]
-    LLM["llm-anthropic<br>LLM p50=1200ms"]
+    LLM["llm-gemini<br>LLM p50=1200ms"]
     PAY["payments-service<br>HTTP p50=200ms"]
     PGP["postgres-payments<br>DB p50=5ms"]
     KFK["kafka<br>Queue p50=10ms"]
@@ -121,11 +122,11 @@ Each generated trace represents one incoming request. The orchestrator always bu
 
 1. `api-gateway` root span (HTTP SERVER)
 2. `auth-service` + `postgres-auth` sub-trace (every request)
-3. RAG path (~50% of requests): `embed-service` -> `vector-db` -> `llm-anthropic` (+ 25% chance of a
+3. RAG path (~50% of requests): `embed-service` -> `vector-db` -> `llm-gemini` (+ 25% chance of a
    tool or MCP tool span as a child of the LLM span)
 4. Payments path (~40% of requests): `payments-service` -> `postgres-payments` + `kafka`
 5. Agentic path (~25% of requests): `workflow-orchestrator` -> plan -> `memory-service` (search) ->
-   `agent-service` -> `llm-anthropic` (chat) + 1-3 tool spans -> `memory-service` (upsert)
+   `agent-service` -> `llm-gemini` (chat) + 1-3 tool spans -> `memory-service` (upsert)
 
 Approximately 15% of requests traverse both the RAG and payments paths.
 
@@ -154,9 +155,9 @@ All spans follow OTel GenAI semconv 1.41.0. Key attributes by operation type:
 
 | Attribute | Example | Notes |
 |-----------|---------|-------|
-| `gen_ai.system` | `anthropic` | Provider |
+| `gen_ai.system` | `google` | Provider |
 | `gen_ai.operation.name` | `chat` | GenAIOperation enum |
-| `gen_ai.request.model` | `claude-sonnet-4-20250514` | |
+| `gen_ai.request.model` | `gemini-2.5-flash` | |
 | `gen_ai.request.max_tokens` | `4096` | Random choice: 1024/2048/4096/8192 |
 | `gen_ai.usage.input_tokens` | `1204` | |
 | `gen_ai.usage.output_tokens` | `312` | 0 on error |
@@ -206,10 +207,11 @@ A `gen_ai.content.first_token` SpanEvent is added at the TTFT offset on successf
 | Python | 3.12+ | Runtime |
 | [uv](https://docs.astral.sh/uv/) | latest | Package manager |
 | Docker Desktop | latest | OTel stack (Jaeger, Loki, Grafana, Prometheus) |
-| Anthropic API key | - | Analysis agent only (not needed for data generation) |
+| Gemini API key | - | Analysis agent only; not needed for data generation |
 
-The data generator itself has no API key requirement. An `ANTHROPIC_API_KEY` is only needed when
-running `--analyse` without `--mock`.
+The data generator itself has no API key requirement. An API key is only needed when running
+`--analyse` without `--mock`. The default model is `gemini-2.5-flash` (requires `GEMINI_API_KEY`).
+Set `GOD_AGENT_MODEL` to a Claude model and provide `ANTHROPIC_API_KEY` if you prefer that.
 
 ---
 
@@ -242,7 +244,7 @@ Create your `.env`:
 cp src/god/.env.example src/god/.env   # if the example exists
 # or create manually:
 cat > src/god/.env <<'EOF'
-ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=AIza...
 GOD_MOCK_MODE=false
 EOF
 ```
@@ -251,14 +253,20 @@ EOF
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `ANTHROPIC_API_KEY` | - | Yes, for `--analyse` without `--mock` | claude-haiku analysis agent |
-| `GOD_MOCK_MODE` | `false` | No | Replace all LLM calls with deterministic mock |
-| `GOD_AGENT_MODEL` | `claude-haiku-4-5-20251001` | No | Model for the analysis agent |
+| `GEMINI_API_KEY` | - | Yes, for `--analyse` without `--mock` when using Gemini models | Google Gemini API key |
+| `ANTHROPIC_API_KEY` | - | Yes, for `--analyse` without `--mock` when using Claude models | Anthropic API key |
+| `GOD_MOCK_MODE` | `true` | No | Replace all LLM calls with deterministic mock |
+| `GOD_AGENT_MODEL` | `gemini-2.5-flash` | No | Model for the analysis agent (provider-prefixed or bare name) |
+| `GOD_AGENT_FALLBACK_MODEL` | `gemini-2.0-flash` | No | Fallback when the primary returns a 503/overload error |
 | `GOD_DEFAULT_TRACES` | `100` | No | CLI default when `--traces` is omitted |
 | `GOD_DEFAULT_RATE` | `10.0` | No | CLI default traces/second |
 | `GOD_DEFAULT_BATCH_SIZE` | `50` | No | Flush batch size |
 
-No Elasticsearch, Redis, or Google API keys are used by this project.
+The default model is `gemini-2.5-flash`. To switch to Claude, set `GOD_AGENT_MODEL=claude-haiku-4-5-20251001`
+and provide `ANTHROPIC_API_KEY`. Model names can be bare (`gemini-2.5-flash`) or provider-prefixed
+(`google:gemini-2.5-flash`, `anthropic:claude-haiku-4-5-20251001`, `openai:gpt-4o-mini`).
+
+No Elasticsearch or Redis keys are used by this project.
 
 ---
 
@@ -361,6 +369,10 @@ uv run python -m god -n 500 --scenario rag_meltdown --rate 5 \
 # Run the analysis agent in mock mode (no API key needed)
 uv run python -m god -n 100 --scenario llm_degradation --mock --analyse
 
+# Run the analysis agent with a specific model
+uv run python -m god -n 100 --scenario llm_degradation --analyse \
+  --agent-model claude-haiku-4-5-20251001
+
 # List all available scenarios
 uv run python -m god --list-scenarios
 ```
@@ -393,9 +405,36 @@ or installing the package as an entry point.
 | `--list-scenarios` | Plain text | Rich table with tags and descriptions |
 | Analysis output | Plain print | Severity-coloured anomaly signal panel |
 | Run config | Inline log line | Pre-run configuration panel |
+| `gen-scenario` subcommand | Not available | Batch all or one scenario into `output/<scenario>/` |
 
 The underlying generation logic, all flags, and all defaults are identical. Use `./god-cli` for
 interactive terminal sessions; use `python -m god` (or the `god` entry point) in scripts and CI.
+
+### gen-scenario subcommand
+
+`god-cli` adds a `gen-scenario` subcommand that runs one or all presets, writing each to its own
+subdirectory under `--output` (default `./output/`). Multiple scenarios are run concurrently.
+
+```bash
+# Generate every preset into ./output/<scenario-name>/
+./god-cli gen-scenario all
+
+# One scenario, 200 traces, deterministic
+./god-cli gen-scenario cascading_failure --traces 200 --seed 42
+
+# Stream a scenario to an OTLP collector (disable mock when using a real model)
+./god-cli gen-scenario rag_meltdown --otlp http://localhost:4318 --no-mock
+```
+
+```
+usage: god-cli gen-scenario [SCENARIO] [--traces N] [--rate N]
+                             [--format FMT ...] [--output DIR]
+                             [--seed N] [--otlp URL] [--otlp-header KEY=VALUE]
+                             [--compress] [--no-mock] [--quiet]
+```
+
+`SCENARIO` can be any preset name or `all`. Mock mode is on by default; pass `--no-mock` when you
+have an API key and want real analysis.
 
 ### Quiet / pipe mode
 
@@ -411,30 +450,45 @@ interactive terminal sessions; use `python -m god` (or the `god` entry point) in
 
 Run `python -m god --list-scenarios` for the current table. Built-in presets:
 
-| Preset | Description | Services affected | Duration |
-|--------|-------------|------------------|----------|
-| `db_incident` | DB connection pool exhaustion (40% errors, 8x latency) | postgres-payments | 60-300s |
-| `llm_degradation` | LLM latency spike + token truncations | llm-anthropic | overlapping windows |
-| `rag_meltdown` | Vector DB slow + LLM spike + provider failover (95% errors) | vector-db, llm-anthropic | 3 staggered faults |
-| `payment_outage` | Payments errors (60%) + DB degradation | payments-service, postgres-payments | two faults |
-| `cascading_failure` | Auth DB -> auth outage -> payments cascade -> LLM spike | 4 services, chained | 4 staggered faults |
-| `tool_meltdown` | External tool timeouts + agent bootstrap failures | tool-executor, agent-service | 2 staggered faults |
-| `memory_incident` | Memory service latency spike + follow-on tool timeouts | memory-service, tool-executor | 2 staggered faults |
-| `agent_failure` | Agent creation failures (90% error rate) | agent-service | 60s burst |
-| `rag_quality_degradation` | Stale vector index + LLM latency spike | vector-db, llm-anthropic | 2 overlapping faults |
-| `agentic_cascading_failure` | Agent bootstrap -> tool timeouts -> memory degradation -> LLM spike | 4 services, chained | 4 staggered faults |
+| Preset | Description | Services affected | Faults |
+|--------|-------------|------------------|--------|
+| `db_incident` | DB connection pool exhaustion (40% errors, 8x latency) | postgres-payments | 1 |
+| `llm_degradation` | LLM latency spike + token truncations | llm-gemini | 2 overlapping |
+| `rag_meltdown` | Vector DB slow + LLM spike + provider failover (95% errors) | vector-db, llm-gemini | 3 staggered |
+| `payment_outage` | Payments errors (60%) + DB degradation | payments-service, postgres-payments | 2 |
+| `cascading_failure` | Auth DB -> auth outage -> payments cascade -> LLM spike | 4 services, chained | 4 staggered |
+| `tool_meltdown` | External tool timeouts + agent bootstrap failures | tool-executor, agent-service | 2 staggered |
+| `memory_incident` | Memory service latency spike + follow-on tool timeouts | memory-service, tool-executor | 2 staggered |
+| `agent_failure` | Agent creation failures (90% error rate) | agent-service | 1 burst |
+| `rag_quality_degradation` | Stale vector index + LLM latency spike | vector-db, llm-gemini | 2 overlapping |
+| `agentic_cascading_failure` | Agent bootstrap -> tool timeouts -> memory degradation -> LLM spike | 4 services, chained | 4 staggered |
+| `event_degradation` | Kafka consumer lag spike (10x latency, notifications delayed) | kafka | 1 |
 | `quiet` | No faults injected | - | - |
+| `all` | Every preset run concurrently (useful with `god-cli gen-scenario all`) | all | all |
 
 Pass a scenario with `--scenario <preset>`. Fault injection uses virtual time, not wall time, so
 trace count determines how much of the scenario you observe.
 
 ### How fault injection works
 
+Each scenario is a `ScenarioSpec` (validated Pydantic config) paired with a `ScenarioHandler`
+(stateless fault logic). The `ScenarioEngine` ticks once per virtual second and drives each
+`Scenario` through its state machine.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> ACTIVE : elapsed >= start_offset_s<br>(handler.apply called)
+    ACTIVE --> RECOVERING : elapsed >= end_offset_s<br>(handler.recover called)
+    RECOVERING --> DONE
+    DONE --> [*]
+```
+
 ```mermaid
 flowchart TD
     A["ScenarioEngine.tick(elapsed_s)"] --> B{state?}
-    B -->|PENDING, elapsed >= start| C["apply(registry)<br>set error_rate + latency overrides"]
-    B -->|ACTIVE, elapsed >= end| D["recover(registry)<br>clear overrides"]
+    B -->|PENDING, elapsed >= start| C["handler.apply(registry, spec)<br>set error_rate + latency overrides"]
+    B -->|ACTIVE, elapsed >= end| D["handler.recover(registry, spec)<br>clear overrides"]
     C --> E["propagate_fault<br>30% err bleed to callers<br>50% latency bleed to callers"]
     D --> F["direct clear only<br>no transitive recovery"]
 ```
@@ -468,7 +522,7 @@ auto-provisioned from `infra/grafana/dashboards/`:
 | GenAI - Finish Reasons | stop / length / tool_calls / content_filter breakdown by model |
 | GenAI - Token Economics | Input/output token ratios, embedding batch sizes, provider spend |
 | GenAI Operation Topology | Volume and error rate across all 12 `gen_ai.operation.name` values |
-| Provider and System Analysis | Per-provider (anthropic / openai) request rates, TTFT, token throughput |
+| Provider and System Analysis | Per-provider (google / openai) request rates, TTFT, token throughput |
 | RAG Pipeline | Stage latency, retrieval yield rate, vector search diagnostics |
 | Tool and MCP Usage | Tool call rates and error rates by type (MCP / extension / datastore / function) |
 | Agent Operations | Agent create/invoke rates, planning latency, invocation duration |
@@ -560,7 +614,7 @@ make test-unit      # alias
 |------|-------|-------|
 | `test_models.py` | 11 | Serialisation: Span/Trace/LogEntry -> OTLP/Loki/logfmt |
 | `test_services.py` | 12 | LatencyProfile math, fault overrides, propagation, registry |
-| `test_scenarios.py` | 16+ | State machine, fault lifecycle, all presets including agentic ones |
+| `test_scenarios.py` | 16+ | State machine, handler apply/recover, fault lifecycle, all presets |
 | `test_generators.py` | 20+ | Span builders, TTFT event, content capture, RAG + agentic trace shape |
 | `test_orchestrator.py` | 12 | End-to-end trace assembly, dataset yield count, log correlation |
 | `test_sinks.py` | 14 | File formats, gzip, append, OTLP HTTP (mocked), multi-sink |
@@ -592,11 +646,13 @@ class ScenarioAnalysis:
 ```
 
 The agent is invoked with a pre-computed summary (total spans, error rate, p99 latency, per-service
-error counts, token truncations, tool failures). It uses `claude-haiku-4-5-20251001` by default.
+error counts, token truncations, tool failures). It uses `gemini-2.5-flash` by default, with
+`gemini-2.0-flash` as an automatic fallback on 503/overload errors.
 
 ### Running without an API key
 
-Pass `--mock` to activate a deterministic `FunctionModel` that replicates the analysis logic locally:
+Pass `--mock` to activate a deterministic `FunctionModel` that replicates the analysis logic locally.
+Mock mode is on by default (`GOD_MOCK_MODE=true`).
 
 ```bash
 uv run python -m god -n 200 --scenario cascading_failure --mock --analyse
@@ -604,11 +660,22 @@ uv run python -m god -n 200 --scenario cascading_failure --mock --analyse
 
 ### Model override
 
+Model names can be bare or provider-prefixed. Bare names are normalised automatically.
+
 ```bash
-uv run python -m god -n 200 --analyse --agent-model claude-sonnet-4-20250514
-# or via .env:
-GOD_AGENT_MODEL=claude-sonnet-4-20250514
+# Gemini (default)
+uv run python -m god -n 200 --analyse --agent-model gemini-2.5-flash
+
+# Claude
+uv run python -m god -n 200 --analyse --agent-model claude-haiku-4-5-20251001
+
+# Via .env
+GOD_AGENT_MODEL=anthropic:claude-haiku-4-5-20251001
+GOD_AGENT_FALLBACK_MODEL=google:gemini-2.0-flash
 ```
+
+Supported provider prefixes: `google:`, `anthropic:`, `openai:`. The provider prefix determines
+which API key is used (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY`).
 
 ---
 
@@ -617,7 +684,7 @@ GOD_AGENT_MODEL=claude-sonnet-4-20250514
 ```
 genai-observability-data/
   Makefile                         # Root build/run targets (primary)
-  god-cli                          # Rich terminal wrapper CLI
+  god-cli                          # Rich terminal wrapper CLI + gen-scenario subcommand
   docker-compose.yml               # OTel stack: Collector + Jaeger + Loki + Grafana + Prometheus
   infra/
     otel-collector-config.yaml     # Collector pipeline config
@@ -627,8 +694,6 @@ genai-observability-data/
       provisioning/
         datasources/datasources.yaml   # Auto-provisioned Jaeger + Loki + Prometheus
         dashboards/dashboards.yaml     # Auto-provisioned dashboard file provider
-  scripts/
-    semantic-conventions-genai/    # OTel GenAI semconv source (reference only)
   src/
     god/                           # The real package root
       pyproject.toml               # Canonical package declaration
@@ -642,10 +707,14 @@ genai-observability-data/
       deps.py                      # GodDeps dependency injection container
       models.py                    # Span, Trace, LogEntry, enums, OTLP serialisation
       orchestrator.py              # generate_trace + generate_dataset
-      scenarios.py                 # ScenarioEngine, Scenario, 12 built-in fault presets
       services.py                  # ServiceRegistry, ServiceDef, LatencyProfile (15 services)
       sinks.py                     # StdoutSink, FileSink, OTLPHttpSink, MultiSink
       py.typed                     # PEP 561 marker
+      scenarios/
+        __init__.py                # Re-exports all public symbols + ScenarioSpec extension API
+        _base.py                   # ScenarioSpec, Scenario, ScenarioState, ScenarioEngine
+        _handlers.py               # Stateless fault handlers (DbDegradation, LlmLatencySpike, ...)
+        _registry.py               # Factory functions + SCENARIO_PRESETS dict
       generators/
         genai.py                   # GenAI span builders: inference, embed, retrieval, tool, MCP,
                                    #   agent, invoke_agent, memory, workflow, plan + agentic trace
@@ -700,30 +769,63 @@ Run `make help` from the repo root. Key targets:
 
 ### Adding a new scenario
 
-Add a factory function to `src/god/scenarios.py` following the existing pattern, then register it in
-`SCENARIO_PRESETS`. The function receives a `ServiceRegistry` and returns a `list[Scenario]`.
+Scenarios are now split across three files in `src/god/scenarios/`:
+
+- `_handlers.py` - stateless fault logic (subclass `ScenarioHandler`, register with `register_handler`)
+- `_registry.py` - factory functions and `SCENARIO_PRESETS` dict
+- `__init__.py` - re-exports (add your new symbols here)
+
+For simple faults the built-in `SimplePropagateHandler` is sufficient - just add a factory function
+in `_registry.py` and a preset entry in `SCENARIO_PRESETS`:
 
 ```python
-def my_scenario(registry: ServiceRegistry) -> list[Scenario]:
-    def apply(r: ServiceRegistry) -> None:
-        r.propagate_fault("my-service", error_rate=0.5, latency_multiplier=3.0)
+# src/god/scenarios/_registry.py
+from god.scenarios._base import Scenario, ScenarioSpec
+from god.scenarios._handlers import build_handler
 
-    def recover(r: ServiceRegistry) -> None:
-        r.get("my-service")._error_rate_override = None
-        r.get("my-service")._latency_multiplier = 1.0
+def my_embed_overload(
+    target: str = "embed-service",
+    start_s: float = 30,
+    duration_s: float = 150,
+    error_rate: float = 0.3,
+    latency_multiplier: float = 4.0,
+) -> Scenario:
+    return _make(ScenarioSpec(
+        name="embed_overload",
+        handler_type="simple_propagate",
+        description=f"Embedding saturation on {target}: latency x{latency_multiplier}",
+        start_offset_s=start_s,
+        end_offset_s=start_s + duration_s,
+        target=target,
+        error_rate=error_rate,
+        latency_multiplier=latency_multiplier,
+        tags=["genai", "embed", "latency"],
+    ))
 
-    return [Scenario(
-        name="my_scenario",
-        description="...",
-        start_offset_s=30,
-        end_offset_s=180,
-        apply=apply,
-        recover=recover,
-        tags={"my_tag"},
-    )]
-
-SCENARIO_PRESETS["my_preset"] = my_scenario
+SCENARIO_PRESETS["embed_overload"] = lambda: [my_embed_overload()]
 ```
+
+For custom recovery logic, subclass `ScenarioHandler` in `_handlers.py` and register it:
+
+```python
+# src/god/scenarios/_handlers.py
+from god.scenarios._base import ScenarioSpec
+from god.services import ServiceRegistry
+
+class MyHandler(ScenarioHandler):
+    def apply(self, registry: ServiceRegistry, spec: ScenarioSpec) -> None:
+        registry.propagate_fault(spec.target, error_rate=spec.error_rate,
+                                 latency_multiplier=spec.latency_multiplier)
+
+    def recover(self, registry: ServiceRegistry, spec: ScenarioSpec) -> None:
+        svc = registry.get(spec.target)
+        svc._error_rate_override = None
+        svc._latency_multiplier = 1.0
+
+register_handler("my_handler", MyHandler)
+```
+
+Then use `handler_type="my_handler"` in your `ScenarioSpec`.
 
 ### Adding a new span builder
 
@@ -767,9 +869,11 @@ accordingly.
 ## Gotchas
 
 1. **`gen-otlp` requires an API key (or mock mode).** The make target does not set `GOD_MOCK_MODE=true`
-   unlike `gen`, `gen-files`, and `gen-fixtures`. If you have not set `ANTHROPIC_API_KEY` and are not
-   in mock mode, the analysis agent will fail on `--analyse`. Pure generation without `--analyse` works
-   fine without any API key.
+   unlike `gen`, `gen-files`, and `gen-fixtures`. If you have not set `GEMINI_API_KEY` (or the relevant
+   key for your chosen model) and are not in mock mode, the analysis agent will fail on `--analyse`.
+   Pure generation without `--analyse` works fine without any API key. The default model is
+   `gemini-2.5-flash`; set `GEMINI_API_KEY` rather than `ANTHROPIC_API_KEY` unless you have overridden
+   `GOD_AGENT_MODEL` to a Claude model.
 
 2. **Seed only partially controls randomness.** A few choices inside the generators (HTTP method
    selection, some error type strings) use `random.choice` from the stdlib without seeding. For fully

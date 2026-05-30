@@ -247,7 +247,7 @@ async def _async_main() -> None:
         default=None,
         help=(
             "Redis filter expression applied during VSIM search. "
-            'Examples: \'(.source == "runbook")\' or \'(.stored_at > 1700000000)\''
+            "Examples: '(.source == \"runbook\")' or '(.stored_at > 1700000000)'"
         ),
     )
     parser.add_argument(
@@ -302,7 +302,9 @@ async def _async_main() -> None:
 
     if args.flush:
         deleted = r.delete(args.key)
-        print(json.dumps({"ok": True, "action": "flush", "key": args.key, "deleted": bool(deleted)}, ensure_ascii=False))
+        print(
+            json.dumps({"ok": True, "action": "flush", "key": args.key, "deleted": bool(deleted)}, ensure_ascii=False)
+        )
         return
 
     if args.list_members:
@@ -317,7 +319,13 @@ async def _async_main() -> None:
         except redis_lib.ResponseError as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
             sys.exit(1)
-        print(json.dumps({"ok": True, "action": "list", "key": args.key, "cardinality": card, "members": items}, indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"ok": True, "action": "list", "key": args.key, "cardinality": card, "members": items},
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
         return
 
     if not args.text and not args.query:

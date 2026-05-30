@@ -31,12 +31,12 @@ def _rng(seed: int = 0) -> np.random.Generator:
 
 def _llm_svc() -> ServiceDef:
     return ServiceDef(
-        name="llm-anthropic",
+        name="llm-gemini",
         type=ServiceType.GENAI_LLM,
         latency=LatencyProfile(p50_ms=1000, p99_ms=5000, timeout_ms=30000),
         error_rate=0.0,
-        provider="anthropic",
-        model="claude-sonnet-4-20250514",
+        provider="google",
+        model="gemini-2.5-flash",
     )
 
 
@@ -46,7 +46,7 @@ def _embed_svc() -> ServiceDef:
         type=ServiceType.GENAI_EMBED,
         latency=LatencyProfile(p50_ms=100, p99_ms=500),
         error_rate=0.0,
-        provider="anthropic",
+        provider="google",
         model="voyage-3",
     )
 
@@ -104,7 +104,7 @@ def test_inference_span_basic_structure() -> None:
     span, end_ms = build_inference_span(svc, "trace1", None, 1000.0, _rng())
     assert span.name.startswith("chat ")
     assert span.kind == SpanKind.CLIENT
-    assert span.service_name == "llm-anthropic"
+    assert span.service_name == "llm-gemini"
     assert span.attributes["gen_ai.operation.name"] == GenAIOperation.CHAT.value
     assert end_ms > 1000.0
 

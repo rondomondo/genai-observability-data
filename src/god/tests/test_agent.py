@@ -4,15 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from god.mock.activate import activate_mock_mode, deactivate_mock_mode, is_active
-
-
-@pytest.fixture(autouse=True)
-def _mock_mode():
-    """Activate mock mode for all agent tests; clean up after."""
-    activate_mock_mode()
-    yield
-    deactivate_mock_mode()
+from god.mock.activate import is_active
 
 
 def test_mock_mode_flag_set() -> None:

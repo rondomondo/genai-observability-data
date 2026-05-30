@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # When True the pydantic-ai agent is replaced with a FunctionModel (no API key needed)
     mock_mode: bool = Field(default=True, alias="GOD_MOCK_MODE")
 
-    # Optional Gemini key -- only needed when mock_mode=False
+    # Optional Gemini key -- used when the active model is a Google/Gemini model
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
 
     # Generation defaults (all overridable via CLI args)

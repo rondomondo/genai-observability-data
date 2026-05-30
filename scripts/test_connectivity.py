@@ -70,7 +70,6 @@ Manually convert the byte order to little-endian before passing the blob to Redi
 Use the VALUES syntax instead, which accepts floating-point numbers as strings and is platform-independent."""
 
 
-
 VECTOR_PREVIEW_LEN = 10
 SAMPLE_TIMEOUT_SECONDS = 30.0
 
@@ -185,19 +184,13 @@ async def _run_query(client: genai.Client, model: str) -> dict[str, Any]:
     if candidate is None:
         raise RuntimeError(f"API returned no candidates for model '{model}'")
 
-    response_text = (
-        candidate.content.parts[0].text.strip()
-        if candidate.content and candidate.content.parts
-        else ""
-    )
+    response_text = candidate.content.parts[0].text.strip() if candidate.content and candidate.content.parts else ""
     if not response_text:
         raise RuntimeError(f"API returned an empty response text for model '{model}'")
 
     # Use .name for a clean string like "STOP" rather than "FinishReason.STOP"
     finish_reason = (
-        candidate.finish_reason.name
-        if hasattr(candidate.finish_reason, "name")
-        else str(candidate.finish_reason)
+        candidate.finish_reason.name if hasattr(candidate.finish_reason, "name") else str(candidate.finish_reason)
     )
 
     return {
@@ -312,8 +305,7 @@ async def _async_main() -> None:
     # Warn: embedding model passed with --mode query is almost certainly a mistake.
     if mode == "query" and args.model in EMBEDDING_MODELS:
         print(
-            f"Warning: '{args.model}' is an embedding model but --mode query was requested. "
-            "This will likely fail.",
+            f"Warning: '{args.model}' is an embedding model but --mode query was requested. This will likely fail.",
             file=sys.stderr,
         )
 
@@ -335,7 +327,7 @@ async def _async_main() -> None:
             SAMPLE_result = await _run_embed(client, args.model)
         else:
             SAMPLE_result = await _run_query(client, args.model)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         output: dict[str, Any] = {
             "ok": False,
             "model": args.model,

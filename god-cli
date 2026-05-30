@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import copy
 import os
 import shutil
 import sys
@@ -155,7 +156,8 @@ async def _run_scenario(scenario_name: str, args: argparse.Namespace) -> int:
     if not args.quiet:
         console.print(f"[info]Generating scenario:[/info] [scenario]{scenario_name}[/scenario]")
 
-    scenario_args = argparse.Namespace(**vars(args), scenario=scenario_name)
+    scenario_args = copy.copy(args)
+    scenario_args.scenario = scenario_name
     god_argv = _build_god_argv(scenario_args, scenario_out)
 
     loop = asyncio.get_running_loop()
