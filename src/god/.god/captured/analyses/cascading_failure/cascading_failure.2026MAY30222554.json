@@ -1,0 +1,76 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "636 errors out of 1000 spans (63.6% error rate) — highest absolute error count in the system, indicating the gateway is the primary blast radius of the cascading failure."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "259 errors out of 1000 spans (25.9% error rate), compounded by 117 errors in its downstream postgres-auth dependency, suggesting auth DB degradation is contributing upstream failures."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "117 errors out of 1000 spans (11.7% error rate) — likely a db_degradation sub-scenario feeding auth-service failures."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "241 GenAI tool failures recorded system-wide; tool-executor has 233 errors out of 522 spans (44.6% error rate), making it the dominant source of agent-layer tool failures."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "224 errors out of 520 spans (43.1% error rate), closely correlated with tool-executor failures, indicating agent orchestration is severely impacted."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "125 errors out of 390 spans (32.1% error rate) with 63 downstream postgres-payments errors — payment processing is materially degraded."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of ~28,975 ms system-wide; llm-gemini has 91 errors out of 857 spans (10.6% error rate). LLM layer likely contributing to tail latency explosion."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "33 GenAI token truncation events detected, indicating prompts or responses are being cut short, likely due to timeout pressure or context window overflow under high load."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "112 errors out of 520 spans (21.5% error rate), suggesting retrieval/memory layer is degraded, amplifying agent and orchestration failures."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "64 errors out of 260 spans (24.6% error rate) — orchestration layer failing at a rate consistent with cascading upstream/downstream pressure."
+    }
+  ],
+  "error_rate": 0.2492,
+  "p99_latency_ms": 28975.6,
+  "recommended_action": "Immediately isolate and circuit-break the api-gateway → auth-service → postgres-auth failure chain to stop cascade propagation; simultaneously throttle tool-executor fan-out to the LLM/agent layer to reduce tool failure volume and tail latency. Investigate postgres-auth for DB degradation (connection exhaustion or slow queries) as the likely cascade origin. Enable LLM request queuing with timeout budgets to address token truncations and p99 latency exceeding 29s.",
+  "summary": "A confirmed cascading_failure scenario is active across the full stack, with a ~25% system-wide error rate and a catastrophic p99 latency of ~29 seconds. The cascade appears to originate in the postgres-auth / auth-service layer and propagates through the api-gateway (63.6% error rate), agent/tool-executor layer (44% error rate, 241 tool failures), and payments pipeline, with LLM token truncations further indicating the system is operating well beyond healthy capacity.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222554",
+    "scenario": "cascading_failure"
+  }
+}

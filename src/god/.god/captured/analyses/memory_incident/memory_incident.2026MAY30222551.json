@@ -1,0 +1,70 @@
+{
+  "active_scenarios": [
+    "memory_incident"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "619 errors out of 1000 spans — 61.9% error rate. Likely propagating failures from downstream services, acting as a primary blast radius amplifier."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "256 errors out of 1000 spans — 25.6% error rate. Elevated failures correlating with postgres-auth degradation."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "200 errors out of 483 spans — 41.4% error rate. Aligns with 203 recorded genai_tool_failures, indicating widespread tool execution breakdown likely tied to the memory incident."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "192 errors out of 496 spans — 38.7% error rate. Agent orchestration heavily impacted, consistent with memory/tool pipeline failures."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "93 errors out of 496 spans — 18.8% error rate. Core component of the active memory_incident scenario; failures propagate upstream to agent-service and tool-executor."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "128 errors out of 384 spans — 33.3% error rate. Significant payment processing failures; postgres-payments (86/384, 22.4%) likely contributing."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "121 errors out of 1000 spans — 12.1% error rate. Database-level auth failures driving auth-service degradation."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "94 errors out of 864 spans — 10.9% error rate. 28 token truncation events detected, suggesting context window overflow possibly caused by bloated memory context being injected into prompts."
+    },
+    {
+      "service": "api-gateway",
+      "signal_type": "latency_spike",
+      "severity": "critical",
+      "detail": "p99 latency of 26,064.9 ms (~26 seconds) across the batch indicates severe end-to-end slowdowns, consistent with memory fetch bottlenecks and tool execution timeouts."
+    }
+  ],
+  "error_rate": 0.2411,
+  "p99_latency_ms": 26064.9,
+  "recommended_action": "Immediately investigate and isolate the memory-service: restart or roll back the degraded instance, as its failures are cascading into tool-executor (41% error rate), agent-service (39%), and inflating LLM context (causing token truncations). Simultaneously, check postgres-auth replication lag to stabilize auth-service, and throttle payment traffic until postgres-payments recovers. Validate LLM prompt construction to prevent oversized memory context payloads reaching llm-gemini.",
+  "summary": "A confirmed memory_incident is causing a broad systemic outage: 24.1% of all spans are in error and p99 latency has blown out to ~26 seconds. The memory-service failure is cascading through tool-executor and agent-service, driving 203 GenAI tool failures and 28 token truncations, while api-gateway is absorbing the highest raw error volume (619 errors) as the downstream blast radius amplifier.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222551",
+    "scenario": "memory_incident"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "active_scenarios": [
+    "agentic_cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "622 errors out of 1000 spans (62.2% error rate) — acting as the primary blast radius amplifier for the cascading failure."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "255 errors out of 1000 spans (25.5% error rate), likely propagating failures from postgres-auth (134/1000, 13.4% error rate)."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "225 errors out of 494 spans (45.5% error rate) — nearly half of all agent invocations are failing, consistent with agentic cascading failure."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "220 errors out of 487 spans (45.2% error rate) corroborated by 226 genai_tool_failures — tool execution is critically degraded, stalling agent workflows."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "136 errors out of 410 spans (33.2% error rate), mirrored by postgres-payments at 104/410 (25.4%) — payment flow is significantly impaired."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "128 errors out of 872 spans (14.7% error rate) contributing to p99 latency of ~29.4s system-wide; likely experiencing timeout/overload due to upstream agent retry storms."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "32 genai token truncations detected — context windows being exceeded, possibly due to bloated prompts from agent retry loops or accumulated memory context."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "93 errors out of 494 spans (18.8% error rate) — memory retrieval failures likely degrading agent context quality and exacerbating tool failures."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "61 errors out of 247 spans (24.7% error rate) — orchestration layer is propagating failures across the agentic pipeline."
+    }
+  ],
+  "error_rate": 0.2565,
+  "p99_latency_ms": 29356.6,
+  "recommended_action": "Immediately throttle agent-service retry policies and circuit-break tool-executor to halt the cascading amplification. Investigate postgres-auth and postgres-payments for root DB degradation. Rate-limit LLM requests to Gemini to reduce token truncations and timeout pressure. Review memory-service context payloads to prevent prompt bloat.",
+  "summary": "A confirmed agentic cascading failure is in progress: 25.7% of all spans are in ERROR state with a p99 latency of ~29.4 seconds. The failure originates from degraded database and tool-executor layers, propagating through agent-service, auth-service, and payments-service, ultimately saturating the api-gateway with a 62% error rate and generating 226 tool failures and 32 LLM token truncations.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222551",
+    "scenario": "agentic_cascading_failure"
+  }
+}

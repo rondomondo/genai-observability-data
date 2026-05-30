@@ -1,0 +1,70 @@
+{
+  "active_scenarios": [
+    "payment_outage"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "629 errors out of 1000 spans (62.9% error rate) — acting as the primary funnel for all downstream failures; cascading errors from backend services are surfacing here at an alarming rate."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "259 errors out of 1000 spans (25.9% error rate), likely compounded by postgres-auth degradation (124 errors / 1000 spans, 12.4% error rate), suggesting DB-backed auth lookups are failing under the payment_outage scenario."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "235 errors out of 476 spans (49.4% error rate) — nearly half of all agent invocations are failing, consistent with downstream tool and LLM failures."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "205 genAI tool failures recorded globally; tool-executor itself shows 202 errors out of 464 spans (43.5% error rate), indicating tool invocation reliability is severely degraded."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "126 errors out of 395 spans (31.9% error rate), with postgres-payments also degraded (72 errors / 395 spans, 18.2% error rate). Core payment_outage scenario confirmed here — DB-backed payment processing is failing."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "116 errors out of 877 spans (13.2% error rate) alongside a system-wide p99 latency of 25,836 ms — LLM calls are a primary latency driver; 29 token truncations further indicate overloaded or misconfigured inference endpoints."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "29 token truncation events detected — prompts or responses are being cut short, likely due to context window exhaustion or a max-token misconfiguration under load."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "82 errors out of 476 spans (17.2% error rate) — memory retrieval is unreliable, degrading agent reasoning quality for all affected traces."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "65 errors out of 238 spans (27.3% error rate) — orchestration layer is failing to complete workflows, likely due to cascading failures from payments-service and agent-service."
+    }
+  ],
+  "error_rate": 0.2528,
+  "p99_latency_ms": 25836.1,
+  "recommended_action": "Immediately investigate and restore payments-service and postgres-payments — the active payment_outage scenario is the root cause cascading errors through api-gateway (62.9% error rate), agent-service (49.4%), and tool-executor (43.5%). Simultaneously: (1) circuit-break payment flows at the api-gateway to prevent further cascade; (2) check postgres-payments connection pool and replica health; (3) review llm-gemini timeout and token-limit configuration to address the 29 truncations and high p99 latency (~26s); (4) triage tool-executor failure modes to determine if payment-related tools are the sole failure path.",
+  "summary": "A confirmed payment_outage scenario is causing widespread cascade failures across the stack, with a 25.28% overall error rate and a critical p99 latency of ~25.8 seconds. The api-gateway is absorbing the highest absolute error volume (629 errors), while payments-service, postgres-payments, agent-service, and tool-executor all show error rates exceeding 30–50%, with additional LLM degradation (116 errors, 29 token truncations) further compounding end-to-end reliability.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222556",
+    "scenario": "payment_outage"
+  }
+}

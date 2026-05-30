@@ -1,0 +1,70 @@
+{
+  "active_scenarios": [
+    "rag_quality_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "628 errors out of 1000 spans — 62.8% error rate. Likely the primary entry-point amplifier of downstream failures."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "critical",
+      "detail": "239 genai tool failures recorded globally; tool-executor has 236 error spans out of 545 (43.3% error rate), strongly correlating with tool failure count."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "229 errors out of 1000 spans (22.9% error rate), compounded by 122 errors in backing postgres-auth store — indicates auth pipeline instability."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "229 errors out of 530 spans (43.2% error rate) — consistent with tool-executor failures propagating up through the agent layer."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 28,644ms system-wide is extreme; llm-gemini has 99 errors across 866 spans (11.4% error rate), likely a major latency contributor under rag_quality_degradation scenario."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "32 token truncation events detected across GenAI spans — consistent with RAG quality degradation injecting oversized or malformed context into LLM prompts."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "101 errors out of 530 spans (19.1% error rate) — memory retrieval failures likely degrading RAG context quality fed to the LLM."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "133 errors out of 386 spans (34.5% error rate), with 75 backing postgres-payments errors — payments pipeline is significantly impacted, possibly via cascading auth failures."
+    },
+    {
+      "service": "vector-db",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "26 errors out of 484 spans (5.4% error rate) — vector retrieval degradation consistent with rag_quality_degradation scenario affecting embedding/retrieval quality."
+    }
+  ],
+  "error_rate": 0.2476,
+  "p99_latency_ms": 28644.9,
+  "recommended_action": "Immediately investigate tool-executor and agent-service for cascading tool failures (239 recorded); inspect memory-service and vector-db retrieval paths for RAG context corruption driving token truncations and LLM errors. Validate auth-service/postgres-auth stability to stop upstream error amplification at the api-gateway. Consider circuit-breaking tool-executor calls and rolling back any recent RAG pipeline changes.",
+  "summary": "A critical fault state is active across the stack with a 24.8% overall error rate and a severe p99 latency of ~28.6 seconds. The injected rag_quality_degradation scenario is corrupting the RAG retrieval pipeline (memory-service, vector-db, embed-service), cascading into 239 GenAI tool failures, 32 token truncations, and broad error amplification through the agent-service, api-gateway, auth, and payments services.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222552",
+    "scenario": "rag_quality_degradation"
+  }
+}

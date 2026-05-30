@@ -1,0 +1,70 @@
+{
+  "active_scenarios": [
+    "agent_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "615 errors out of 1000 spans (61.5% error rate) — highest absolute error count in the stack; likely cascading from downstream failures."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "critical",
+      "detail": "210 genai_tool_failures recorded system-wide, with 201 error spans on tool-executor (44.5% error rate across 452 spans) — primary driver of agent_failure scenario."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "234 errors out of 1000 spans (23.4% error rate), compounded by 119 errors on postgres-auth (11.9%) — auth layer under significant stress."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "177 errors out of 452 spans (39.2% error rate) — agents failing at high frequency, consistent with tool_failure cascade."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "130 errors out of 431 spans (30.2% error rate), with 86 additional errors on postgres-payments (20.0%) — payment flows materially impacted."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 25,023 ms system-wide; llm-gemini has 81 error spans out of 860 (9.4%) contributing to elevated tail latency."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "30 genai token truncation events detected — prompts or responses being cut short, potentially degrading agent reasoning quality."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "41 errors out of 226 spans (18.1% error rate) — orchestration layer partially degraded, limiting agent workflow completion."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "75 errors out of 452 spans (16.6% error rate) — memory retrieval failures likely degrading agent context continuity."
+    }
+  ],
+  "error_rate": 0.2329,
+  "p99_latency_ms": 25023.0,
+  "recommended_action": "Immediately investigate tool-executor for the root cause of 210 tool failures (44.5% span error rate) — this is the primary driver of the agent_failure scenario and is cascading errors up through agent-service, workflow-orchestrator, and api-gateway. Redeploy or isolate degraded tool-executor instances, review tool plugin configurations, and check for dependency timeouts causing the 25s p99 latency. Separately, audit auth-service → postgres-auth connectivity and payments-service → postgres-payments for independent DB-layer issues. Address LLM token truncations by reviewing prompt size limits on llm-gemini.",
+  "summary": "A severe agent_failure scenario is active, with a system-wide error rate of 23.3% and p99 latency of 25 seconds. The fault is primarily rooted in tool-executor (44.5% error rate, 210 tool failures), cascading through agent-service and workflow-orchestrator up to the api-gateway, while auth, payments, and LLM layers show significant independent degradation.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222552",
+    "scenario": "agent_failure"
+  }
+}

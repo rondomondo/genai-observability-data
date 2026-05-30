@@ -1,0 +1,70 @@
+{
+  "active_scenarios": [
+    "llm_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "611 errors out of 1000 spans — 61.1% error rate. Likely propagating failures from downstream degraded services."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "critical",
+      "detail": "p99 latency at 24,236ms (24+ seconds) system-wide, consistent with llm_degradation scenario. 102 errors out of 867 spans (11.8% error rate) on the LLM service itself."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "214 GenAI tool failures recorded globally; tool-executor has 211 errors out of 436 spans — a 48.4% error rate, indicating widespread tool invocation breakdowns likely triggered by LLM degradation."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "225 errors out of 1000 spans (22.5% error rate), significantly above acceptable thresholds."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "163 errors out of 442 spans (36.9% error rate), likely caused by cascading failures from LLM and tool-executor."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "147 errors out of 415 spans (35.4% error rate). Correlated with postgres-payments showing 83 errors (20% error rate) — potential data-layer impact."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "35 GenAI token truncation events detected. Under LLM degradation, the model may be returning incomplete responses, causing downstream tool and agent failures."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "87 errors out of 442 spans (19.7% error rate), likely cascading from LLM/agent-service degradation."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "110 errors out of 1000 spans (11% error rate), elevated above normal baseline."
+    }
+  ],
+  "error_rate": 0.2374,
+  "p99_latency_ms": 24236.3,
+  "recommended_action": "Immediately circuit-break or throttle traffic to llm-gemini to halt cascading failures; investigate LLM provider health and consider failover to a backup LLM endpoint. Simultaneously review tool-executor retry/timeout policies to prevent further tool failure accumulation (214 failures). Monitor payments-service and postgres-payments closely for data integrity issues, and validate auth-service stability to avoid broader authentication outages.",
+  "summary": "A confirmed llm_degradation scenario is causing severe system-wide impact: 23.7% of all spans are in error state and p99 latency has spiked to over 24 seconds. The degradation is cascading from llm-gemini through tool-executor (48.4% error rate, 214 tool failures), agent-service (36.9%), and api-gateway (61.1%), with secondary pressure on payments and auth pipelines.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222551",
+    "scenario": "llm_degradation"
+  }
+}

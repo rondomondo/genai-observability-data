@@ -104,6 +104,9 @@ def _build_scenario_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="root output directory (default: ./output)",
     )
+    
+    p.add_argument("--agent-model", type=str, default=None, metavar="MODEL")
+
     p.add_argument("--seed", type=int, default=None, metavar="N", help="RNG seed for deterministic output")
     p.add_argument("--otlp", type=str, default=None, metavar="URL", help="stream to OTLP HTTP endpoint instead of files")
     p.add_argument("--otlp-header", action="append", default=[], metavar="KEY=VALUE", help="extra headers for OTLP sink (repeatable)")
@@ -112,6 +115,7 @@ def _build_scenario_parser() -> argparse.ArgumentParser:
     p.add_argument("--compress", action="store_true", help="gzip-compress file output")
     p.add_argument("--no-mock", dest="mock", action="store_false", default=True, help="disable mock mode (default: mock on)")
     p.add_argument("--quiet", "-q", action="store_true", help="suppress progress output per scenario")
+    p.add_argument("--analyse", action="store_true", default=False)
     
     return p
 
@@ -126,11 +130,17 @@ def _build_god_argv(args: argparse.Namespace, scenario_out: Path) -> list[str]:
         "--output", str(scenario_out),
     ]
     
+    if args.agent_model:
+        argv += ["--agent-model", args.agent_model]
+
     if args.otlp:
         argv += ["--otlp", args.otlp]
         for header in args.otlp_header:
             argv += ["--otlp-header", header]
             
+    if args.analyse:
+        argv.append("--analyse")
+
     if args.seed is not None:
         argv += ["--seed", str(args.seed)]
 
@@ -164,6 +174,16 @@ async def _run_scenario(scenario_name: str, args: argparse.Namespace) -> int:
     return await loop.run_in_executor(None, main, god_argv)
 
 
+_VIRTUAL_SCENARIO_NAMES = {"all", "quiet"}
+
+
+def _resolve_scenarios(scenario: str) -> list[str]:
+    """Expand 'all' to every real preset name, excluding virtual sentinel values."""
+    if scenario == "all":
+        return sorted([k for k in SCENARIO_PRESETS.keys() if k not in _VIRTUAL_SCENARIO_NAMES])
+    return [scenario]
+
+
 async def _gen_scenario_async(argv: list[str]) -> int:
     """Asynchronous orchestrator for the gen-scenario subcommand."""
     parser = _build_scenario_parser()
@@ -172,7 +192,7 @@ async def _gen_scenario_async(argv: list[str]) -> int:
     if args.scenario is None:
         parser.error("SCENARIO is required (or set GOD_DEFAULT_SCENARIO)")
 
-    scenarios = list(SCENARIO_PRESETS.keys()) if args.scenario == "all" else [args.scenario]
+    scenarios = _resolve_scenarios(args.scenario)
 
     # Run all targeted scenarios concurrently
     results = await asyncio.gather(*[_run_scenario(name, args) for name in scenarios])
@@ -198,7 +218,7 @@ def _gen_scenario(argv: list[str]) -> int:
 # -----------------------------------------------------------------------------
 def _list_scenarios(_: list[str]) -> int:
     """Print all available scenario preset names, space-separated, on one line."""
-    print(" ".join(sorted(SCENARIO_PRESETS.keys())))
+    print(" ".join(_resolve_scenarios('all')))
     return 0
 
 

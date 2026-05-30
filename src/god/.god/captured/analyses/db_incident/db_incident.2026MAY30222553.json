@@ -1,0 +1,76 @@
+{
+  "active_scenarios": [
+    "db_incident"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "609 errors out of 1000 spans — 60.9% error rate. Likely cascading failures from downstream DB and auth degradation."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "224 errors out of 1000 spans (22.4%). Strongly correlated with postgres-auth degradation under db_incident scenario."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "112 errors out of 1000 spans (11.2%). Database-layer failures consistent with active db_incident scenario."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "225 errors out of 470 spans (47.9%) and 232 genai_tool_failures recorded across the batch — nearly half of all tool invocations are failing."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "204 errors out of 466 spans (43.8%). Likely driven by tool-executor failures and downstream instability propagating into agent workflows."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "118 errors out of 418 spans (28.2%). Paired with 84 postgres-payments errors, indicating DB-layer failures impacting payment processing."
+    },
+    {
+      "service": "postgres-payments",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "84 errors out of 418 spans (20.1%). Confirms db_incident is impacting the payments database, not just auth."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "93 errors out of 466 spans (20.0%). Elevated error rate likely related to DB incident affecting persistence layer."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "medium",
+      "detail": "90 errors out of 868 spans (10.4%). P99 latency across the stack is 27,233ms — LLM service is a contributing factor to tail latency."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "low",
+      "detail": "24 genai_token_truncations detected. While not critical, truncations may degrade response quality under high-latency/retry conditions."
+    }
+  ],
+  "error_rate": 0.2377,
+  "p99_latency_ms": 27233.5,
+  "recommended_action": "Immediately investigate and remediate the db_incident on both postgres-auth and postgres-payments — these are the root cause driving cascading failures across api-gateway (60.9% errors), auth-service, payments-service, and memory-service. Simultaneously, triage tool-executor (47.9% failure rate / 232 tool failures) as it is independently destabilising agent workflows. Consider circuit-breaking DB-dependent services and routing LLM traffic away from degraded tool paths until DB stability is restored.",
+  "summary": "A confirmed db_incident is causing widespread cascading failures across the stack, with an overall error rate of 23.8% and a p99 latency of ~27.2 seconds. The api-gateway (60.9% errors), auth-service, payments-service, and both Postgres backends are critically impacted, while tool-executor is independently failing at ~48% rate with 232 genAI tool failures and 24 token truncations compounding agent-layer degradation.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222553",
+    "scenario": "db_incident"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "active_scenarios": [
+    "tool_meltdown"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "critical",
+      "detail": "218 genai_tool_failures recorded across 487 spans — a ~44.8% tool failure rate. This is the primary driver of the tool_meltdown scenario."
+    },
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "601 errors out of 1000 spans — 60.1% error rate. Likely cascading upstream failures from tool-executor and agent-service."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "253 errors out of 1000 spans — 25.3% error rate. Elevated alongside postgres-auth (116/1000, 11.6%), suggesting auth pipeline instability."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "219 errors out of 470 spans — 46.6% error rate. Agent orchestration is heavily impacted, consistent with tool meltdown causing agent-level failures."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "121 errors out of 409 spans — 29.6% error rate, with postgres-payments also at 75/409 (18.3%). Payment flows are significantly disrupted."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency at 25,015ms (~25s) across the batch. LLM calls are likely timing out or stalling due to tool response failures feeding back into LLM retry loops."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "27 genai_token_truncations detected. Likely caused by oversized retry payloads or error context being stuffed into prompts during tool failure recovery."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "100 errors out of 470 spans — 21.3% error rate. Memory retrieval failures may be compounding agent decision errors."
+    }
+  ],
+  "error_rate": 0.2401,
+  "p99_latency_ms": 25015.4,
+  "recommended_action": "Immediately investigate and halt the tool_meltdown scenario: circuit-break the tool-executor to stop cascading failures into agent-service and api-gateway. Inspect tool-executor logs for root cause (misconfigured tools, external API outages, or resource exhaustion). Simultaneously check auth-service and payments-service for downstream blast radius. Review LLM prompt construction logic to prevent error context from causing token truncations during retries.",
+  "summary": "A confirmed tool_meltdown scenario is active, with 218 GenAI tool failures (~44.8% of tool-executor spans) cascading into a system-wide 24% error rate and a catastrophic p99 latency of ~25 seconds. The api-gateway (60% errors), agent-service (46.6%), payments-service (29.6%), and auth-service (25.3%) are all critically impacted, indicating broad blast radius across the entire application stack.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222551",
+    "scenario": "tool_meltdown"
+  }
+}

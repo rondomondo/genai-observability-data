@@ -271,7 +271,7 @@ def _capture_analysis(result, scenario: str | None, model: str) -> Path:
     base = Path(__file__).parent / ".god" / "captured" / "analyses" / slot
     base.mkdir(parents=True, exist_ok=True)
 
-    ts = datetime.now().strftime("%Y%b%d%H%M%S")
+    ts = datetime.now().strftime("%Y%b%d%H%M%S").upper()
     filename = f"{slot}.{ts}.json"
     target = base / filename
 

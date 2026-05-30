@@ -1,0 +1,76 @@
+{
+  "active_scenarios": [
+    "rag_meltdown"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "641 errors out of 1000 spans — 64.1% error rate. Primary ingress point is failing at catastrophic levels, likely amplifying failures across the entire stack."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "243 errors out of 1000 spans — 24.3% error rate. Widespread auth failures likely blocking downstream request processing."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "131 errors out of 1000 spans — 13.1% error rate. Auth DB degradation correlated with auth-service failures, consistent with db_degradation pattern."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "critical",
+      "detail": "233 tool failures recorded globally; tool-executor has 230 errors out of 493 spans — 46.6% error rate. RAG pipeline tool invocations are critically impaired."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "134 errors out of 845 spans — 15.9% error rate. p99 latency of 26,377ms suggests severe LLM backend slowdowns consistent with rag_meltdown scenario."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "34 token truncation events detected. LLM context overflow likely caused by oversized RAG retrieval payloads being fed into the model."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "123 errors out of 409 spans — 30.1% error rate. Payments pipeline degraded, possibly starved of resources or experiencing upstream cascade failures."
+    },
+    {
+      "service": "postgres-payments",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "80 errors out of 409 spans — 19.6% error rate. Payments DB errors compounding payments-service failures."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "207 errors out of 498 spans — 41.6% error rate. Agent orchestration is heavily impacted, consistent with RAG tool and LLM failures cascading upward."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "99 errors out of 498 spans — 19.9% error rate. Memory retrieval degradation feeding into the RAG meltdown loop."
+    }
+  ],
+  "error_rate": 0.2559,
+  "p99_latency_ms": 26377.2,
+  "recommended_action": "Immediately circuit-break the RAG pipeline: throttle tool-executor and llm-gemini ingress to halt cascading failures. Investigate postgres-auth for DB degradation (high auth error rate). Reduce RAG retrieval chunk sizes to address token truncations. Scale or restart api-gateway pods to clear the 64% error rate at ingress. Enable payments-service bulkhead isolation to prevent further cascade into the payments DB.",
+  "summary": "A confirmed rag_meltdown scenario is in full effect, driving a system-wide 25.6% error rate and a p99 latency of ~26.4 seconds. The api-gateway (64% errors), tool-executor (47% errors, 233 tool failures), and agent-service (42% errors) are the most critically impacted, with LLM token truncations (34 events) and auth/payments DB degradation compounding the failure cascade across the entire stack.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222552",
+    "scenario": "rag_meltdown"
+  }
+}

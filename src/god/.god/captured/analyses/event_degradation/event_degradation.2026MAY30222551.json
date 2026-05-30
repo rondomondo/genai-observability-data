@@ -1,0 +1,70 @@
+{
+  "active_scenarios": [
+    "event_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "624 errors out of 1000 spans — 62.4% error rate. Likely acting as an amplifier for upstream/downstream failures; primary customer-facing impact point."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "253 errors out of 1000 spans (25.3% error rate). Elevated failures likely cascading from postgres-auth degradation under event_degradation scenario."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "high",
+      "detail": "236 errors out of 485 spans (48.7% error rate) and 241 genAI tool failures cluster-wide. Tool execution is critically unreliable, directly impairing agent task completion."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "129 errors out of 1000 spans (12.9% error rate). Database-layer auth failures consistent with event_degradation scenario affecting persistence layer."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "178 errors out of 486 spans (36.6% error rate). Agent orchestration failures likely driven by tool-executor and LLM unreliability."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "122 errors out of 403 spans (30.3% error rate), with 64 additional errors in postgres-payments. Payment flows are significantly disrupted."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "medium",
+      "detail": "120 errors out of 865 spans (13.9% error rate). Combined with p99 latency of 25,755ms cluster-wide, LLM inference is a major latency contributor."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "low",
+      "detail": "43 genAI token truncation events detected. Prompts or completions are being cut short, degrading response quality and potentially causing downstream parsing failures."
+    },
+    {
+      "service": "kafka",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "8 errors out of 403 spans (2.0% error rate). Low but non-zero — consistent with event_degradation scenario; event brokering is partially impaired."
+    }
+  ],
+  "error_rate": 0.2417,
+  "p99_latency_ms": 25755.8,
+  "recommended_action": "Immediately investigate the event_degradation scenario impacting Kafka and downstream consumers. Prioritize stabilising tool-executor (48.7% error rate, 241 tool failures) and api-gateway (62.4% error rate) as they represent the highest blast radius. Check postgres-auth connection pool saturation driving auth-service failures. Review LLM timeout thresholds to address the 25.7s p99 latency, and audit token budget settings to eliminate the 43 truncation events.",
+  "summary": "A critical event_degradation fault injection is active, producing a 24.2% cluster-wide error rate and a severe p99 latency of ~25.8 seconds across 7,792 spans. The blast radius is broad: api-gateway (62.4%), tool-executor (48.7%), agent-service (36.6%), and payments-service (30.3%) are all experiencing major error spikes, with 241 GenAI tool failures and 43 token truncations further degrading AI-driven workflows.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026MAY30222551",
+    "scenario": "event_degradation"
+  }
+}

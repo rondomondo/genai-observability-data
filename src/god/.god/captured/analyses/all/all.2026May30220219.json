@@ -1,0 +1,87 @@
+{
+  "active_scenarios": [
+    "db_degradation",
+    "llm_latency_spike",
+    "tool_failure_injection",
+    "auth_failure_injection",
+    "payment_service_degradation",
+    "api_gateway_overload"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "594 errors out of 1000 spans — 59.4% error rate. Likely acting as an error amplifier for all downstream failures. Front-door is critically impacted."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "critical",
+      "detail": "281 errors out of 577 spans (48.7% error rate) and 291 genAI tool failures system-wide. Tool execution is severely degraded, impacting agent workflows."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "257 errors out of 1000 spans (25.7% error rate). Auth failures are propagating broadly, blocking downstream service access."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "245 errors out of 542 spans (45.2% error rate). Nearly half of all agent operations are failing, likely due to tool-executor and LLM failures."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "164 errors out of 877 spans (18.7% error rate) combined with a system-wide p99 latency of 29,473ms. LLM backend is a primary latency driver."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "30 genAI token truncation events detected. Prompts or responses are being cut short, degrading response quality and potentially causing downstream parsing errors."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "138 errors out of 1000 spans (13.8% error rate). Database-layer auth failures are compounding auth-service instability."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "105 errors out of 390 spans (26.9% error rate). Over a quarter of payment operations are failing — direct revenue/transaction risk."
+    },
+    {
+      "service": "postgres-payments",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "75 errors out of 390 spans (19.2% error rate). DB-layer payment failures correlating with payments-service degradation, suggesting db_degradation scenario is active."
+    },
+    {
+      "service": "memory-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "100 errors out of 542 spans (18.5% error rate). Memory retrieval failures will degrade agent context quality and consistency."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "66 errors out of 271 spans (24.4% error rate). Nearly 1 in 4 workflow orchestration steps is failing, likely cascading from agent and tool failures."
+    }
+  ],
+  "error_rate": 0.2621,
+  "p99_latency_ms": 29473.7,
+  "recommended_action": "IMMEDIATE: Triage tool-executor and api-gateway as top priorities — they show the highest absolute and relative error counts. Investigate tool_failure root cause (likely misconfigured or unreachable external tool endpoints) and apply circuit breakers. Simultaneously, check llm-gemini for timeout/throttling config causing the ~29.5s p99 latency; enforce request timeouts and enable fallback LLM routing. Validate postgres-auth and postgres-payments connection pool health to resolve cascading DB degradation. Review token truncation events for prompt size limits on llm-gemini.",
+  "summary": "A severe multi-scenario fault injection (\"all\") is active across the full service mesh, with a 26.2% system-wide error rate and a critical p99 latency of ~29.5 seconds. The blast radius spans every service layer — from api-gateway (59.4% errors) and tool-executor (48.7% errors / 291 tool failures) through auth, payments, LLM, and database tiers — indicating simultaneous db_degradation, llm_latency_spike, tool_failure, and auth/payment service degradation scenarios are all live.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026May30220219",
+    "scenario": "all"
+  }
+}
