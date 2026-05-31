@@ -484,8 +484,21 @@
       break-after: page;
     }
 
-    .page-4, .page-5 { border: none !important; }
+    .page-4, .page-5 {
+      border: none !important;
+      overflow: hidden !important;
+      max-height: 297mm !important;
+    }
     .page-4 .row, .page-5 .row { border-bottom: none !important; }
+    .page-4 .comic-grid, .page-5 .comic-grid {
+      overflow: hidden !important;
+      max-height: 297mm !important;
+    }
+    .page-4 img, .page-5 img {
+      max-height: 99vh;
+      width: 100% !important;
+      object-fit: contain !important;
+    }
   }
 </style>
 </head>
