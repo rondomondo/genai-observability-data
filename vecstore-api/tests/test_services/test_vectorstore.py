@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 import os
+from typing import Any
 
 import pytest
 import redis as redis_lib
@@ -26,6 +27,17 @@ def _unit_vec(index: int, dim: int = DIM) -> list[float]:
     return v
 
 
+def _sample_metadata() -> list[dict[str, Any]]:
+    """Return 5 realistic log-event metadata dicts for use in tests."""
+    return [
+        {"service": "auth", "severity": "ERROR", "latency_ms": 342, "region": "eu-west-1", "retries": 2},
+        {"service": "gateway", "severity": "WARN", "latency_ms": 87, "region": "us-east-1", "retries": 0},
+        {"service": "embedder", "severity": "INFO", "latency_ms": 1204, "region": "eu-west-1", "retries": 1},
+        {"service": "ingest", "severity": "DEBUG", "latency_ms": 15, "region": "ap-southeast-1", "retries": 0},
+        {"service": "vecstore", "severity": "ERROR", "latency_ms": 9800, "region": "us-east-1", "retries": 3},
+    ]
+
+
 def _cosine(a: list[float], b: list[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b))
     na = math.sqrt(sum(x * x for x in a))
@@ -38,18 +50,32 @@ def redis_client() -> redis_lib.Redis:
     r = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
     try:
         r.ping()
+        r.delete(VSET_KEY)
+        r.ping()
+        
     except redis_lib.RedisError as exc:
         pytest.skip(f"Redis not reachable at {REDIS_URL}: {exc}")
     yield r
     r.close()
 
 
-@pytest.fixture(autouse=True)
-def clean_vset(redis_client: redis_lib.Redis) -> None:
-    redis_client.delete(VSET_KEY)
-    yield
-    redis_client.delete(VSET_KEY)
+# @pytest.fixture(autouse=True)
+# def clean_vsets(redis_client: redis_lib.Redis) -> None:
+#     redis_client.delete(VSET_KEY)
+#     yield
+#     redis_client.delete(VSET_KEY)
 
+
+@pytest.fixture(autouse=True)
+def clean_vset(redis_client: redis_lib.Redis, request: pytest.FixtureRequest) -> None:
+    #redis_client.delete(VSET_KEY)
+    yield
+    marker = request.node.get_closest_marker("keep_vset")
+    if marker:
+        import time
+        time.sleep(marker.args[0])
+    
+    redis_client.delete(VSET_KEY)
 
 @pytest.fixture()
 def vs(redis_client: redis_lib.Redis) -> VectorStore:
@@ -143,17 +169,21 @@ class TestVectorStoreSearch:
 
 @pytest.mark.integration
 class TestVectorStoreTTLShadowKeys:
+    @pytest.mark.keep_vset(10)
     def test_set_ttl_creates_shadow_key(self, vs: VectorStore, redis_client: redis_lib.Redis) -> None:
-        vs.store(VSET_KEY, "elem-0", _unit_vec(0), {})
-        vs.set_ttl(VSET_KEY, "elem-0", ttl_seconds=3600)
-        shadow = f"ttl:{VSET_KEY}:elem-0"
+        _sm = _sample_metadata()
+        vs.store(VSET_KEY, "elem-creates_shadow_key", _unit_vec(0), _sm[0])
+        vs.set_ttl(VSET_KEY, "elem-creates_shadow_key", ttl_seconds=5)
+        shadow = f"ttl:{VSET_KEY}:elem-creates_shadow_key"
         ttl = redis_client.ttl(shadow)
         assert ttl > 0
 
+    @pytest.mark.keep_vset(10)
     def test_set_ttl_shadow_key_expires(self, vs: VectorStore, redis_client: redis_lib.Redis) -> None:
-        vs.store(VSET_KEY, "elem-0", _unit_vec(0), {})
-        vs.set_ttl(VSET_KEY, "elem-0", ttl_seconds=1)
-        shadow = f"ttl:{VSET_KEY}:elem-0"
+        _sm = _sample_metadata()
+        vs.store(VSET_KEY, "elem-shadow_key_expires", _unit_vec(0), _sm[0])
+        vs.set_ttl(VSET_KEY, "elem-shadow_key_expires", ttl_seconds=5)
+        shadow = f"ttl:{VSET_KEY}:elem-shadow_key_expires"
         assert redis_client.exists(shadow)
         ttl = redis_client.ttl(shadow)
-        assert 0 < ttl <= 1
+        assert 4 < ttl <= 5

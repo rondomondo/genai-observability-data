@@ -207,7 +207,7 @@ list-scenarios: check-uv ## List all available fault injection scenario presets
 
 # -- OTel observability stack ---------------------------------
 .PHONY: stack-up
-stack-up: ## Start the full OTel stack (Collector, Jaeger, Loki, Grafana, Prometheus)
+stack-up: ## Start the OTel stack (Collector, Jaeger, Loki, Grafana, Prometheus) — vecstore-api excluded
 	docker compose up -d
 	@printf "$(CYAN)Waiting for OTel Collector...$(RESET)\n"
 	@for i in $$(seq 1 20); do \
@@ -265,8 +265,8 @@ vecstore-build: ## Build the vecstore-api Docker image
 	$(MAKE) -C $(VECSTORE_DIR) build-image
 
 .PHONY: vecstore-up
-vecstore-up: ## Start vecstore-api (and its deps) in the background
-	$(MAKE) -C $(VECSTORE_DIR) stack-up
+vecstore-up: ## Start vecstore-api container via compose profile (uses the shared stack Redis)
+	docker compose --profile vecstore up -d vecstore-api
 
 .PHONY: vecstore-down
 vecstore-down: ## Stop the vecstore-api stack

@@ -21,6 +21,9 @@ import redis as redis_lib
 
 from app.logging_config import get_logger
 from app.services.vectorstore import VectorStore
+from app.config import get_settings
+
+settings = get_settings()
 
 log = get_logger(__name__)
 
@@ -59,8 +62,8 @@ class TTLWatcher:
         # Enable keyspace notifications for expired events (if not already set)
         r = redis_lib.Redis.from_url(self._redis_url, decode_responses=True)
         try:
-            r.config_set("notify-keyspace-events", "Ex")
-            log.info("ttl_watcher_keyspace_notifications_enabled")
+            r.config_set("notify-keyspace-events", settings.redis_keyspace_events)
+            log.info(f"ttl_watcher_keyspace_notifications_enabled {r.config_get("notify-keyspace-events")}")
         except redis_lib.ResponseError as exc:
             log.warning("ttl_watcher_config_set_failed", error=str(exc))
         finally:
@@ -102,37 +105,36 @@ class TTLWatcher:
 
     def _pubsub_thread(self) -> None:
         log.debug("ttl_watcher_thread_started")
-        r = redis_lib.Redis.from_url(self._redis_url, decode_responses=True)
+        # socket_timeout=None keeps listen() blocking indefinitely; a timeout here
+        # raises TimeoutError on every poll interval and kills the thread prematurely.
+        r = redis_lib.Redis.from_url(self._redis_url, decode_responses=True, socket_timeout=None)
         pubsub = r.pubsub()
-        channel = f"__keyevent@{self._db}__:expired"
-        pubsub.subscribe(channel)
+        channel = f"__keyevent@{self._db}__:*"
+        pubsub.psubscribe(channel)
 
         try:
-            for message in pubsub.listen():
-                if self._stop_event.is_set():
-                    break
-                if message["type"] != "message":
+            while not self._stop_event.is_set():
+                try:
+                    message = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                except redis_lib.TimeoutError:
+                    continue
+                if message is None:
+                    continue
+                if message["type"] != "pmessage":
                     continue
                 key: str = message["data"]
+                log.debug(f"message: {message}")
                 if not key.startswith(TTL_PREFIX):
                     continue
 
-                # Parse `ttl:{vset_key}:{element_id}`
-                # vset_key itself may contain colons (e.g. rag:cache)
-                # Convention: everything after the second colon segment is element_id
-                # Format stored by vectorstore.set_ttl: ttl:{vset}:{element}
-                # We split on first two colons only
-                rest = key[len(TTL_PREFIX) :]  # "{vset_key}:{element_id}"
-                # vset keys are like "rag:cache", "logs:embeddings" — 2 parts
-                # element IDs don't contain colons (slugified)
-                # Split from the right: last segment is element_id
+                rest = key[len(TTL_PREFIX):]
                 last_colon = rest.rfind(":")
                 if last_colon == -1:
                     log.warning("ttl_watcher_unparseable_key", key=key)
                     continue
 
                 vset_key = rest[:last_colon]
-                element_id = rest[last_colon + 1 :]
+                element_id = rest[last_colon + 1:]
 
                 expired = ExpiredElement(vset_key=vset_key, element_id=element_id)
                 if self._loop and not self._loop.is_closed():
@@ -153,16 +155,13 @@ class TTLWatcher:
         while True:
             expired = await self._async_queue.get()
             try:
+                log.debug(f"ttl_watcher _consumer: expired: {expired}")
+
                 removed = await loop.run_in_executor(
                     None,
                     lambda e=expired: self._vs.remove(e.vset_key, e.element_id),
                 )
-                log.info(
-                    "ttl_expired",
-                    vset_key=expired.vset_key,
-                    element_id=expired.element_id,
-                    removed=removed,
-                )
+                log.debug(f"ttl_watcher _consumer expired: {expired} removed: {removed}")
             except Exception as exc:
                 log.error(
                     "ttl_consumer_error",

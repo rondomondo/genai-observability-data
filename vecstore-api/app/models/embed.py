@@ -15,7 +15,7 @@ class EmbedResponse(BaseModel):
 
 
 class EmbedBatchRequest(BaseModel):
-    texts: list[str] = Field(..., min_length=1, max_items=128)
+    texts: list[str] = Field(..., min_length=1, max_length=128)
     dim: int | None = None
     include_vectors: bool = False
 

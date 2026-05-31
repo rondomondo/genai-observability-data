@@ -21,7 +21,7 @@ class LogIngestRequest(BaseModel):
 
 
 class LogBatchIngestRequest(BaseModel):
-    entries: list[LogEntry] = Field(..., min_length=1, max_items=256)
+    entries: list[LogEntry] = Field(..., min_length=1, max_length=256)
     summarise: bool = False
     async_mode: bool = Field(default=False, description="Return job ID immediately")
 
@@ -57,7 +57,7 @@ class TraceIngestRequest(BaseModel):
 
 
 class TraceBatchIngestRequest(BaseModel):
-    entries: list[TraceEntry] = Field(..., min_length=1, max_items=64)
+    entries: list[TraceEntry] = Field(..., min_length=1, max_length=64)
     summarise: bool = True
     async_mode: bool = False
 

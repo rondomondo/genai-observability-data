@@ -33,6 +33,7 @@ from app.services.ttl_watcher import TTLWatcher
 from app.services.vectorstore import VectorStore
 
 settings = get_settings()
+print(settings)
 configure_logging(level=settings.log_level, fmt=settings.log_format)
 log = get_logger(__name__)
 

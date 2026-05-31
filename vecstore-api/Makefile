@@ -34,7 +34,7 @@ help: ## Show this help message
 # -- System checks --------------------------------------------
 .PHONY: check-sys-deps
 check-sys-deps: ## Verify required system packages are installed (Linux only; skipped on macOS)
-	@if [ "$$(uname)" = "Darwin" ]; then \
+	@if [ "$$(uname)" = "Darwins" ]; then \
 	  echo "  check-sys-deps skipped (macOS)"; \
 	  exit 0; \
 	fi; \

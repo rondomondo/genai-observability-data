@@ -89,7 +89,10 @@ services:
     restart: unless-stopped
 
   # vecstore-api — FastAPI service for vector storage, semantic cache, and embeddings
+  # Excluded from the default stack; start with: docker compose --profile vecstore up -d
+  # or via: make vecstore-up (which runs make dev in vecstore-api/ for hot-reload)
   vecstore-api:
+    profiles: [vecstore]
     build:
       context: ./vecstore-api
       dockerfile: Dockerfile

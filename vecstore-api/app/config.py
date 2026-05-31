@@ -14,16 +14,17 @@ class Settings(BaseSettings):
     )
 
     # Auth
-    api_key: str = Field(default="dev-secret-change-me")
+    api_key: str = Field(default="dev-secret")
 
     # Redis
-    redis_url: str = Field(default="redis://redis:6379")
+    redis_url: str = Field(default="redis://localhost:6379")
     redis_keyspace_db: int = Field(default=0)
+    redis_keyspace_events: str = Field(default="Ex")
 
     # Embedding
     gemini_api_key: str = Field(default="")
     embed_model: str = Field(default="gemini-embedding-001")
-    embed_dim: int = Field(default=768, ge=64, le=3072)
+    embed_dim: int = Field(default=256, ge=64, le=3072)
     embed_workers: int = Field(default=4, ge=1, le=16)
     embed_batch_size: int = Field(default=32, ge=1, le=128)
 
@@ -37,8 +38,8 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(default=3600, ge=60)
 
     # Summariser
-    summariser_model: str = Field(default="gemini-2.0-flash")
-    summariser_llm_threshold_duration_ms: int = Field(default=1000)
+    summariser_model: str = Field(default="claude-sonnet-4-6")
+    summariser_llm_threshold_duration_ms: int = Field(default=5000)
 
     # OTEL
     otel_exporter_otlp_endpoint: str = Field(default="http://otel-collector:4317")
@@ -46,8 +47,8 @@ class Settings(BaseSettings):
     otel_enabled: bool = Field(default=True)
 
     # Logging
-    log_level: str = Field(default="INFO")
-    log_format: Literal["json", "console"] = Field(default="json")
+    log_level: str = Field(default="DEBUG")
+    log_format: Literal["json", "console", "logfmt"] = Field(default="console")
 
     # Async batch jobs
     job_ttl_seconds: int = Field(default=300)
