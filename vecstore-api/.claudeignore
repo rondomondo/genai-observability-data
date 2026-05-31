@@ -1,0 +1,95 @@
+# .claudeignore
+# Glob patterns for paths Claude should not read or index.
+
+# -- Dependencies --------------------------------------------------------------
+node_modules/
+node_modules/**
+.venv/
+.venv/**
+venv/
+venv/**
+__pypackages__/
+
+# -- Build & dist output -------------------------------------------------------
+dist/
+dist/**
+build/
+build/**
+out/
+out/**
+target/
+target/**
+
+# -- Generated & compiled files ------------------------------------------------
+*.pyc
+*.pyo
+__pycache__/
+__pycache__/**
+
+# -- Test coverage & reports ---------------------------------------------------
+coverage/
+coverage/**
+.nyc_output/
+htmlcov/
+*.lcov
+test-results/
+test-results/**
+junit*.xml
+
+# -- Lock files ----------------------------------------------------------------
+uv.lock
+
+# -- Caches --------------------------------------------------------------------
+.cache/
+.cache/**
+*.tsbuildinfo
+
+# -- IDE & editor files --------------------------------------------------------
+.idea/
+.idea/**
+.vscode/
+.vscode/**
+*.swp
+*.swo
+*~
+.DS_Store
+
+# -- Logs ----------------------------------------------------------------------
+*.log
+logs/
+logs/**
+
+# -- Secrets & credentials -----------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+secrets/**
+.secrets/
+.secrets/**
+*credentials*
+*secret*
+
+# -- Binary & media assets -----------------------------------------------------
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+*.zip
+*.tar
+*.gz
+
+# -- Claude Code own files -----------------------------------------------------
+.claude/handoff.md
+.claude/session-history/
+.claude/session-history/**
+.claude/.simplify-ignore-cache/
+.claude/sdd-cache/

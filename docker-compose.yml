@@ -88,6 +88,26 @@ services:
       - redis-data:/data
     restart: unless-stopped
 
+  # vecstore-api — FastAPI service for vector storage, semantic cache, and embeddings
+  vecstore-api:
+    build:
+      context: ./vecstore-api
+      dockerfile: Dockerfile
+    image: vecstore-api:dev
+    container_name: vecstore-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: vecstore-api
+      LOG_FORMAT: json
+    depends_on:
+      - redis
+
 volumes:
   loki-data:
   grafana-data:

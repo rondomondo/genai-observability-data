@@ -253,6 +253,31 @@ demo-scenario: stack-up ## Stream a cascading failure scenario to the live stack
 	  --otlp $(OTLP)
 	@printf "$(GREEN)Scenario streamed. Check Jaeger: http://jaeger:16686$(RESET)\n"
 
+# -- vecstore-api ---------------------------------------------
+.PHONY: vecstore-build
+vecstore-build: ## Build the vecstore-api Docker image
+	docker compose build vecstore-api
+
+.PHONY: vecstore-up
+vecstore-up: ## Start vecstore-api (and its deps) in the background
+	docker compose up -d vecstore-api
+
+.PHONY: vecstore-logs
+vecstore-logs: ## Tail vecstore-api logs
+	docker compose logs -f vecstore-api
+
+.PHONY: vecstore-test
+vecstore-test: ## Run vecstore-api tests
+	cd vecstore-api && uv run --extra dev pytest
+
+.PHONY: vecstore-lint
+vecstore-lint: ## Lint vecstore-api with ruff
+	cd vecstore-api && uv run --extra dev ruff check --fix .
+
+.PHONY: vecstore-format
+vecstore-format: ## Format vecstore-api with ruff
+	cd vecstore-api && uv run --extra dev ruff format .
+
 # -- Build and publish ----------------------------------------
 .PHONY: build
 build: check-uv clean-pyc ## Build wheel + sdist for PyPI

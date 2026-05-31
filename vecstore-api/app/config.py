@@ -1,0 +1,58 @@
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # Auth
+    api_key: str = Field(default="dev-secret-change-me")
+
+    # Redis
+    redis_url: str = Field(default="redis://redis:6379")
+    redis_keyspace_db: int = Field(default=0)
+
+    # Embedding
+    gemini_api_key: str = Field(default="")
+    embed_model: str = Field(default="gemini-embedding-001")
+    embed_dim: int = Field(default=768, ge=64, le=3072)
+    embed_workers: int = Field(default=4, ge=1, le=16)
+    embed_batch_size: int = Field(default=32, ge=1, le=128)
+
+    # Vector set keys
+    vset_cache: str = Field(default="rag:cache")
+    vset_logs: str = Field(default="logs:embeddings")
+    vset_traces: str = Field(default="traces:embeddings")
+
+    # Semantic cache
+    cache_hit_threshold: float = Field(default=0.92, ge=0.0, le=1.0)
+    cache_ttl_seconds: int = Field(default=3600, ge=60)
+
+    # Summariser
+    summariser_model: str = Field(default="gemini-2.0-flash")
+    summariser_llm_threshold_duration_ms: int = Field(default=1000)
+
+    # OTEL
+    otel_exporter_otlp_endpoint: str = Field(default="http://otel-collector:4317")
+    otel_service_name: str = Field(default="vecstore-api")
+    otel_enabled: bool = Field(default=True)
+
+    # Logging
+    log_level: str = Field(default="INFO")
+    log_format: Literal["json", "console"] = Field(default="json")
+
+    # Async batch jobs
+    job_ttl_seconds: int = Field(default=300)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
