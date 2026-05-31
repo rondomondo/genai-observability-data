@@ -78,26 +78,29 @@ env-check: ## Verify .env exists (or .env.example fallback) and warn on missing 
 
 # -- Install --------------------------------------------------
 .PHONY: install
-install: check-sys-deps check-uv ## Install the package and all dev dependencies
+install: check-sys-deps check-uv uv-lock ## Install the package and all dev dependencies
 	$(UV) sync --all-extras
 	@printf "$(GREEN)Installed vecstore-api with dev extras.$(RESET)\n"
 
-# -- Dev server -----------------------------------------------
+.PHONY: uv-lock
+uv-lock: check-uv ## Run the API server in reload mode (requires .env)
+	$(UV) lock
+
 .PHONY: dev
-dev: check-uv ## Run the API server in reload mode (requires .env)
+dev: install ## Run the API server in reload mode (requires .env)
 	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # -- Code quality ---------------------------------------------
 .PHONY: format
-format: check-uv ## Format Python code with ruff
+format: install ## Format Python code with ruff
 	$(RUFF) format .
 
 .PHONY: lint
-lint: check-uv ## Lint and auto-fix with ruff
+lint: install ## Lint and auto-fix with ruff
 	$(RUFF) check --fix .
 
 .PHONY: typecheck
-typecheck: check-uv ## Static type checking with mypy
+typecheck: install ## Static type checking with mypy
 	$(MYPY) $(PKG_SRC)
 
 .PHONY: ci
@@ -106,15 +109,15 @@ ci: format lint typecheck test ## Run full CI pipeline (format, lint, typecheck,
 
 # -- Tests ----------------------------------------------------
 .PHONY: test
-test: check-uv ## Run all tests with coverage
+test: install ## Run all tests with coverage
 	$(PYTEST) --cov=$(PKG_SRC) --cov-report=term-missing
 
 .PHONY: test-unit
-test-unit: check-uv ## Run unit tests only (no external services)
+test-unit: install ## Run unit tests only (no external services)
 	$(PYTEST) -m "not integration"
 
 .PHONY: test-integration
-test-integration: check-uv ## Run integration tests (requires Redis and OTel stack)
+test-integration: install ## Run integration tests (requires Redis and OTel stack)
 	$(PYTEST) -m integration
 
 .PHONY: watch
@@ -125,7 +128,7 @@ watch: check-uv ## Re-run unit tests on file change (requires watchexec)
 
 # -- OTel / infrastructure stack ------------------------------
 .PHONY: stack-up
-stack-up: ## Start the local stack (Redis, OTel Collector, etc.)
+stack-up: install ## Start the local stack (Redis, OTel Collector, etc.)
 	docker compose up -d
 	@printf "$(CYAN)Waiting for Redis...$(RESET)\n"
 	@for i in $$(seq 1 20); do \
@@ -152,7 +155,7 @@ stack-reset: ## Wipe stack volumes and restart fresh
 
 # -- Build / image --------------------------------------------
 .PHONY: build-image
-build-image: ## Build the Docker image
+build-image: install ## Build the Docker image
 	docker build -t vecstore-api:latest .
 
 # -- Version bumps --------------------------------------------

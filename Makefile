@@ -254,29 +254,47 @@ demo-scenario: stack-up ## Stream a cascading failure scenario to the live stack
 	@printf "$(GREEN)Scenario streamed. Check Jaeger: http://jaeger:16686$(RESET)\n"
 
 # -- vecstore-api ---------------------------------------------
+VECSTORE_DIR := vecstore-api
+
+.PHONY: vecstore-install
+vecstore-install: ## Install vecstore-api dependencies
+	$(MAKE) -C $(VECSTORE_DIR) install
+
 .PHONY: vecstore-build
 vecstore-build: ## Build the vecstore-api Docker image
-	docker compose build vecstore-api
+	$(MAKE) -C $(VECSTORE_DIR) build-image
 
 .PHONY: vecstore-up
 vecstore-up: ## Start vecstore-api (and its deps) in the background
-	docker compose up -d vecstore-api
+	$(MAKE) -C $(VECSTORE_DIR) stack-up
+
+.PHONY: vecstore-down
+vecstore-down: ## Stop the vecstore-api stack
+	$(MAKE) -C $(VECSTORE_DIR) stack-down
 
 .PHONY: vecstore-logs
 vecstore-logs: ## Tail vecstore-api logs
-	docker compose logs -f vecstore-api
+	$(MAKE) -C $(VECSTORE_DIR) stack-logs
 
 .PHONY: vecstore-test
 vecstore-test: ## Run vecstore-api tests
-	cd vecstore-api && uv run --extra dev pytest
+	$(MAKE) -C $(VECSTORE_DIR) test
 
 .PHONY: vecstore-lint
 vecstore-lint: ## Lint vecstore-api with ruff
-	cd vecstore-api && uv run --extra dev ruff check --fix .
+	$(MAKE) -C $(VECSTORE_DIR) lint
 
 .PHONY: vecstore-format
 vecstore-format: ## Format vecstore-api with ruff
-	cd vecstore-api && uv run --extra dev ruff format .
+	$(MAKE) -C $(VECSTORE_DIR) format
+
+.PHONY: vecstore-typecheck
+vecstore-typecheck: ## Static type checking for vecstore-api
+	$(MAKE) -C $(VECSTORE_DIR) typecheck
+
+.PHONY: vecstore-ci
+vecstore-ci: ## Run full CI pipeline for vecstore-api
+	$(MAKE) -C $(VECSTORE_DIR) ci
 
 # -- Build and publish ----------------------------------------
 .PHONY: build
