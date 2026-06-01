@@ -7,6 +7,7 @@ The agent returns a TraceSummary with typed fields so callers can route
 on severity, affected_services etc. without parsing free text.
 """
 
+import asyncio
 import time
 
 from pydantic_ai import Agent
@@ -29,6 +30,7 @@ class Summariser:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._agent: Agent[None, TraceSummary] | None = None
+        self._sem = asyncio.Semaphore(settings.summariser_concurrency)
 
     def _get_agent(self) -> "Agent[None, TraceSummary]":
         if self._agent is None:
@@ -135,7 +137,8 @@ class Summariser:
         t0 = time.perf_counter()
         try:
             agent = self._get_agent()
-            result = await agent.run(prompt)
+            async with self._sem:
+                result = await agent.run(prompt)
             elapsed_ms = round((time.perf_counter() - t0) * 1000)
             summary = result.data
             summary.used_llm = True
@@ -156,7 +159,8 @@ class Summariser:
         t0 = time.perf_counter()
         try:
             agent = self._get_agent()
-            result = await agent.run(prompt)
+            async with self._sem:
+                result = await agent.run(prompt)
             elapsed_ms = round((time.perf_counter() - t0) * 1000)
             summary = result.data
             summary.used_llm = True

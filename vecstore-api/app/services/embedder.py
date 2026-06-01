@@ -45,6 +45,7 @@ class Embedder:
         self._queue: asyncio.Queue[EmbedRequest | None] = asyncio.Queue()
         self._workers: list[asyncio.Task] = []
         self._running = False
+        self._sem = asyncio.Semaphore(settings.embed_concurrency)
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -100,10 +101,11 @@ class Embedder:
             if req is None:
                 break
             try:
-                vector = await loop.run_in_executor(
-                    self._executor,
-                    lambda r=req: self._call_api(r.text, r.dim),
-                )
+                async with self._sem:
+                    vector = await loop.run_in_executor(
+                        self._executor,
+                        lambda r=req: self._call_api(r.text, r.dim),
+                    )
                 req.future.set_result(vector)
             except Exception as exc:
                 log.error("embed_worker_error", worker_id=worker_id, error=str(exc))

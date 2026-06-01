@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 
-from god.config import HttpClientSettings, get_settings
+from god.config import HttpClientSettings, get_http_settings, get_settings
 from god.http_client import HttpClient
 from vecstore_models import (
     BatchIngestResponse,
@@ -67,10 +67,17 @@ class AsyncVecstoreClient:
         settings: HttpClientSettings | None = None,
     ) -> None:
         resolved_key = api_key if api_key is not None else get_settings().vecstore_api_key
+        s = settings or get_http_settings()
         self._http = HttpClient(
-            settings=settings,
+            settings=s,
             base_url=base_url.rstrip("/"),
             headers={"X-API-Key": resolved_key, "Content-Type": "application/json"},
+            rates={
+                "ingest": s.http_rate_ingest,
+                "search": s.http_rate_search,
+                "cache": s.http_rate_cache,
+                "admin": s.http_rate_admin,
+            },
         )
 
     async def open(self) -> None:
@@ -132,7 +139,7 @@ class AsyncVecstoreClient:
         Returns:
             Parsed JSON response body.
         """
-        resp = await self._request("GET", "/health")
+        resp = await self._request("GET", "/health", rate_name="admin")
         return resp.json()  # type: ignore[no-any-return]
 
     async def status(self) -> StatusResponse:
@@ -141,7 +148,7 @@ class AsyncVecstoreClient:
         Returns:
             Parsed StatusResponse.
         """
-        resp = await self._request("GET", "/status")
+        resp = await self._request("GET", "/status", rate_name="admin")
         return StatusResponse.model_validate(resp.json())
 
     # Ingest: logs
@@ -156,7 +163,7 @@ class AsyncVecstoreClient:
         Returns:
             Parsed IngestResponse.
         """
-        resp = await self._request("POST", "/ingest/log", json={"entry": entry.model_dump(), "summarise": summarise})
+        resp = await self._request("POST", "/ingest/log", rate_name="ingest", json={"entry": entry.model_dump(), "summarise": summarise})
         return IngestResponse.model_validate(resp.json())
 
     async def ingest_log_batch(
@@ -186,7 +193,7 @@ class AsyncVecstoreClient:
             "summarise": summarise,
             "async_mode": async_mode,
         }
-        resp = await self._request("POST", "/ingest/log/batch", json=payload)
+        resp = await self._request("POST", "/ingest/log/batch", rate_name="ingest", json=payload)
         data = resp.json()
         if async_mode:
             return JobReference.model_validate(data)
@@ -205,7 +212,7 @@ class AsyncVecstoreClient:
             Parsed IngestResponse.
         """
         resp = await self._request(
-            "POST", "/ingest/trace", json={"entry": entry.model_dump(), "summarise": summarise}
+            "POST", "/ingest/trace", rate_name="ingest", json={"entry": entry.model_dump(), "summarise": summarise}
         )
         return IngestResponse.model_validate(resp.json())
 
@@ -236,7 +243,7 @@ class AsyncVecstoreClient:
             "summarise": summarise,
             "async_mode": async_mode,
         }
-        resp = await self._request("POST", "/ingest/trace/batch", json=payload)
+        resp = await self._request("POST", "/ingest/trace/batch", rate_name="ingest", json=payload)
         data = resp.json()
         if async_mode:
             return JobReference.model_validate(data)
@@ -270,7 +277,7 @@ class AsyncVecstoreClient:
             payload["keys"] = keys
         if filter_expr is not None:
             payload["filter_expr"] = filter_expr
-        resp = await self._request("POST", "/search", json=payload)
+        resp = await self._request("POST", "/search", rate_name="search", json=payload)
         return SearchResponse.model_validate(resp.json())
 
     # Cache
@@ -295,7 +302,7 @@ class AsyncVecstoreClient:
         payload: dict[str, object] = {"question": question, "top_k": top_k}
         if threshold is not None:
             payload["threshold"] = threshold
-        resp = await self._request("POST", "/cache/query", json=payload)
+        resp = await self._request("POST", "/cache/query", rate_name="cache", json=payload)
         return CacheLookupResponse.model_validate(resp.json())
 
     async def cache_store(
@@ -328,7 +335,7 @@ class AsyncVecstoreClient:
             payload["ttl_seconds"] = ttl_seconds
         if metadata:
             payload["metadata"] = metadata
-        resp = await self._request("POST", "/cache", json=payload)
+        resp = await self._request("POST", "/cache", rate_name="cache", json=payload)
         return CacheStoreResponse.model_validate(resp.json())
 
     async def cache_delete(self, element_id: str) -> dict[str, object]:
@@ -340,7 +347,7 @@ class AsyncVecstoreClient:
         Returns:
             Parsed response JSON.
         """
-        resp = await self._request("DELETE", f"/cache/{element_id}")
+        resp = await self._request("DELETE", f"/cache/{element_id}", rate_name="cache")
         return resp.json()  # type: ignore[no-any-return]
 
     async def cache_status(self) -> CacheStatusResponse:
@@ -349,7 +356,7 @@ class AsyncVecstoreClient:
         Returns:
             Parsed CacheStatusResponse.
         """
-        resp = await self._request("GET", "/cache/status")
+        resp = await self._request("GET", "/cache/status", rate_name="admin")
         return CacheStatusResponse.model_validate(resp.json())
 
     # Job polling
@@ -363,7 +370,7 @@ class AsyncVecstoreClient:
         Returns:
             Parsed JobStatus.
         """
-        resp = await self._request("GET", f"/status/job/{job_id}")
+        resp = await self._request("GET", f"/status/job/{job_id}", rate_name="admin")
         return JobStatus.model_validate(resp.json())
 
     async def wait_for_job(

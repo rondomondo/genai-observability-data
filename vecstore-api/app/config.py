@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     embed_model: str = Field(default="gemini-embedding-001")
     embed_dim: int = Field(default=256, ge=64, le=3072)
     embed_workers: int = Field(default=4, ge=1, le=16)
+    embed_concurrency: int = Field(default=2, ge=1, le=16)
     embed_batch_size: int = Field(default=32, ge=1, le=128)
 
     # Vector set keys
@@ -39,6 +40,7 @@ class Settings(BaseSettings):
 
     # Summariser
     summariser_model: str = Field(default="claude-sonnet-4-6")
+    summariser_concurrency: int = Field(default=2, ge=1, le=16)
     summariser_llm_threshold_duration_ms: int = Field(default=5000)
 
     # OTEL
