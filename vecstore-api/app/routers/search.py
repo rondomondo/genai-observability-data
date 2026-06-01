@@ -1,10 +1,11 @@
 import asyncio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.config import get_settings
 from app.dependencies import get_embedder, get_vectorstore
 from app.models.search import SearchHit, SearchRequest, SearchResponse
+from app.rate_limits import limit_for
 from app.services.embedder import Embedder
 from app.services.vectorstore import VectorStore
 
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 
 @router.post("", response_model=SearchResponse, summary="Semantic search across vector sets")
+@limit_for("rate_limit_search")
 async def search(
+    request: Request,
     body: SearchRequest,
     embedder: Embedder = Depends(get_embedder),
     vs: VectorStore = Depends(get_vectorstore),

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.dependencies import get_embedder
 from app.models.embed import EmbedBatchRequest, EmbedBatchResponse, EmbedRequest, EmbedResponse
+from app.rate_limits import limit_for
 from app.services.embedder import Embedder
 from app.services.vectorstore import VectorStore
 
@@ -9,7 +10,9 @@ router = APIRouter(prefix="/embed", tags=["embed"])
 
 
 @router.post("", response_model=EmbedResponse, summary="Embed a single text")
+@limit_for("rate_limit_embed")
 async def embed_single(
+    request: Request,
     body: EmbedRequest,
     embedder: Embedder = Depends(get_embedder),
 ) -> EmbedResponse:
@@ -24,7 +27,9 @@ async def embed_single(
 
 
 @router.post("/batch", response_model=EmbedBatchResponse, summary="Embed multiple texts")
+@limit_for("rate_limit_embed")
 async def embed_batch(
+    request: Request,
     body: EmbedBatchRequest,
     embedder: Embedder = Depends(get_embedder),
 ) -> EmbedBatchResponse:

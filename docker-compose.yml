@@ -88,14 +88,33 @@ services:
       - redis-data:/data
     restart: unless-stopped
 
+  # embedder-sidecar — sentence-transformers model server (CPU torch, no API key)
+  # Bundled in the vecstore profile; override EMBED_MODEL at build time to bake
+  # a different model into the image (default: Qwen/Qwen3-Embedding-0.6B).
+  embedder-sidecar:
+    profiles: [vecstore]
+    build:
+      context: ./embedder-sidecar
+      dockerfile: Dockerfile
+      args:
+        EMBED_MODEL: ${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+    image: embedder-sidecar:dev
+    container_name: embedder-sidecar
+    restart: unless-stopped
+    environment:
+      EMBED_MODEL: ${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+      HF_HOME: /app/.cache/huggingface
+    ports:
+      - "8001:8001"
+
   # vecstore-api — FastAPI service for vector storage, semantic cache, and embeddings
   # Excluded from the default stack; start with: docker compose --profile vecstore up -d
   # or via: make vecstore-up (which runs make dev in vecstore-api/ for hot-reload)
   vecstore-api:
     profiles: [vecstore]
     build:
-      context: ./vecstore-api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: vecstore-api/Dockerfile
     image: vecstore-api:dev
     container_name: vecstore-api
     restart: unless-stopped
@@ -108,8 +127,11 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: vecstore-api
       LOG_FORMAT: json
+      EMBED_BACKEND: sidecar
+      EMBED_SIDECAR_URL: http://embedder-sidecar:8001
     depends_on:
       - redis
+      - embedder-sidecar
 
 volumes:
   loki-data:

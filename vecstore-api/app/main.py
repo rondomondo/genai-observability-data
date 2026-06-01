@@ -19,8 +19,11 @@ import redis as redis_lib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
+from app.rate_limits import limiter
 from app.logging_config import configure_logging, get_logger
 from app.middleware.auth import APIKeyMiddleware
 from app.middleware.correlation import CorrelationMiddleware
@@ -124,6 +127,9 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # Middleware (order matters — outermost first)
     app.add_middleware(

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.config import get_settings
 from app.dependencies import get_cache_service, get_ttl_watcher, get_vectorstore
+from app.rate_limits import limit_for
 from app.models.cache import (
     CacheLookupRequest,
     CacheLookupResponse,
@@ -17,7 +18,9 @@ router = APIRouter(prefix="/cache", tags=["cache"])
 
 
 @router.post("/query", response_model=CacheLookupResponse, summary="Semantic cache lookup")
+@limit_for("rate_limit_cache")
 async def cache_query(
+    request: Request,
     body: CacheLookupRequest,
     cache: CacheService = Depends(get_cache_service),
 ) -> CacheLookupResponse:
@@ -25,7 +28,9 @@ async def cache_query(
 
 
 @router.post("", response_model=CacheStoreResponse, summary="Store a Q&A pair in the cache")
+@limit_for("rate_limit_cache")
 async def cache_store(
+    request: Request,
     body: CacheStoreRequest,
     cache: CacheService = Depends(get_cache_service),
 ) -> CacheStoreResponse:

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.dependencies import get_summariser
+from app.rate_limits import limit_for
 from app.models.ingest import LogEntry, TraceEntry
 from app.models.summarise import (
     SummariseLogRequest,
@@ -13,7 +14,9 @@ router = APIRouter(prefix="/summarise", tags=["summarise"])
 
 
 @router.post("/trace", response_model=SummariseResponse, summary="Summarise a trace (explicit endpoint)")
+@limit_for("rate_limit_summarise")
 async def summarise_trace(
+    request: Request,
     body: SummariseTraceRequest,
     summariser: Summariser = Depends(get_summariser),
 ) -> SummariseResponse:
@@ -30,7 +33,9 @@ async def summarise_trace(
 
 
 @router.post("/log", response_model=SummariseResponse, summary="Summarise a log entry (explicit endpoint)")
+@limit_for("rate_limit_summarise")
 async def summarise_log(
+    request: Request,
     body: SummariseLogRequest,
     summariser: Summariser = Depends(get_summariser),
 ) -> SummariseResponse:

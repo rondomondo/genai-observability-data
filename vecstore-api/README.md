@@ -236,6 +236,29 @@ curl -s -X POST $BASE/summarise/trace \
 
 ---
 
+## Rate limiting
+
+All write and search endpoints are rate-limited per client IP using
+[slowapi](https://github.com/laurentS/slowapi). Limits are configurable via environment
+variables without code changes. The defaults are permissive for local development; tighten
+them before exposing the API to untrusted networks.
+
+| Endpoint group | Variable | Default |
+|----------------|----------|---------|
+| `/ingest/*` | `RATE_LIMIT_INGEST` | `120/minute` |
+| `/embed`, `/embed/batch` | `RATE_LIMIT_EMBED` | `60/minute` |
+| `/search` | `RATE_LIMIT_SEARCH` | `60/minute` |
+| `/cache/query`, `/cache` | `RATE_LIMIT_CACHE` | `60/minute` |
+| `/summarise/*` | `RATE_LIMIT_SUMMARISE` | `30/minute` |
+| `/health`, `/status/*` | (unlimited) | -- |
+
+Clients that exceed their limit receive `HTTP 429` with a `Retry-After` header.
+
+See [../RATE_LIMITING.md](../RATE_LIMITING.md) for full details including proxy/multi-replica
+caveats and how to switch to a Redis-backed distributed store.
+
+---
+
 ## Architecture notes
 
 - **Embedder**: asyncio queue + thread pool executor — concurrent embed requests without unlimited thread spawning

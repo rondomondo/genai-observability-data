@@ -79,7 +79,7 @@ env-check: ## Verify .env exists (or .env.example fallback) and warn on missing 
 # -- Install --------------------------------------------------
 .PHONY: install
 install: check-sys-deps check-uv uv-lock ## Install the package and all dev dependencies
-	$(UV) sync --all-extras
+	$(UV) sync --extra dev
 	@printf "$(GREEN)Installed vecstore-api with dev extras.$(RESET)\n"
 
 .PHONY: uv-lock
@@ -109,7 +109,7 @@ ci: format lint typecheck test ## Run full CI pipeline (format, lint, typecheck,
 
 # -- Tests ----------------------------------------------------
 .PHONY: test
-test: install ## Run all tests with coverage
+test: install stack-up ## Run all tests with coverage
 	$(PYTEST) --cov=$(PKG_SRC) --cov-report=term-missing
 
 .PHONY: test-unit
@@ -117,7 +117,7 @@ test-unit: install ## Run unit tests only (no external services)
 	$(PYTEST) -m "not integration"
 
 .PHONY: test-integration
-test-integration: install ## Run integration tests (requires Redis and OTel stack)
+test-integration: install stack-up ## Run integration tests (requires Redis and OTel stack)
 	$(PYTEST) -m integration
 
 .PHONY: watch
@@ -155,8 +155,8 @@ stack-reset: ## Wipe stack volumes and restart fresh
 
 # -- Build / image --------------------------------------------
 .PHONY: build-image
-build-image: install ## Build the Docker image
-	docker build -t vecstore-api:latest .
+build-image: install ## Build the Docker image (must run from repo root)
+	docker build -f Dockerfile -t vecstore-api:dev ..
 
 # -- Version bumps --------------------------------------------
 .PHONY: bump-patch

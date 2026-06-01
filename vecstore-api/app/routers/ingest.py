@@ -5,11 +5,12 @@ import re
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.config import get_settings
 from app.dependencies import get_embedder, get_job_store, get_summariser, get_vectorstore
 from app.logging_config import get_logger
+from app.rate_limits import limit_for
 from app.models.common import JobReference
 from app.models.ingest import (
     BatchIngestResponse,
@@ -38,7 +39,9 @@ def _slug(text: str) -> str:
 
 
 @router.post("/log", response_model=IngestResponse, summary="Ingest a single log entry")
+@limit_for("rate_limit_ingest")
 async def ingest_log(
+    request: Request,
     body: LogIngestRequest,
     embedder: Embedder = Depends(get_embedder),
     vs: VectorStore = Depends(get_vectorstore),
@@ -85,7 +88,9 @@ async def ingest_log(
 
 
 @router.post("/log/batch", summary="Ingest a batch of log entries (sync or async)")
+@limit_for("rate_limit_ingest")
 async def ingest_log_batch(
+    request: Request,
     body: LogBatchIngestRequest,
     embedder: Embedder = Depends(get_embedder),
     vs: VectorStore = Depends(get_vectorstore),
@@ -148,7 +153,9 @@ async def ingest_log_batch(
 
 
 @router.post("/trace", response_model=IngestResponse, summary="Ingest a single trace")
+@limit_for("rate_limit_ingest")
 async def ingest_trace(
+    request: Request,
     body: TraceIngestRequest,
     embedder: Embedder = Depends(get_embedder),
     vs: VectorStore = Depends(get_vectorstore),
@@ -202,7 +209,9 @@ async def ingest_trace(
 
 
 @router.post("/trace/batch", summary="Ingest a batch of traces (sync or async)")
+@limit_for("rate_limit_ingest")
 async def ingest_trace_batch(
+    request: Request,
     body: TraceBatchIngestRequest,
     embedder: Embedder = Depends(get_embedder),
     vs: VectorStore = Depends(get_vectorstore),

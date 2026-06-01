@@ -6,12 +6,16 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
+# vecstore-models sits at ../vecstore-models relative to the project root inside
+# the container, matching the uv.sources path = "../vecstore-models" in pyproject.toml.
+COPY vecstore-models/ /vecstore-models/
+
 # Install dependencies from lock file before copying source so this layer is
 # cache-valid as long as pyproject.toml and uv.lock are unchanged.
-COPY pyproject.toml uv.lock ./
+COPY vecstore-api/pyproject.toml vecstore-api/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project --no-cache
 
-COPY app/ ./app/
+COPY vecstore-api/app/ ./app/
 
 RUN chown -R appuser:appuser /app
 USER appuser

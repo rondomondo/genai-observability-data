@@ -29,12 +29,19 @@ class HttpClientSettings(BaseSettings):
     http_retry_backoff_min: float = Field(default=0.5, alias="HTTP_RETRY_BACKOFF_MIN")
     http_retry_backoff_max: float = Field(default=8.0, alias="HTTP_RETRY_BACKOFF_MAX")
     http_default_concurrency: int = Field(default=4, alias="HTTP_DEFAULT_CONCURRENCY")
-    # Per-operation concurrency limits for vecstore-api calls.
-    # Tune these to stay within upstream LLM and embedding API quotas.
+    # Per-operation concurrency limits (max simultaneous in-flight requests).
     http_rate_ingest: int = Field(default=8, alias="HTTP_RATE_INGEST")
     http_rate_search: int = Field(default=4, alias="HTTP_RATE_SEARCH")
     http_rate_cache: int = Field(default=4, alias="HTTP_RATE_CACHE")
     http_rate_admin: int = Field(default=2, alias="HTTP_RATE_ADMIN")
+    # Per-operation throughput caps (requests per second, 0 = unlimited).
+    # These are proactive token-bucket limits; set to match upstream API quotas
+    # so 429s are avoided rather than retried.
+    http_rps_ingest: float = Field(default=0.0, alias="HTTP_RPS_INGEST")
+    http_rps_search: float = Field(default=0.0, alias="HTTP_RPS_SEARCH")
+    http_rps_cache: float = Field(default=0.0, alias="HTTP_RPS_CACHE")
+    http_rps_admin: float = Field(default=0.0, alias="HTTP_RPS_ADMIN")
+    http_rps_default: float = Field(default=0.0, alias="HTTP_RPS_DEFAULT")
 
 
 _http_settings: HttpClientSettings | None = None

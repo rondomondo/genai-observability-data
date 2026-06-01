@@ -23,7 +23,9 @@ class Settings(BaseSettings):
 
     # Embedding
     gemini_api_key: str = Field(default="")
+    embed_backend: Literal["gemini", "sentence-transformers", "sidecar"] = Field(default="gemini")
     embed_model: str = Field(default="gemini-embedding-001")
+    embed_sidecar_url: str = Field(default="http://embedder-sidecar:8001")
     embed_dim: int = Field(default=256, ge=64, le=3072)
     embed_workers: int = Field(default=4, ge=1, le=16)
     embed_concurrency: int = Field(default=2, ge=1, le=16)
@@ -54,6 +56,14 @@ class Settings(BaseSettings):
 
     # Async batch jobs
     job_ttl_seconds: int = Field(default=300)
+
+    # Ingress rate limits (slowapi / limits syntax, e.g. "60/minute", "10/second").
+    # Applied per remote IP. Set to "" to disable a specific endpoint's limit.
+    rate_limit_ingest: str = Field(default="120/minute")
+    rate_limit_embed: str = Field(default="60/minute")
+    rate_limit_search: str = Field(default="60/minute")
+    rate_limit_cache: str = Field(default="60/minute")
+    rate_limit_summarise: str = Field(default="30/minute")
 
 
 #@lru_cache

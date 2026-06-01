@@ -53,6 +53,7 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
 - [Project structure](#project-structure)
 - [Make targets](#make-targets)
 - [Extending](#extending)
+- [Rate limiting](#rate-limiting)
 - [Gotchas](#gotchas)
 
 ---
@@ -865,6 +866,18 @@ class MySink(Sink):
 Edit `src/god/services.py`. Add a `ServiceDef` to `DEFAULT_SERVICES` and wire up dependencies via
 the `dependencies` list. Existing tests assert on specific service names - update `test_services.py`
 accordingly.
+
+---
+
+## Rate limiting
+
+The `god` HTTP client uses a two-layer rate-limiting strategy for outbound LLM and
+embedding calls: a per-operation token bucket (proactive throughput cap) and a concurrency
+semaphore (in-flight cap). 429 responses feed back into the token bucket to self-throttle
+under sustained upstream pressure.
+
+See [RATE_LIMITING.md](RATE_LIMITING.md) for full configuration reference, tuning guidance,
+and known limitations.
 
 ---
 

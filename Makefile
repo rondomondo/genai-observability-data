@@ -296,6 +296,38 @@ vecstore-typecheck: ## Static type checking for vecstore-api
 vecstore-ci: ## Run full CI pipeline for vecstore-api
 	$(MAKE) -C $(VECSTORE_DIR) ci
 
+# -- embedder-sidecar -----------------------------------------
+SIDECAR_DIR  := embedder-sidecar
+EMBED_MODEL  ?= Qwen/Qwen3-Embedding-0.6B
+
+.PHONY: sidecar-install
+sidecar-install: ## Install embedder-sidecar dev dependencies (no torch)
+	$(MAKE) -C $(SIDECAR_DIR) install
+
+.PHONY: sidecar-build
+sidecar-build: ## Build the embedder-sidecar Docker image (bakes EMBED_MODEL into image)
+	$(MAKE) -C $(SIDECAR_DIR) build-image EMBED_MODEL=$(EMBED_MODEL)
+
+.PHONY: sidecar-test
+sidecar-test: ## Run embedder-sidecar tests (no torch required)
+	$(MAKE) -C $(SIDECAR_DIR) test
+
+.PHONY: sidecar-lint
+sidecar-lint: ## Lint embedder-sidecar with ruff
+	$(MAKE) -C $(SIDECAR_DIR) lint
+
+.PHONY: sidecar-format
+sidecar-format: ## Format embedder-sidecar with ruff
+	$(MAKE) -C $(SIDECAR_DIR) format
+
+.PHONY: sidecar-typecheck
+sidecar-typecheck: ## Static type checking for embedder-sidecar
+	$(MAKE) -C $(SIDECAR_DIR) typecheck
+
+.PHONY: sidecar-ci
+sidecar-ci: ## Run full CI pipeline for embedder-sidecar
+	$(MAKE) -C $(SIDECAR_DIR) ci
+
 # -- Build and publish ----------------------------------------
 .PHONY: build
 build: check-uv clean-pyc ## Build wheel + sdist for PyPI
