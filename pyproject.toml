@@ -25,7 +25,10 @@ classifiers = [
 ]
 
 dependencies = [
+    "vecstore-models",
     "braintrust>=0.23.0",
+    "httpx>=0.27.0",
+    "tenacity>=8.2",
     "numpy>=1.26.0",
     "pydantic-ai-slim[anthropic,google,openai]>=1.0.0",
     "pydantic-settings>=2.2.0",
@@ -75,3 +78,11 @@ asyncio_mode = "auto"
 testpaths = ["src/god/tests"]
 pythonpath = ["src"]
 addopts = "-v --tb=short"
+
+[tool.uv.workspace]
+members = [
+    "vecstore-models",
+]
+
+[tool.uv.sources]
+vecstore-models = { workspace = true, editable = true }

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     # Auth
-    api_key: str = Field(default="dev-secret")
+    api_key: str = Field(default="abcdef")
 
     # Redis
     redis_url: str = Field(default="redis://localhost:6379")
@@ -54,6 +54,6 @@ class Settings(BaseSettings):
     job_ttl_seconds: int = Field(default=300)
 
 
-@lru_cache
+#@lru_cache
 def get_settings() -> Settings:
     return Settings()

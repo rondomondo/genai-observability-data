@@ -37,7 +37,7 @@ def _mock_watcher(running: bool = True, pending: int = 0) -> MagicMock:
     return w
 
 
-HEADERS = {"X-API-Key": "dev-secret-change-me"}
+HEADERS = {"X-API-Key": "abcdef"}
 
 
 def _fake_redis() -> MagicMock:

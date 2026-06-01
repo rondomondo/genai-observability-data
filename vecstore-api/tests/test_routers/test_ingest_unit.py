@@ -16,7 +16,7 @@ from app.main import app
 from app.models.summarise import TraceSummary
 from app.services.jobs import JobStore
 
-HEADERS = {"X-API-Key": "dev-secret-change-me"}
+HEADERS = {"X-API-Key": "abcdef"}
 
 DIM = 64
 _FAKE_VECTOR = [0.1] * DIM

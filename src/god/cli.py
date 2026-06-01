@@ -223,6 +223,7 @@ def _print_help(version: str) -> None:
         ("  --format FMT...", "otlp_traces | otlp_logs | logfmt | loki"),
         ("  --otlp URL", "Stream to OTLP HTTP endpoint"),
         ("  --otlp-header K=V", "Extra headers for OTLP sink (repeatable)"),
+        ("  --vecstore URL", "Send traces and logs to vecstore-api (e.g. http://localhost:8000)"),
         ("  --compress", "Gzip-compress file output"),
         ("  --batch-size N", "Flush every N traces (default: 50)"),
         ("", ""),
@@ -325,6 +326,7 @@ def build_arg_parser():
     out_grp.add_argument("--output", "-o", type=str, default=None, metavar="DIR")
     out_grp.add_argument("--otlp", type=str, default=None, metavar="URL")
     out_grp.add_argument("--otlp-header", action="append", default=[], metavar="KEY=VALUE")
+    out_grp.add_argument("--vecstore", type=str, default=None, metavar="URL")
     out_grp.add_argument("--compress", action="store_true", default=False)
     out_grp.add_argument("--batch-size", type=int, default=None, metavar="N")
 
@@ -341,7 +343,7 @@ def build_arg_parser():
     return p
 
 
-def _build_sinks(args):
+def _build_sinks(args, settings=None):
     from god.sinks import FileSink, MultiSink, OTLPHttpSink, Sink, StdoutSink
 
     sinks: list[Sink] = []
@@ -358,6 +360,19 @@ def _build_sinks(args):
                 k, v = h.split("=", 1)
                 headers[k.strip()] = v.strip()
         sinks.append(OTLPHttpSink(endpoint=args.otlp, headers=headers))
+
+    vecstore_url = args.vecstore or (settings.vecstore_url if settings else None)
+    if vecstore_url:
+        from god.vecstore_sink import VecstoreHttpSink
+
+        sinks.append(
+            VecstoreHttpSink(
+                base_url=vecstore_url,
+                summarise_traces=settings.vecstore_summarise_traces if settings else True,
+                summarise_logs=settings.vecstore_summarise_logs if settings else False,
+                async_mode=settings.vecstore_async_mode if settings else True,
+            )
+        )
 
     if not sinks:
         sinks.append(StdoutSink())
@@ -433,6 +448,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.otlp is None and settings.default_otlp:
         args.otlp = settings.default_otlp
 
+    if args.vecstore is None and settings.vecstore_url:
+        args.vecstore = settings.vecstore_url
+
     if args.scenario is None and settings.default_scenario:
         args.scenario = settings.default_scenario
 
@@ -473,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
 
-    sink = _build_sinks(args)
+    sink = _build_sinks(args, settings)
     base_epoch_ms = time.time() * 1000
     trace_buf: list = []
     log_buf: list = []

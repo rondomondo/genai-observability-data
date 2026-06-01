@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Semantic vector store API — embeddings, RAG cache, log/trace ingestion"
 requires-python = ">=3.12"
 dependencies = [
+    "vecstore-models",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic>=2.7",
@@ -57,3 +58,6 @@ addopts = "-v --tb=short"
 markers = [
     "integration: marks tests that require external services (Redis, OTel)",
 ]
+
+[tool.uv.sources]
+vecstore-models = { path = "../vecstore-models", editable = true }

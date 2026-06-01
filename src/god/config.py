@@ -11,6 +11,42 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class HttpClientSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    http_connect_timeout: float = Field(default=5.0, alias="HTTP_CONNECT_TIMEOUT")
+    http_read_timeout: float = Field(default=30.0, alias="HTTP_READ_TIMEOUT")
+    http_write_timeout: float = Field(default=10.0, alias="HTTP_WRITE_TIMEOUT")
+    http_pool_timeout: float = Field(default=5.0, alias="HTTP_POOL_TIMEOUT")
+    http_max_connections: int = Field(default=20, alias="HTTP_MAX_CONNECTIONS")
+    http_max_keepalive: int = Field(default=10, alias="HTTP_MAX_KEEPALIVE")
+    http_user_agent: str = Field(default="god/0.1", alias="HTTP_USER_AGENT")
+    http_retry_attempts: int = Field(default=3, alias="HTTP_RETRY_ATTEMPTS")
+    http_retry_backoff_min: float = Field(default=0.5, alias="HTTP_RETRY_BACKOFF_MIN")
+    http_retry_backoff_max: float = Field(default=8.0, alias="HTTP_RETRY_BACKOFF_MAX")
+
+
+_http_settings: HttpClientSettings | None = None
+
+
+def get_http_settings() -> HttpClientSettings:
+    """Return the singleton HttpClientSettings instance."""
+    global _http_settings
+    if _http_settings is None:
+        _http_settings = HttpClientSettings()
+    return _http_settings
+
+
+def reset_http_settings() -> None:
+    """Reset cached HTTP settings (for tests)."""
+    global _http_settings
+    _http_settings = None
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -39,6 +75,13 @@ class Settings(BaseSettings):
     # Output defaults
     default_format: list[str] = Field(default=["otlp_traces", "otlp_logs"], alias="GOD_DEFAULT_FORMAT")
     default_otlp: str | None = Field(default=None, alias="GOD_DEFAULT_OTLP")
+
+    # vecstore-api sink
+    vecstore_url: str | None = Field(default=None, alias="GOD_VECSTORE_URL")
+    vecstore_api_key: str = Field(default="abcdef", alias="GOD_VECSTORE_API_KEY")
+    vecstore_summarise_traces: bool = Field(default=True, alias="GOD_VECSTORE_SUMMARISE_TRACES")
+    vecstore_summarise_logs: bool = Field(default=False, alias="GOD_VECSTORE_SUMMARISE_LOGS")
+    vecstore_async_mode: bool = Field(default=True, alias="GOD_VECSTORE_ASYNC_MODE")
 
 
 _settings: Settings | None = None
