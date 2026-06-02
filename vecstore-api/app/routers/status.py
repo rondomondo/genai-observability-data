@@ -50,6 +50,8 @@ async def status(
         redis_connected=redis_ok,
         embed_workers=settings.embed_workers,
         embed_queue_depth=embedder.queue_depth,
+        embed_backend=settings.embed_backend,
+        embed_model=settings.embed_model,
         ttl_watcher_running=watcher.is_running,
         vsets=vsets,
         active_jobs=job_store.active_count(),

@@ -20,9 +20,10 @@ from app.models.summarise import TraceSummary
 
 log = get_logger(__name__)
 
-_SYSTEM_PROMPT = """You are an SRE assistant summarising observability data for a RAG index.
-Be specific: use actual service names, error messages, and span names from the data.
-Never invent details not present in the input.
+_SYSTEM_PROMPT = """You are an SRE observability assistant analysing distributed traces and log events.
+Be precise and terse. Use actual service names, operation names, and error messages from the data.
+Never speculate beyond what the trace or log data supports.
+Only populate root_cause if status is error or timeout — leave it null for ok traces.
 Return only the structured JSON — no preamble, no markdown fences."""
 
 
@@ -37,7 +38,7 @@ class Summariser:
             model = GeminiModel(self._settings.summariser_model)
             self._agent = Agent(
                 model=model,
-                result_type=TraceSummary,
+                output_type=TraceSummary,
                 system_prompt=_SYSTEM_PROMPT,
             )
         return self._agent
@@ -127,12 +128,29 @@ class Summariser:
 
     # ── LLM summarisers ───────────────────────────────────────────────────────
 
+    @staticmethod
+    def _flatten_spans(trace: TraceEntry) -> list[dict]:
+        """Strip internal IDs and timing noise before passing spans to the LLM."""
+        return [
+            {
+                "service": s.service,
+                "operation": s.name,
+                "duration_ms": s.duration_ms,
+                "status": s.status,
+                "error": s.attributes.get("error") or s.attributes.get("exception.message"),
+            }
+            for s in trace.spans
+        ]
+
     async def _llm_summarise_trace(self, trace: TraceEntry) -> tuple[TraceSummary, int]:
         import json
 
         prompt = (
-            f"Summarise this distributed trace for a RAG index.\n\n"
-            f"{json.dumps(trace.model_dump(), indent=2, default=str)}"
+            f"Analyse this distributed trace and populate the summary fields.\n\n"
+            f"Trace ID: {trace.trace_id}\n"
+            f"Root service: {trace.root_service} - {trace.root_operation}\n"
+            f"Duration: {trace.duration_ms}ms | Status: {trace.status}\n\n"
+            f"Spans:\n{json.dumps(self._flatten_spans(trace), indent=2)}"
         )
         t0 = time.perf_counter()
         try:
@@ -140,7 +158,7 @@ class Summariser:
             async with self._sem:
                 result = await agent.run(prompt)
             elapsed_ms = round((time.perf_counter() - t0) * 1000)
-            summary = result.data
+            summary = result.output
             summary.used_llm = True
             log.info("llm_summarise_trace", trace_id=trace.trace_id, ms=elapsed_ms, severity=summary.severity)
             return summary, elapsed_ms
@@ -153,8 +171,12 @@ class Summariser:
     async def _llm_summarise_log(self, entry: LogEntry) -> tuple[TraceSummary, int]:
         import json
 
+        context_str = json.dumps(entry.metadata, indent=2) if entry.metadata else "none"
         prompt = (
-            f"Summarise this log entry for a RAG index.\n\n{json.dumps(entry.model_dump(), indent=2, default=str)}"
+            f"Analyse this log event and populate the summary fields.\n\n"
+            f"Service: {entry.service} | Severity: {entry.severity}\n"
+            f"Message: {entry.message}\n"
+            f"Context: {context_str}"
         )
         t0 = time.perf_counter()
         try:
@@ -162,7 +184,7 @@ class Summariser:
             async with self._sem:
                 result = await agent.run(prompt)
             elapsed_ms = round((time.perf_counter() - t0) * 1000)
-            summary = result.data
+            summary = result.output
             summary.used_llm = True
             log.info("llm_summarise_log", service=entry.service, severity=entry.severity, ms=elapsed_ms)
             return summary, elapsed_ms

@@ -1,6 +1,5 @@
 """Shared slowapi Limiter instance and per-request helper used by all routers."""
 
-from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -31,7 +30,7 @@ def limit_for(attr: str):
         attr: The Settings field name to read the limit from.
     """
 
-    def _dynamic_limit(request: Request) -> str:
+    def _dynamic_limit() -> str:
         return get_limit(attr)
 
     return limiter.limit(_dynamic_limit)

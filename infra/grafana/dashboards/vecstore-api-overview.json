@@ -5,7 +5,7 @@
   "tags": ["genai", "otel", "vecstore", "red"],
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": { "from": "now-10m", "to": "now" },
   "templating": { "list": [] },
@@ -87,10 +87,52 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
+      "id": 10,
+      "title": "Embed backend",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 4, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({service_name=\"vecstore-api\"} | json | message=\"embedder_started\" | keep backend [10m])",
+          "legendFormat": "{{backend}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "string",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value" }
+    },
+    {
+      "id": 11,
+      "title": "Embed model",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 4, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({service_name=\"vecstore-api\"} | json | message=\"embedder_started\" | keep model [10m])",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "string",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value" }
+    },
+    {
       "id": 4,
       "title": "Active async jobs",
       "type": "stat",
-      "gridPos": { "x": 16, "y": 4, "w": 4, "h": 4 },
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -118,7 +160,7 @@
       "id": 5,
       "title": "Auth failures",
       "type": "stat",
-      "gridPos": { "x": 20, "y": 4, "w": 4, "h": 4 },
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -146,7 +188,7 @@
       "id": 6,
       "title": "Request latency by endpoint (p50 / p95 ms)",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -172,7 +214,7 @@
       "id": 7,
       "title": "Error rate by endpoint (errors/min)",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 16, "w": 16, "h": 8 },
+      "gridPos": { "x": 0, "y": 20, "w": 16, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -193,7 +235,7 @@
       "id": 8,
       "title": "Error rate per endpoint (last 5 min)",
       "type": "bargauge",
-      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "gridPos": { "x": 16, "y": 20, "w": 8, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -225,7 +267,7 @@
       "id": 9,
       "title": "Recent vecstore-api logs",
       "type": "logs",
-      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 9 },
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 9 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {

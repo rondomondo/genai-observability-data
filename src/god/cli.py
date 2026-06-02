@@ -69,6 +69,23 @@ def _scenario_table() -> Table:
     return t
 
 
+def _fetch_vecstore_embed_model(vecstore_url: str, api_key: str) -> str | None:
+    """Fetch the embed_model string from vecstore-api /status, returning None on any failure."""
+    import httpx
+
+    try:
+        resp = httpx.get(f"{vecstore_url.rstrip('/')}/status", headers={"X-API-Key": api_key}, timeout=2.0)
+        resp.raise_for_status()
+        data = resp.json()
+        backend = data.get("embed_backend")
+        model = data.get("embed_model")
+        if backend and model:
+            return f"{model} ({backend})"
+        return model or backend
+    except Exception:
+        return None
+
+
 def _config_table(
     n_traces: int,
     rate: float,
@@ -82,6 +99,7 @@ def _config_table(
     batch_size: int,
     analyse: bool = False,
     agent_model: str | None = None,
+    embed_model: str | None = None,
 ) -> Table:
     t = Table(box=box.SIMPLE, show_header=False, padding=(0, 1), border_style="dim")
     t.add_column("key", style="dim", no_wrap=True)
@@ -98,6 +116,8 @@ def _config_table(
     add("output", output or ("stdout" if not otlp else "-"))
     if otlp:
         add("otlp", otlp, style="cyan")
+    if embed_model:
+        add("embed-model", embed_model, style="cyan")
     add("batch-size", str(batch_size))
     add("mock", str(mock), style="warn" if mock else "dim")
     add("capture-content", str(capture_content), style="warn" if capture_content else "dim")
@@ -467,6 +487,9 @@ def main(argv: list[str] | None = None) -> int:
         deps = GodDeps(settings=settings, registry=registry, engine=engine, scenario_preset=args.scenario)
 
     if not args.quiet:
+        embed_model: str | None = None
+        if args.vecstore:
+            embed_model = _fetch_vecstore_embed_model(args.vecstore, settings.vecstore_api_key)
         console.print(_header(__version__))
         console.print(
             Panel(
@@ -483,6 +506,7 @@ def main(argv: list[str] | None = None) -> int:
                     batch_size,
                     analyse=args.analyse,
                     agent_model=args.agent_model or settings.agent_model,
+                    embed_model=embed_model,
                 ),
                 title="[bold]Run configuration[/bold]",
                 box=box.ROUNDED,

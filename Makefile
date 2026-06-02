@@ -239,6 +239,45 @@ stack-reset: ## Wipe stack volumes and restart fresh
 	docker compose down -v
 	$(MAKE) stack-up;
 
+# -- Run profiles ---------------------------------------------
+# These targets bring up the required infrastructure and print the command
+# to start the FastAPI dev server in a separate terminal.
+
+.PHONY: profile-dev-local
+profile-dev-local: stack-up ## Infra for local dev (sidecar embedder, no cloud keys); run vecstore-api manually
+	docker compose --profile vecstore up -d embedder-sidecar
+	@printf "$(GREEN)Infrastructure ready.$(RESET)\n"
+	@printf "  OTel stack:      up\n"
+	@printf "  Embedder sidecar: http://localhost:8001\n"
+	@printf "\n"
+	@printf "$(CYAN)Now start the API in a separate terminal:$(RESET)\n"
+	@printf "  cd vecstore-api && EMBED_BACKEND=sidecar make dev\n"
+
+.PHONY: profile-dev-cloud
+profile-dev-cloud: stack-up ## Infra for cloud dev (Gemini embeddings); run vecstore-api manually
+	@printf "$(GREEN)Infrastructure ready.$(RESET)\n"
+	@printf "  OTel stack: up\n"
+	@printf "\n"
+	@printf "$(CYAN)Now start the API in a separate terminal:$(RESET)\n"
+	@printf "  cd vecstore-api && EMBED_BACKEND=gemini make dev\n"
+	@printf "\n"
+	@printf "$(YELLOW)Requires GEMINI_API_KEY set in vecstore-api/.env$(RESET)\n"
+
+.PHONY: profile-demo
+profile-demo: stack-up ## Full docker demo stack (vecstore-api + sidecar containerised); then stream a scenario
+	docker compose --profile vecstore up -d
+	@printf "$(GREEN)Full stack ready.$(RESET)\n"
+	@printf "  Grafana:  http://grafana:3000\n"
+	@printf "  API:      http://localhost:8000\n"
+	@printf "\n"
+	@printf "$(CYAN)Streaming cascading_failure scenario...$(RESET)\n"
+	$(UV) run python -m god \
+	  --traces 500 \
+	  --scenario cascading_failure \
+	  --rate 5 \
+	  --otlp $(OTLP)
+	@printf "$(GREEN)Done. Check Grafana: http://grafana:3000$(RESET)\n"
+
 # -- Demo workflow --------------------------------------------
 .PHONY: demo
 demo: stack-up gen-otlp ## Start stack then stream 100 traces (good for first run)

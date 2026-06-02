@@ -23,9 +23,9 @@ class Settings(BaseSettings):
 
     # Embedding
     gemini_api_key: str = Field(default="")
-    embed_backend: Literal["gemini", "sentence-transformers", "sidecar"] = Field(default="gemini")
+    embed_backend: Literal["gemini", "sentence-transformers", "sidecar", "mock"] = Field(default="mock")
     embed_model: str = Field(default="gemini-embedding-001")
-    embed_sidecar_url: str = Field(default="http://embedder-sidecar:8001")
+    embed_sidecar_url: str = Field(default="http://localhost:8001")
     embed_dim: int = Field(default=256, ge=64, le=3072)
     embed_workers: int = Field(default=4, ge=1, le=16)
     embed_concurrency: int = Field(default=2, ge=1, le=16)
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     summariser_llm_threshold_duration_ms: int = Field(default=5000)
 
     # OTEL
-    otel_exporter_otlp_endpoint: str = Field(default="http://otel-collector:4317")
+    otel_exporter_otlp_endpoint: str = Field(default="http://localhost:4317")
     otel_service_name: str = Field(default="vecstore-api")
     otel_enabled: bool = Field(default=True)
 

@@ -26,6 +26,8 @@ class StatusResponse(BaseModel):
     redis_connected: bool
     embed_workers: int
     embed_queue_depth: int
+    embed_backend: str | None = None
+    embed_model: str | None = None
     ttl_watcher_running: bool
     vsets: list[VSetInfo]
     active_jobs: int

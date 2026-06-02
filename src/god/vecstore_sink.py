@@ -74,20 +74,27 @@ class VecstoreHttpSink(Sink):
     def flush(self, traces: list[Trace], logs: list[GodLogEntry]) -> None:
         """Synchronous flush for use in non-async callers (e.g. the CLI).
 
+        Opens a fresh httpx transport, sends, then closes it within the same event loop.
+        Each asyncio.run call gets its own loop; the transport must not outlive it.
+
         Args:
             traces: Generated Trace objects.
             logs: Generated LogEntry objects.
         """
-        asyncio.run(self.flush_async(traces, logs))
+        asyncio.run(self._flush_and_close(traces, logs))
 
     def close(self) -> None:
-        """Close the underlying HTTP client (synchronous entry point for the Sink protocol)."""
-        if self._opened:
-            asyncio.run(self._close_async())
+        """No-op for the synchronous Sink protocol when flush() manages its own lifecycle."""
 
     async def _close_async(self) -> None:
         await self._client.close()
         self._opened = False
+
+    async def _flush_and_close(self, traces: list[Trace], logs: list[GodLogEntry]) -> None:
+        try:
+            await self.flush_async(traces, logs)
+        finally:
+            await self._close_async()
 
     async def flush_async(self, traces: list[Trace], logs: list[GodLogEntry]) -> None:
         """Async flush for use in async callers.

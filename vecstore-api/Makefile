@@ -34,7 +34,7 @@ help: ## Show this help message
 # -- System checks --------------------------------------------
 .PHONY: check-sys-deps
 check-sys-deps: ## Verify required system packages are installed (Linux only; skipped on macOS)
-	@if [ "$$(uname)" = "Darwins" ]; then \
+	@if [ "$$(uname)" = "Darwin" ]; then \
 	  echo "  check-sys-deps skipped (macOS)"; \
 	  exit 0; \
 	fi; \
@@ -88,7 +88,7 @@ uv-lock: check-uv ## Run the API server in reload mode (requires .env)
 
 .PHONY: dev
 dev: install ## Run the API server in reload mode (requires .env)
-	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	$(UV) run uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8000
 
 # -- Code quality ---------------------------------------------
 .PHONY: format

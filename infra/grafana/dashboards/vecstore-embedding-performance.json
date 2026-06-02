@@ -5,16 +5,64 @@
   "tags": ["genai", "otel", "vecstore", "embedding"],
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": { "from": "now-10m", "to": "now" },
   "templating": { "list": [] },
   "panels": [
     {
+      "id": 11,
+      "title": "Active embed backend",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({service_name=\"vecstore-api\"} | json | message=\"embedder_started\" | keep backend [10m])",
+          "legendFormat": "{{backend}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "string",
+          "mappings": [
+            { "type": "value", "options": { "gemini": { "text": "gemini", "color": "orange" } } },
+            { "type": "value", "options": { "sidecar": { "text": "sidecar", "color": "blue" } } },
+            { "type": "value", "options": { "sentence-transformers": { "text": "sentence-transformers", "color": "green" } } },
+            { "type": "value", "options": { "mock": { "text": "mock", "color": "purple" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value" }
+    },
+    {
+      "id": 12,
+      "title": "Active embed model",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({service_name=\"vecstore-api\"} | json | message=\"embedder_started\" | keep model [10m])",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "string",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value" }
+    },
+    {
       "id": 1,
       "title": "Embedding latency p50 (ms)",
       "type": "stat",
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -42,7 +90,7 @@
       "id": 2,
       "title": "Embedding latency p95 (ms)",
       "type": "stat",
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 6, "y": 4, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -70,7 +118,7 @@
       "id": 3,
       "title": "Embedding latency p99 (ms)",
       "type": "stat",
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -98,7 +146,7 @@
       "id": 4,
       "title": "Embedding throughput (req/min)",
       "type": "stat",
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "gridPos": { "x": 18, "y": 4, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -122,14 +170,14 @@
     },
     {
       "id": 5,
-      "title": "Gemini API error rate (embedding)",
+      "title": "Embedding API error rate",
       "type": "stat",
-      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 4 },
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({service_name=\"vecstore-api\", level=~\"error|ERROR\"} | json | message=~\".*[Ee]mbed.*\" [2m])) / sum(rate({service_name=\"vecstore-api\"} | json | http_path=~\"/embed.*\" [2m]))",
+          "expr": "sum(rate({service_name=\"vecstore-api\", level=~\"error|ERROR\"} | json | http_path=~\"/embed.*\" [2m])) / sum(rate({service_name=\"vecstore-api\"} | json | http_path=~\"/embed.*\" [2m]))",
           "legendFormat": "error rate"
         }
       ],
@@ -152,7 +200,7 @@
       "id": 6,
       "title": "Single vs batch embed split (req/min)",
       "type": "stat",
-      "gridPos": { "x": 6, "y": 4, "w": 6, "h": 4 },
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -183,7 +231,7 @@
       "id": 7,
       "title": "Embedding latency distribution over time",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 9 },
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 9 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -216,10 +264,37 @@
       "options": { "tooltip": { "mode": "multi", "sort": "desc" } }
     },
     {
+      "id": 13,
+      "title": "Embedding latency p95 by backend",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Breaks latency down by backend so gemini, sidecar, sentence-transformers and mock can be compared directly.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.95, {service_name=\"vecstore-api\"} | json | embed_ms != \"\" | backend != \"\" | unwrap embed_ms [1m]) by (backend)",
+          "legendFormat": "p95 {{backend}}"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.5, {service_name=\"vecstore-api\"} | json | embed_ms != \"\" | backend != \"\" | unwrap embed_ms [1m]) by (backend)",
+          "legendFormat": "p50 {{backend}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
       "id": 8,
       "title": "Embed request rate over time (single vs batch)",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 17, "w": 16, "h": 8 },
+      "gridPos": { "x": 0, "y": 29, "w": 16, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -245,7 +320,7 @@
       "id": 9,
       "title": "Embedding errors (last 5 min)",
       "type": "bargauge",
-      "gridPos": { "x": 16, "y": 17, "w": 8, "h": 8 },
+      "gridPos": { "x": 16, "y": 29, "w": 8, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -277,12 +352,12 @@
       "id": 10,
       "title": "Embedding error logs",
       "type": "logs",
-      "gridPos": { "x": 0, "y": 25, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 37, "w": 24, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "refId": "A",
-          "expr": "{service_name=\"vecstore-api\", level=~\"error|ERROR\"} | json | message=~\".*[Ee]mbed.*|.*[Gg]emini.*|.*[Ee]mbedder.*\"",
+          "expr": "{service_name=\"vecstore-api\", level=~\"error|ERROR\"} | json | http_path=~\"/embed.*\"",
           "legendFormat": ""
         }
       ],
