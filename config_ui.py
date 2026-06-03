@@ -430,7 +430,7 @@ _HTML = r"""<!DOCTYPE html>
     display: grid;
     grid-template-columns: 220px 1fr;
     flex: 1;
-    border: 1px solid var(--border);
+    border: 0px solid var(--border);
     border-radius: 10px;
     overflow: visible;
     margin-bottom: 16px;
@@ -487,6 +487,45 @@ _HTML = r"""<!DOCTYPE html>
   .range-row { display: flex; align-items: center; gap: 8px; }
   .range-val { font-size: 12px; color: var(--text); min-width: 36px; text-align: right; }
   .field .hint { font-size: 10px; color: var(--text-hint); margin-top: 1px; }
+
+  /* Tooltips on labels with data-tip */
+  .field label[data-tip] { display: inline-flex; align-items: center; gap: 4px; cursor: default; position: relative; width: fit-content; }
+  .field label[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    padding: 5px 9px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+    width: max-content;
+    max-width: 240px;
+    box-shadow: 0 3px 10px rgba(0,0,0,.25);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(3px);
+    transition: opacity .15s, transform .15s;
+    z-index: 10;
+  }
+  .field label[data-tip]:hover::after { opacity: 1; transform: translateY(0); }
+  .field label[data-tip] .tip-dot {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 1px solid var(--text-hint);
+    color: var(--text-hint);
+    font-size: 9px;
+    line-height: 11px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .field label[data-tip]:hover .tip-dot { border-color: var(--text-muted); color: var(--text-muted); }
 
   /* Toggle (boolean switch) */
   .toggle-row { display: flex; align-items: center; justify-content: space-between; }
@@ -688,16 +727,16 @@ function renderEditor() {
     <div class="section">
       <h3>God agent</h3>
       <div class="grid2">
-        ${sel('Agent model', 'g.agent_model', g.agent_model, o.agent_models)}
-        ${sel('Fallback model', 'g.agent_fallback_model', g.agent_fallback_model, o.agent_models)}
+        ${sel('Agent model', 'g.agent_model', g.agent_model, o.agent_models, 'Primary LLM used by the god data generator to drive workflows.')}
+        ${sel('Fallback model', 'g.agent_fallback_model', g.agent_fallback_model, o.agent_models, 'Used automatically if the primary model returns a rate-limit or quota error.')}
       </div>
       <div style="margin-top:14px">
         ${tog('Mock mode (no API key)', 'g.mock_mode', g.mock_mode)}
       </div>
       <div class="grid3" style="margin-top:14px">
-        ${num('Default traces', 'g.default_traces', g.default_traces, 1, 100000)}
-        ${num('Default rate (req/s)', 'g.default_rate', g.default_rate, 0.1, 100, 0.1)}
-        ${num('Batch size', 'g.default_batch_size', g.default_batch_size, 1, 500)}
+        ${num('Default traces', 'g.default_traces', g.default_traces, 1, 100000, 1, 'Total OTel traces to generate per run when not overridden on the CLI.')}
+        ${num('Default rate (req/s)', 'g.default_rate', g.default_rate, 0.1, 100, 0.1, 'Target ingest rate in traces/second. Actual throughput is also bounded by the egress concurrency and RPS caps below.')}
+        ${num('Batch size', 'g.default_batch_size', g.default_batch_size, 1, 500, 1, 'Number of spans bundled into each ingest POST. Larger batches are more efficient but hit the ingest rate limit faster.')}
       </div>
       <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
         ${tog('Summarise traces', 'g.vecstore_summarise_traces', g.vecstore_summarise_traces)}
@@ -710,19 +749,19 @@ function renderEditor() {
       <h3>Egress rate limiting (god HTTP client)</h3>
       <p style="font-size:11px;color:#718096;margin-bottom:12px">Concurrency = max in-flight requests. RPS = token-bucket cap (0 = unlimited).</p>
       <div class="grid2">
-        ${rng('Ingest concurrency', 'g.http_rate_ingest', g.http_rate_ingest, 1, 20)}
-        ${rng('Ingest RPS cap', 'g.http_rps_ingest', g.http_rps_ingest, 0, 20, 0.5, true)}
-        ${rng('Search concurrency', 'g.http_rate_search', g.http_rate_search, 1, 20)}
-        ${rng('Search RPS cap', 'g.http_rps_search', g.http_rps_search, 0, 20, 0.5, true)}
-        ${rng('Cache concurrency', 'g.http_rate_cache', g.http_rate_cache, 1, 20)}
-        ${rng('Cache RPS cap', 'g.http_rps_cache', g.http_rps_cache, 0, 20, 0.5, true)}
-        ${rng('Admin concurrency', 'g.http_rate_admin', g.http_rate_admin, 1, 10)}
-        ${rng('Admin RPS cap', 'g.http_rps_admin', g.http_rps_admin, 0, 10, 0.5, true)}
+        ${rng('Ingest concurrency', 'g.http_rate_ingest', g.http_rate_ingest, 1, 20, 1, false, 'Max simultaneous ingest requests held open at once (asyncio.Semaphore).')}
+        ${rng('Ingest RPS cap', 'g.http_rps_ingest', g.http_rps_ingest, 0, 20, 0.5, true, 'Token-bucket throughput cap for ingest. 0 = unlimited. Set to ~85% of your upstream RPM / 60.')}
+        ${rng('Search concurrency', 'g.http_rate_search', g.http_rate_search, 1, 20, 1, false, 'Max simultaneous search requests in flight.')}
+        ${rng('Search RPS cap', 'g.http_rps_search', g.http_rps_search, 0, 20, 0.5, true, 'Token-bucket cap for search. 0 = unlimited.')}
+        ${rng('Cache concurrency', 'g.http_rate_cache', g.http_rate_cache, 1, 20, 1, false, 'Max simultaneous cache requests in flight.')}
+        ${rng('Cache RPS cap', 'g.http_rps_cache', g.http_rps_cache, 0, 20, 0.5, true, 'Token-bucket cap for cache. 0 = unlimited.')}
+        ${rng('Admin concurrency', 'g.http_rate_admin', g.http_rate_admin, 1, 10, 1, false, 'Max simultaneous admin/status requests in flight.')}
+        ${rng('Admin RPS cap', 'g.http_rps_admin', g.http_rps_admin, 0, 10, 0.5, true, 'Token-bucket cap for admin. 0 = unlimited.')}
       </div>
       <div class="grid3" style="margin-top:14px">
-        ${rng('Retry attempts', 'g.http_retry_attempts', g.http_retry_attempts, 0, 10)}
-        ${num('Backoff min (s)', 'g.http_retry_backoff_min', g.http_retry_backoff_min, 0.1, 10, 0.1)}
-        ${num('Backoff max (s)', 'g.http_retry_backoff_max', g.http_retry_backoff_max, 1, 60, 0.5)}
+        ${rng('Retry attempts', 'g.http_retry_attempts', g.http_retry_attempts, 0, 10, 1, false, 'Total attempts per request including the first. Retries on 429, 5xx, and transient network errors.')}
+        ${num('Backoff min (s)', 'g.http_retry_backoff_min', g.http_retry_backoff_min, 0.1, 10, 0.1, 'Minimum wait between retries. Actual wait grows exponentially up to the max.')}
+        ${num('Backoff max (s)', 'g.http_retry_backoff_max', g.http_retry_backoff_max, 1, 60, 0.5, 'Maximum wait between retries. Set to >=60 if upstream quotas reset on a per-minute window.')}
       </div>
     </div>
 
@@ -730,7 +769,7 @@ function renderEditor() {
       <h3>Embedding</h3>
       <div class="grid2">
         <div class="field">
-          <label>Backend</label>
+          <label data-tip="Where embeddings are computed. mock = no API key needed; gemini = Gemini API; sidecar = local inference server; sentence-transformers = local Python library.">Backend<span class="tip-dot">i</span></label>
           <select id="f-embed-backend" onchange="onBackendChange(this.value)">
             ${o.embed_backends.map(b => `<option ${b===v.embed_backend?'selected':''}>${b}</option>`).join('')}
           </select>
@@ -741,19 +780,19 @@ function renderEditor() {
             ${(o.embed_models_by_backend[v.embed_backend] || [v.embed_model]).map(m => `<option ${m===v.embed_model?'selected':''}>${esc(m)}</option>`).join('')}
           </select>
         </div>
-        ${rng('Embedding dimension', 'v.embed_dim', v.embed_dim, 64, 3072, 64)}
-        ${rng('Workers', 'v.embed_workers', v.embed_workers, 1, 16)}
-        ${rng('Concurrency', 'v.embed_concurrency', v.embed_concurrency, 1, 16)}
-        ${rng('Batch size', 'v.embed_batch_size', v.embed_batch_size, 1, 128)}
-        ${rng('Rate limit RPM (Gemini)', 'v.embed_rate_limit_rpm', v.embed_rate_limit_rpm, 1, 300)}
+        ${rng('Embedding dimension', 'v.embed_dim', v.embed_dim, 64, 3072, 64, false, 'Vector size produced by the model. Must match what the model actually outputs - changing this requires re-indexing.')}
+        ${rng('Workers', 'v.embed_workers', v.embed_workers, 1, 16, 1, false, 'Number of parallel embedding worker coroutines. Increase for higher throughput if the backend supports it.')}
+        ${rng('Concurrency', 'v.embed_concurrency', v.embed_concurrency, 1, 16, 1, false, 'Max simultaneous in-flight requests per worker to the embedding backend.')}
+        ${rng('Batch size', 'v.embed_batch_size', v.embed_batch_size, 1, 128, 1, false, 'Texts sent per embedding API call. Larger = fewer round trips but higher per-call latency.')}
+        ${rng('Rate limit RPM (Gemini)', 'v.embed_rate_limit_rpm', v.embed_rate_limit_rpm, 1, 300, 1, false, 'Outbound token-bucket cap for Gemini embedding calls. Only active when backend=gemini. Set to ~90% of your Gemini embed quota RPM.')}
       </div>
     </div>
 
     <div class="section">
       <h3>Summariser</h3>
       <div class="grid2">
-        ${sel('Summariser model', 'v.summariser_model', v.summariser_model, o.summariser_models)}
-        ${rng('Summariser concurrency', 'v.summariser_concurrency', v.summariser_concurrency, 1, 16)}
+        ${sel('Summariser model', 'v.summariser_model', v.summariser_model, o.summariser_models, 'LLM used to generate natural-language summaries of traces and logs before storage.')}
+        ${rng('Summariser concurrency', 'v.summariser_concurrency', v.summariser_concurrency, 1, 16, 1, false, 'Max simultaneous summarisation calls. Each call hits the LLM - keep proportionate to your LLM rate limit.')}
       </div>
     </div>
 
@@ -761,7 +800,7 @@ function renderEditor() {
       <h3>Semantic cache</h3>
       <div class="grid3">
         <div class="field">
-          <label>Hit threshold (${v.cache_hit_threshold})</label>
+          <label data-tip="Cosine similarity threshold for a cache hit. 1.0 = exact match only; 0.9 = near-duplicate; lower values return more results but reduce precision.">Hit threshold (${v.cache_hit_threshold})<span class="tip-dot">i</span></label>
           <div class="range-row">
             <input type="range" min="0.5" max="1.0" step="0.01" value="${v.cache_hit_threshold}"
               oninput="patch('vecstore.cache_hit_threshold',parseFloat(this.value));this.previousElementSibling&&(this.closest('.field').querySelector('label').textContent='Hit threshold ('+this.value+')')">
@@ -769,7 +808,7 @@ function renderEditor() {
           </div>
           <span class="hint">Higher = stricter match required</span>
         </div>
-        ${num('TTL (seconds)', 'v.cache_ttl_seconds', v.cache_ttl_seconds, 60, 86400)}
+        ${num('TTL (seconds)', 'v.cache_ttl_seconds', v.cache_ttl_seconds, 60, 86400, 1, 'How long a cached result is considered valid. After TTL expires the entry is evicted on next read.')}
       </div>
     </div>
 
@@ -777,19 +816,19 @@ function renderEditor() {
       <h3>Ingress rate limits (vecstore-api per-IP)</h3>
       <p style="font-size:11px;color:#718096;margin-bottom:12px">slowapi / limits syntax: "120/minute", "10/second". Leave blank to disable.</p>
       <div class="grid2">
-        ${txt('Ingest', 'v.rate_limit_ingest', v.rate_limit_ingest)}
-        ${txt('Embed', 'v.rate_limit_embed', v.rate_limit_embed)}
-        ${txt('Search', 'v.rate_limit_search', v.rate_limit_search)}
-        ${txt('Cache', 'v.rate_limit_cache', v.rate_limit_cache)}
-        ${txt('Summarise', 'v.rate_limit_summarise', v.rate_limit_summarise)}
+        ${txt('Ingest', 'v.rate_limit_ingest', v.rate_limit_ingest, 'Per-IP limit on /ingest/* endpoints. Should not exceed embed_workers x embed_concurrency x 60/min.')}
+        ${txt('Embed', 'v.rate_limit_embed', v.rate_limit_embed, 'Per-IP limit on /embed and /embed/batch.')}
+        ${txt('Search', 'v.rate_limit_search', v.rate_limit_search, 'Per-IP limit on /search.')}
+        ${txt('Cache', 'v.rate_limit_cache', v.rate_limit_cache, 'Per-IP limit on /cache/query and /cache (store).')}
+        ${txt('Summarise', 'v.rate_limit_summarise', v.rate_limit_summarise, 'Per-IP limit on /summarise/*. Each call triggers an LLM request - keep lower than ingest.')}
       </div>
     </div>
 
     <div class="section">
       <h3>Logging</h3>
       <div class="grid2">
-        ${sel('Log level', 'v.log_level', v.log_level, o.log_levels)}
-        ${sel('Log format', 'v.log_format', v.log_format, o.log_formats)}
+        ${sel('Log level', 'v.log_level', v.log_level, o.log_levels, 'Minimum severity to emit. DEBUG is very verbose; use INFO or WARNING in production.')}
+        ${sel('Log format', 'v.log_format', v.log_format, o.log_formats, 'console = human-readable coloured output; json = structured for log aggregators; logfmt = key=value pairs.')}
       </div>
     </div>
   `;
@@ -799,18 +838,23 @@ function renderEditor() {
 // Field helpers
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function sel(label, key, val, opts) {
-  return `<div class="field"><label>${label}</label><select onchange="patch('${key}',this.value)">${(opts||[]).map(o=>`<option ${o==val?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
+function _lbl(label, tip) {
+  if (!tip) return label;
+  return `<label data-tip="${esc(tip)}">${label}<span class="tip-dot">i</span></label>`;
 }
-function num(label, key, val, min, max, step=1) {
-  return `<div class="field"><label>${label}</label><input type="number" value="${val}" min="${min}" max="${max}" step="${step}" oninput="patch('${key}',+this.value)"></div>`;
+
+function sel(label, key, val, opts, tip='') {
+  return `<div class="field">${_lbl(label,tip)}<select onchange="patch('${key}',this.value)">${(opts||[]).map(o=>`<option ${o==val?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
 }
-function txt(label, key, val) {
-  return `<div class="field"><label>${label}</label><input type="text" value="${esc(val)}" oninput="patch('${key}',this.value)"></div>`;
+function num(label, key, val, min, max, step=1, tip='') {
+  return `<div class="field">${_lbl(label,tip)}<input type="number" value="${val}" min="${min}" max="${max}" step="${step}" oninput="patch('${key}',+this.value)"></div>`;
 }
-function rng(label, key, val, min, max, step=1, float=false) {
+function txt(label, key, val, tip='') {
+  return `<div class="field">${_lbl(label,tip)}<input type="text" value="${esc(val)}" oninput="patch('${key}',this.value)"></div>`;
+}
+function rng(label, key, val, min, max, step=1, float=false, tip='') {
   const id = 'rng_' + key.replace(/\./g,'_');
-  return `<div class="field"><label>${label}</label>
+  return `<div class="field">${_lbl(label,tip)}
     <div class="range-row">
       <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"
         oninput="patch('${key}',${float}?parseFloat(this.value):parseInt(this.value));document.getElementById('v_${id}').textContent=this.value">
