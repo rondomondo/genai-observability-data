@@ -1,12 +1,12 @@
 name: local-mock
-description: "Full local stack, no API keys needed. God uses mock agent, vecstore uses mock embedder."
-
+description: Full local stack, no API keys needed. God uses mock agent, vecstore uses
+  mock embedder.
 god:
   agent_model: gemini-2.5-flash
   agent_fallback_model: gemini-2.0-flash
   mock_mode: true
   default_traces: 100
-  default_rate: 10.0
+  default_rate: 10
   default_batch_size: 50
   vecstore_summarise_traces: true
   vecstore_summarise_logs: false
@@ -15,14 +15,13 @@ god:
   http_rate_search: 4
   http_rate_cache: 4
   http_rate_admin: 2
-  http_rps_ingest: 0.0
-  http_rps_search: 0.0
-  http_rps_cache: 0.0
-  http_rps_admin: 0.0
+  http_rps_ingest: 0
+  http_rps_search: 0
+  http_rps_cache: 0
+  http_rps_admin: 0
   http_retry_attempts: 3
   http_retry_backoff_min: 0.5
-  http_retry_backoff_max: 8.0
-
+  http_retry_backoff_max: 8
 vecstore:
   embed_backend: mock
   embed_model: gemini-embedding-001
@@ -35,10 +34,10 @@ vecstore:
   summariser_concurrency: 2
   cache_hit_threshold: 0.92
   cache_ttl_seconds: 3600
-  rate_limit_ingest: "120/minute"
-  rate_limit_embed: "60/minute"
-  rate_limit_search: "60/minute"
-  rate_limit_cache: "60/minute"
-  rate_limit_summarise: "30/minute"
+  rate_limit_ingest: 120/minute
+  rate_limit_embed: 60/minute
+  rate_limit_search: 60/minute
+  rate_limit_cache: 60/minute
+  rate_limit_summarise: 30/minute
   log_level: DEBUG
   log_format: console

@@ -19,7 +19,7 @@ from typing import Any
 import uvicorn
 import yaml
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 log = logging.getLogger("config_ui")
 
@@ -354,13 +354,7 @@ _HTML = r"""<!DOCTYPE html>
     flex-direction: column;
   }
 
-  /* Theme toggle bar */
-  .topbar {
-    display: flex;
-    justify-content: flex-end;
-    padding: 8px 0 4px;
-  }
-  .btn-theme {
+  .btn-icon {
     background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text-muted);
@@ -369,8 +363,68 @@ _HTML = r"""<!DOCTYPE html>
     font-size: 13px;
     cursor: pointer;
     transition: border-color .15s;
+    white-space: nowrap;
   }
-  .btn-theme:hover { border-color: var(--border-hover); }
+  .btn-icon:hover { border-color: var(--border-hover); color: var(--text); }
+
+  /* Help modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.5);
+    width: min(780px, 92vw);
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-header h2 { font-size: 15px; font-weight: 700; margin: 0; }
+  .modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+  }
+  .modal-close:hover { color: var(--text); }
+  .modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text-muted);
+  }
+  .modal-body h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 18px 0 8px; }
+  .modal-body h3:first-child { margin-top: 0; }
+  .modal-body p { margin-bottom: 10px; }
+  .modal-body code { background: var(--bg-card); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-size: 12px; color: var(--text); font-family: monospace; }
+  .modal-body pre { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; overflow-x: auto; margin-bottom: 12px; }
+  .modal-body pre code { background: none; border: none; padding: 0; }
+  .modal-body table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
+  .modal-body th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-weight: 600; }
+  .modal-body td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .modal-body td:first-child { font-family: monospace; font-size: 11px; color: var(--text); white-space: nowrap; }
 
   .layout {
     display: grid;
@@ -378,13 +432,27 @@ _HTML = r"""<!DOCTYPE html>
     flex: 1;
     border: 1px solid var(--border);
     border-radius: 10px;
-    overflow: hidden;
+    overflow: visible;
     margin-bottom: 16px;
+    align-items: start;
   }
 
   /* Sidebar */
-  .sidebar { background: var(--bg-panel); border-right: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .sidebar {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.15);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-self: start;
+    margin: 8px;
+  }
+  body.light .sidebar { box-shadow: inset 0 1px 3px rgba(0,0,0,.08), inset 0 0 0 1px rgba(0,0,0,.06); }
   .sidebar h1 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  #profile-list { display: flex; flex-direction: column; gap: 6px; }
   .profile-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: border-color .15s; }
   .profile-card:hover { border-color: var(--border-hover); }
   .profile-card.active  { border-color: var(--active-bdr); background: var(--active-bg); }
@@ -392,12 +460,16 @@ _HTML = r"""<!DOCTYPE html>
   .profile-card .pname { font-size: 13px; font-weight: 600; }
   .profile-card .pdesc { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
   .profile-card .pbadge { display: inline-block; margin-top: 4px; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--green-bg); color: var(--green-text); }
+  .profile-card .pbadge-editing { display: inline-block; margin-top: 4px; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--info-bg); color: var(--info-text); border: 1px solid var(--focus); }
   .btn-new { background: #2b6cb0; color: #fff; border: none; border-radius: 6px; padding: 8px 12px; font-size: 12px; cursor: pointer; width: 100%; margin-top: 8px; }
   .btn-new:hover { background: #3182ce; }
 
   /* Main */
-  .main { padding: 24px 28px; overflow-y: auto; background: var(--bg); }
-  .main h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .main { padding: 24px 28px; overflow-y: auto; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.15); margin: 8px 8px 8px 0; }
+  body.light .main { box-shadow: inset 0 1px 3px rgba(0,0,0,.08), inset 0 0 0 1px rgba(0,0,0,.06); }
+  .title-bar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; gap: 12px; }
+  .title-bar h2 { font-size: 18px; font-weight: 700; margin: 0; flex: 1; }
+  .title-bar-btns { display: flex; gap: 6px; flex-shrink: 0; padding-top: 2px; }
   .main .subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; }
 
   /* Sections */
@@ -459,7 +531,7 @@ _HTML = r"""<!DOCTYPE html>
   @media (max-width: 640px) {
     .page-wrap { width: 100%; padding: 0 8px; }
     .layout { grid-template-columns: 1fr; border-radius: 6px; }
-    .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 260px; overflow-y: auto; }
+    .sidebar { border-radius: 8px; max-height: 260px; overflow-y: auto; }
     .main { padding: 16px; }
     .grid2, .grid3 { grid-template-columns: 1fr; }
     .meta-row { grid-template-columns: 1fr; }
@@ -469,10 +541,69 @@ _HTML = r"""<!DOCTYPE html>
 </style>
 </head>
 <body>
-<div class="page-wrap">
-  <div class="topbar">
-    <button class="btn-theme" id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode">&#9788; Light</button>
+
+<div class="modal-backdrop" id="help-modal" onclick="if(event.target===this)closeHelp()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="modal-header">
+      <h2 id="help-title">Config UI - Help &amp; Rate Limiting Guide</h2>
+      <button class="modal-close" onclick="closeHelp()" title="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <h3>Profiles</h3>
+      <p>A profile is a named YAML file in <code>profiles/</code>. Edit values here and click <strong>Save</strong> to write the YAML, then <strong>Apply to .env</strong> to merge the values into <code>.env</code> and <code>vecstore-api/.env</code>. Secrets already in those files are preserved. Restart services after applying.</p>
+
+      <h3>Two rate-limiting layers</h3>
+      <p>Rate limiting spans two boundaries in this stack:</p>
+      <table>
+        <tr><th>Layer</th><th>What it controls</th><th>Where configured</th></tr>
+        <tr><td>Egress (god client)</td><td>Outbound calls to Gemini / Anthropic</td><td>HTTP_RPS_* / HTTP_RATE_* in root .env</td></tr>
+        <tr><td>Ingress (vecstore-api)</td><td>Inbound HTTP traffic from god / clients</td><td>RATE_LIMIT_* in vecstore-api/.env</td></tr>
+      </table>
+
+      <h3>Egress: token bucket + semaphore</h3>
+      <p>Each named operation (<code>ingest</code>, <code>search</code>, <code>cache</code>, <code>admin</code>) has two independent controls that both apply:</p>
+      <table>
+        <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+        <tr><td>HTTP_RPS_INGEST</td><td>0.0</td><td>Token-bucket cap in req/s (0 = unlimited)</td></tr>
+        <tr><td>HTTP_RATE_INGEST</td><td>8</td><td>Max simultaneous in-flight requests</td></tr>
+        <tr><td>HTTP_RETRY_ATTEMPTS</td><td>3</td><td>Total attempts including first</td></tr>
+        <tr><td>HTTP_RETRY_BACKOFF_MIN</td><td>0.5 s</td><td>Min backoff between retries</td></tr>
+        <tr><td>HTTP_RETRY_BACKOFF_MAX</td><td>8.0 s</td><td>Max backoff between retries</td></tr>
+      </table>
+      <p>On a 429 from upstream, an extra token is drained from the bucket (soft feedback) and tenacity retries with exponential backoff. Each retry re-acquires the token - retries do not bypass the rate limit.</p>
+
+      <h3>Egress: matching your quota tier</h3>
+      <p><strong>Rule of thumb:</strong> set RPS to 80-85% of your quota limit. Provider windows are often sub-minute, so headroom prevents cascading retries.</p>
+      <table>
+        <tr><th>Tier</th><th>HTTP_RPS_INGEST</th><th>HTTP_RPS_SEARCH</th></tr>
+        <tr><td>Gemini free (~15 RPM)</td><td>0.2</td><td>0.2</td></tr>
+        <tr><td>Gemini paid Tier 1 (1000 RPM)</td><td>14.0</td><td>8.0</td></tr>
+      </table>
+
+      <h3>Ingress: vecstore-api per-IP limits</h3>
+      <p>Uses slowapi / limits syntax: <code>"120/minute"</code>, <code>"10/second"</code>. Limits are per remote IP. Defaults are permissive for local dev.</p>
+      <table>
+        <tr><th>Setting</th><th>Default</th><th>Endpoint group</th></tr>
+        <tr><td>RATE_LIMIT_INGEST</td><td>120/minute</td><td>/ingest/*</td></tr>
+        <tr><td>RATE_LIMIT_EMBED</td><td>60/minute</td><td>/embed, /embed/batch</td></tr>
+        <tr><td>RATE_LIMIT_SEARCH</td><td>60/minute</td><td>/search</td></tr>
+        <tr><td>RATE_LIMIT_CACHE</td><td>60/minute</td><td>/cache/query, /cache</td></tr>
+        <tr><td>RATE_LIMIT_SUMMARISE</td><td>30/minute</td><td>/summarise/trace, /summarise/log</td></tr>
+      </table>
+      <p><strong>Note:</strong> buckets are in-process. Multiple replicas or processes multiply the effective limit. /health and /status are always unlimited.</p>
+
+      <h3>Embedding (vecstore-api to Gemini)</h3>
+      <p><code>EMBED_RATE_LIMIT_RPM</code> (default 90) caps outbound Gemini embedding calls independently of the god client limits. Set to ~90% of your Gemini embed quota RPM.</p>
+
+      <h3>Troubleshooting</h3>
+      <p><strong>429s from Gemini despite RPS limits:</strong> confirm .env is being read, remember limits are per-process (two processes = double the rate), and consider that provider windows may be sub-minute - raise HTTP_RETRY_BACKOFF_MAX to 60+ so retries wait out the window.</p>
+      <p><strong>429s from vecstore-api:</strong> check the Retry-After header. If all traffic comes from one IP in local dev, raise RATE_LIMIT_* freely - you are the sole client.</p>
+      <p><strong>Token bucket has no effect:</strong> all HTTP_RPS_* default to 0.0 (disabled). Set a non-zero value to activate.</p>
+    </div>
   </div>
+</div>
+
+<div class="page-wrap">
   <div class="layout">
     <aside class="sidebar">
       <h1>Profiles</h1>
@@ -515,7 +646,7 @@ function renderSidebar() {
     <div class="profile-card ${cls}" onclick="loadProfile('${p.file}')">
       <div class="pname">${esc(p.name)}</div>
       <div class="pdesc">${esc(p.description)}</div>
-      ${isActive ? '<span class="pbadge">active</span>' : ''}
+      ${isActive ? '<span class="pbadge">active</span>' : isEditing ? '<span class="pbadge-editing">editing</span>' : ''}
     </div>`;
   }).join('');
 }
@@ -545,6 +676,8 @@ function renderEditor() {
       <button class="btn btn-clone" onclick="cloneProfile()">Clone</button>
       ${!isActive ? `<button class="btn btn-delete" onclick="deleteProfile()">Delete</button>` : ''}
       <span class="status info" id="status-bar">Editing: ${esc(state.currentFile)}</span>
+      <button class="btn-icon" onclick="openHelp()" title="Help &amp; rate limiting guide">? Help</button>
+      <button class="btn-icon" id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode">&#9789; Dark</button>
     </div>
 
     <div class="meta-row">
@@ -660,6 +793,7 @@ function renderEditor() {
       </div>
     </div>
   `;
+  _applyStoredTheme();
 }
 
 // Field helpers
@@ -813,25 +947,47 @@ function setStatus(msg, cls) {
   el.className = `status ${cls}`;
 }
 
+function _themeLabel(isLight) { return isLight ? '\u263d Dark' : '\u2600 Light'; }
+
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
   localStorage.setItem('cfg-ui-theme', isLight ? 'light' : 'dark');
-  document.getElementById('theme-btn').textContent = isLight ? '\u263d Dark' : '\u2600 Light';
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = _themeLabel(isLight);
 }
 
-(function applyStoredTheme() {
-  if (localStorage.getItem('cfg-ui-theme') === 'light') {
-    document.body.classList.add('light');
-    const btn = document.getElementById('theme-btn');
-    if (btn) btn.textContent = '\u263d Dark';
-  }
-})();
+function _applyStoredTheme() {
+  const stored = localStorage.getItem('cfg-ui-theme');
+  const useDark = stored === 'dark';
+  if (!useDark) document.body.classList.add('light');
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = _themeLabel(!useDark);
+}
 
+function openHelp() {
+  document.getElementById('help-modal').classList.add('open');
+}
+function closeHelp() {
+  document.getElementById('help-modal').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
+
+_applyStoredTheme();
 init();
 </script>
 </body>
 </html>
 """
+
+
+_FAVICON = REPO_ROOT / "favicon.ico"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> Response:
+    if not _FAVICON.exists():
+        return Response(status_code=204)
+    return Response(content=_FAVICON.read_bytes(), media_type="image/x-icon")
 
 
 @app.get("/", response_class=HTMLResponse)
