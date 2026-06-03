@@ -470,7 +470,7 @@ _HTML = r"""<!DOCTYPE html>
   .title-bar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; gap: 12px; }
   .title-bar h2 { font-size: 18px; font-weight: 700; margin: 0; flex: 1; }
   .title-bar-btns { display: flex; gap: 6px; flex-shrink: 0; padding-top: 2px; }
-  .main .subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; }
+  .main .subtitle { font-size: 13px; color: var(--text-dim); margin-top: 4px; margin-bottom: 12px; }
 
   /* Sections */
   .section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
