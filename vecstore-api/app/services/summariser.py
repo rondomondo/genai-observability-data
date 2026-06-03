@@ -11,7 +11,7 @@ import asyncio
 import time
 
 from pydantic_ai import Agent
-from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.models.anthropic import AnthropicModel
 
 from app.config import Settings
 from app.logging_config import get_logger
@@ -35,7 +35,7 @@ class Summariser:
 
     def _get_agent(self) -> "Agent[None, TraceSummary]":
         if self._agent is None:
-            model = GeminiModel(self._settings.summariser_model)
+            model = AnthropicModel(self._settings.summariser_model)
             self._agent = Agent(
                 model=model,
                 output_type=TraceSummary,

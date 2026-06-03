@@ -49,18 +49,36 @@ def _setup_otel(app: FastAPI) -> None:
         log.info("otel_disabled")
         return
     try:
+        import logging
+
         from opentelemetry import trace
+        from opentelemetry._logs import set_logger_provider
+        from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.sdk._logs import LoggerProvider
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.sdk._logs import LoggingHandler
 
         resource = Resource.create({"service.name": settings.otel_service_name})
-        provider = TracerProvider(resource=resource)
-        exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
-        provider.add_span_processor(BatchSpanProcessor(exporter))
-        trace.set_tracer_provider(provider)
+
+        # Traces
+        trace_provider = TracerProvider(resource=resource)
+        span_exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
+        trace_provider.add_span_processor(BatchSpanProcessor(span_exporter))
+        trace.set_tracer_provider(trace_provider)
+
+        # Logs — bridge stdlib logging -> OTLP -> OTel Collector -> Loki
+        log_provider = LoggerProvider(resource=resource)
+        log_exporter = OTLPLogExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
+        log_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
+        set_logger_provider(log_provider)
+
+        otel_handler = LoggingHandler(level=logging.DEBUG, logger_provider=log_provider)
+        logging.getLogger().addHandler(otel_handler)
 
         FastAPIInstrumentor.instrument_app(app)
         log.info("otel_configured", endpoint=settings.otel_exporter_otlp_endpoint)

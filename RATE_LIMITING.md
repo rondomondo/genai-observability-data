@@ -329,6 +329,21 @@ The `Retry-After` header is always present and accurate. Well-behaved clients sh
 it rather than hammering with retries. The `god` package's `HttpClient` treats 429 as
 retryable and will back off automatically (see [429 feedback loop](#429-feedback-loop)).
 
+### Egress: vecstore-api to Gemini
+
+vecstore-api's `Embedder` applies its own outbound token bucket when `EMBED_BACKEND=gemini`.
+This is independent of the god client limits and prevents the API server itself from exhausting
+the Gemini quota regardless of how many inbound clients are calling it.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EMBED_RATE_LIMIT_RPM` | `90` | Max Gemini embed requests per minute (Gemini backend only) |
+
+The bucket uses `pyrate-limiter` with the same polling approach as the god client. On a 429
+from Gemini, an extra token is drained and tenacity retries with exponential backoff
+(1s min, 60s max, 3 attempts). Set to 90 for the free tier (100 RPM limit) or raise it
+proportionally for paid tiers.
+
 ### Ingress configuration reference
 
 | Variable | Default | Description |
@@ -486,9 +501,11 @@ vecstore-api (FastAPI)
     | RATE_LIMIT_INGEST per-IP bucket (slowapi)
     |
     v
-Embedder (asyncio queue + thread pool)
+Embedder
     |
+    | EMBED_RATE_LIMIT_RPM token bucket (pyrate-limiter, Gemini only)
     | embed_concurrency semaphore
+    | tenacity retry + backoff on 429
     |
     v
 Google Gemini API

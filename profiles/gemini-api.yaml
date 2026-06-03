@@ -1,0 +1,44 @@
+name: gemini-api
+description: "Full Gemini API stack. Gemini embeddings + agent, Claude summariser. Respects Gemini RPM quota."
+
+god:
+  agent_model: gemini-2.5-flash
+  agent_fallback_model: gemini-2.0-flash
+  mock_mode: false
+  default_traces: 1000
+  default_rate: 10.0
+  default_batch_size: 50
+  vecstore_summarise_traces: true
+  vecstore_summarise_logs: false
+  vecstore_async_mode: true
+  http_rate_ingest: 8
+  http_rate_search: 4
+  http_rate_cache: 4
+  http_rate_admin: 2
+  http_rps_ingest: 2.0
+  http_rps_search: 2.0
+  http_rps_cache: 2.0
+  http_rps_admin: 0.0
+  http_retry_attempts: 3
+  http_retry_backoff_min: 0.5
+  http_retry_backoff_max: 8.0
+
+vecstore:
+  embed_backend: gemini
+  embed_model: gemini-embedding-001
+  embed_dim: 768
+  embed_workers: 4
+  embed_concurrency: 2
+  embed_batch_size: 32
+  embed_rate_limit_rpm: 90
+  summariser_model: claude-sonnet-4-6
+  summariser_concurrency: 2
+  cache_hit_threshold: 0.92
+  cache_ttl_seconds: 3600
+  rate_limit_ingest: "120/minute"
+  rate_limit_embed: "60/minute"
+  rate_limit_search: "60/minute"
+  rate_limit_cache: "60/minute"
+  rate_limit_summarise: "30/minute"
+  log_level: INFO
+  log_format: json

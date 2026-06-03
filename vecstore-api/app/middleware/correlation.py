@@ -35,7 +35,7 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
             log.info(
                 "request",
                 method=request.method,
-                path=request.url.path,
+                http_path=request.url.path,
                 status=response.status_code if response is not None else 500,
                 duration_ms=duration_ms,
             )

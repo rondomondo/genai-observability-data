@@ -16,6 +16,7 @@ Usage:
 """
 
 import asyncio
+import re
 import time
 from collections.abc import Sequence
 from datetime import datetime, timezone
@@ -23,11 +24,41 @@ from datetime import datetime, timezone
 import httpx
 from pydantic_ai.embeddings import EmbeddingModel, EmbeddingResult, EmbedInputType, EmbeddingSettings
 from pydantic_ai.usage import RequestUsage
+from pyrate_limiter import Duration, Limiter, Rate
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from app.config import Settings
 from app.logging_config import get_logger
 
 log = get_logger(__name__)
+
+_EMBED_RETRY_ATTEMPTS = 3
+_EMBED_BACKOFF_MIN = 1.0
+_EMBED_BACKOFF_MAX = 60.0
+
+_DAILY_QUOTA_PATTERN = re.compile(r"PerDay", re.IGNORECASE)
+_RETRY_DELAY_PATTERN = re.compile(r"retry[_ ]in[:\s]+([0-9.]+)\s*s", re.IGNORECASE)
+
+
+def _is_daily_quota_exhausted(exc: BaseException) -> bool:
+    """Return True when the 429 is a daily quota breach, not a per-minute window hit."""
+    return bool(_DAILY_QUOTA_PATTERN.search(str(exc)))
+
+
+def _parse_retry_delay(exc: BaseException) -> float | None:
+    """Extract the server-suggested retry delay (seconds) from a 429 error body."""
+    m = _RETRY_DELAY_PATTERN.search(str(exc))
+    return float(m.group(1)) if m else None
+
+
+def _is_retryable_embed(exc: BaseException) -> bool:
+    if isinstance(exc, Exception) and "429" in str(exc):
+        return not _is_daily_quota_exhausted(exc)
+    return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout))
+
+
+def _make_embed_limiter(rpm: int) -> Limiter:
+    return Limiter(Rate(rpm, Duration.MINUTE))
 
 
 class _SidecarEmbeddingModel(EmbeddingModel):
@@ -113,6 +144,33 @@ class Embedder:
         self._settings = settings
         self._model = _make_model(settings)
         self._sem = asyncio.Semaphore(settings.embed_concurrency)
+        self._limiter: Limiter | None = (
+            _make_embed_limiter(settings.embed_rate_limit_rpm)
+            if settings.embed_backend == "gemini"
+            else None
+        )
+
+    # Token-bucket gate (Gemini only)
+
+    async def _acquire_token(self) -> None:
+        if self._limiter is None:
+            return
+        loop = asyncio.get_running_loop()
+        delay = 0.01
+        while True:
+            acquired = await loop.run_in_executor(None, lambda: self._limiter.try_acquire("embed"))
+            if acquired:
+                return
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 1.0)
+
+    def _drain_token(self) -> None:
+        if self._limiter is None:
+            return
+        try:
+            self._limiter.try_acquire("embed")
+        except Exception:
+            pass
 
     # Lifecycle
 
@@ -121,6 +179,7 @@ class Embedder:
             "embedder_started",
             backend=self._settings.embed_backend,
             model=self._settings.embed_model,
+            rate_limit_rpm=self._settings.embed_rate_limit_rpm if self._limiter else None,
         )
 
     async def stop(self) -> None:
@@ -151,8 +210,28 @@ class Embedder:
         embed_settings = EmbeddingSettings(dimensions=effective_dim)
         input_type: EmbedInputType = "query" if is_query else "document"
         t0 = time.perf_counter()
-        async with self._sem:
-            result = await self._model.embed(text, input_type=input_type, settings=embed_settings)
+
+        @retry(
+            retry=retry_if_exception(_is_retryable_embed),
+            stop=stop_after_attempt(_EMBED_RETRY_ATTEMPTS),
+            wait=wait_exponential(multiplier=1, min=_EMBED_BACKOFF_MIN, max=_EMBED_BACKOFF_MAX),
+            reraise=True,
+        )
+        async def _attempt() -> EmbeddingResult:
+            await self._acquire_token()
+            async with self._sem:
+                try:
+                    return await self._model.embed(text, input_type=input_type, settings=embed_settings)
+                except Exception as exc:
+                    if "429" in str(exc):
+                        if _is_daily_quota_exhausted(exc):
+                            log.error("embed_daily_quota_exhausted -- will not retry", retry_delay=_parse_retry_delay(exc))
+                        else:
+                            self._drain_token()
+                            log.warning("embed_429_received -- drained bucket token, will retry", retry_delay=_parse_retry_delay(exc))
+                    raise
+
+        result = await _attempt()
         elapsed_ms = round((time.perf_counter() - t0) * 1000)
         return list(result.embeddings[0]), elapsed_ms
 
@@ -189,8 +268,27 @@ class Embedder:
             vectors = [list(v) for v in result.embeddings]
         else:
             async def _one(text: str) -> list[float]:
-                async with self._sem:
-                    r = await self._model.embed(text, input_type=input_type, settings=embed_settings)
+                @retry(
+                    retry=retry_if_exception(_is_retryable_embed),
+                    stop=stop_after_attempt(_EMBED_RETRY_ATTEMPTS),
+                    wait=wait_exponential(multiplier=1, min=_EMBED_BACKOFF_MIN, max=_EMBED_BACKOFF_MAX),
+                    reraise=True,
+                )
+                async def _attempt() -> EmbeddingResult:
+                    await self._acquire_token()
+                    async with self._sem:
+                        try:
+                            return await self._model.embed(text, input_type=input_type, settings=embed_settings)
+                        except Exception as exc:
+                            if "429" in str(exc):
+                                if _is_daily_quota_exhausted(exc):
+                                    log.error("embed_daily_quota_exhausted -- will not retry", retry_delay=_parse_retry_delay(exc))
+                                else:
+                                    self._drain_token()
+                                    log.warning("embed_429_received -- drained bucket token, will retry", retry_delay=_parse_retry_delay(exc))
+                            raise
+
+                r = await _attempt()
                 return list(r.embeddings[0])
 
             vectors = list(await asyncio.gather(*[_one(t) for t in texts]))

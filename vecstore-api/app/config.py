@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     embed_workers: int = Field(default=4, ge=1, le=16)
     embed_concurrency: int = Field(default=2, ge=1, le=16)
     embed_batch_size: int = Field(default=32, ge=1, le=128)
+    embed_rate_limit_rpm: int = Field(default=90, ge=1, le=10000)
 
     # Vector set keys
     vset_cache: str = Field(default="rag:cache")

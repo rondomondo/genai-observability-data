@@ -1,0 +1,28 @@
+{
+  "active_scenarios": [
+    "llm_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 9036ms strongly suggests LLM inference degradation; llm-gemini spans (10 total) are the primary latency contributor under the active llm_degradation scenario."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "1 genai token truncation detected, indicating at least one LLM response was cut short — likely due to timeout pressure or context limit enforcement under degraded LLM conditions."
+    }
+  ],
+  "error_rate": 0.0,
+  "p99_latency_ms": 9036.1,
+  "recommended_action": "Investigate llm-gemini service health immediately: check upstream Gemini API status, review timeout configurations, and consider enabling a fallback LLM endpoint or circuit breaker to shed load. Audit the token truncation event for data integrity impact on downstream agent/memory responses.",
+  "summary": "The system is error-free but exhibiting significant latency stress, with a p99 of ~9 seconds driven by the active llm_degradation scenario on llm-gemini. One token truncation event indicates at least one LLM response was incomplete, posing a data quality risk to agent and memory service outputs.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026JUN02232218",
+    "scenario": "llm_degradation"
+  }
+}

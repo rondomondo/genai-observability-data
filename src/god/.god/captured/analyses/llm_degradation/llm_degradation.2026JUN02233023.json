@@ -1,0 +1,28 @@
+{
+  "active_scenarios": [
+    "llm_degradation"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "llm-gemini",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "p99 latency of 10,335ms strongly suggests LLM response times are severely degraded. llm-gemini accounts for 10 spans across all traces, making it a likely primary contributor to tail latency."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "1 error span observed in agent-service (1 of 4 spans = 25% local error rate). Likely a downstream consequence of llm_degradation causing timeouts or failed LLM calls within agentic workflows."
+    }
+  ],
+  "error_rate": 0.0133,
+  "p99_latency_ms": 10335.0,
+  "recommended_action": "Investigate llm-gemini latency — check Gemini API quotas, rate limits, and upstream provider status. Consider increasing LLM client timeouts or enabling a fallback model to prevent agent-service cascading failures. Monitor agent-service error rate for further escalation.",
+  "summary": "The active llm_degradation scenario is manifesting as a severe p99 latency spike of ~10.3 seconds, primarily attributed to llm-gemini. A single error in agent-service (25% of its spans) indicates the LLM slowdown is beginning to cascade into agentic workflows, though overall system error rate remains low at 1.3%.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "captured_at": "2026JUN02233023",
+    "scenario": "llm_degradation"
+  }
+}
