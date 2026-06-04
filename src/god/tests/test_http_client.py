@@ -289,6 +289,7 @@ def test_limiter_for_reads_settings_fields_by_name() -> None:
         HTTP_RETRY_BACKOFF_MAX=0.0,
         HTTP_RPS_INGEST=8.0,
         HTTP_RPS_SEARCH=4.0,
+        HTTP_RPS_CACHE=0.0,
     )
     client = HttpClient(settings=settings)
     assert client._limiter_for("ingest") is not None
