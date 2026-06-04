@@ -71,10 +71,10 @@ class Settings(BaseSettings):
     # Model used by the scenario-analysis agent.
     # Prefix with 'google-cloud:' to route through GoogleCloudProvider (ADC / bearer token).
     # Prefix with 'google:' or omit prefix to use the Gemini API key path.
-    agent_model: str = Field(default="google-cloud:gemini-2.5-flash", alias="GOD_AGENT_MODEL")
+    agent_model: str = Field(default="google-cloud:gemini-2.5-flash-lite", alias="GOD_AGENT_MODEL")
     # Fallback model tried when the primary returns a 503/overload error (same provider only)
     agent_fallback_model: str | None = Field(
-        default="google-cloud:gemini-2.0-flash", alias="GOD_AGENT_FALLBACK_MODEL"
+        default=None, alias="GOD_AGENT_FALLBACK_MODEL"
     )
 
     # When True the pydantic-ai agent is replaced with a FunctionModel (no API key needed)

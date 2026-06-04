@@ -29,7 +29,7 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
       |
       +-- Sinks: stdout | FileSink | OTLPHttpSink | MultiSink
       |
-      +-- Optional: scenario_agent (pydantic-ai, gemini-2.5-flash default)
+      +-- Optional: scenario_agent (pydantic-ai, gemini-2.5-flash-lite default)
                     analyses batch -> ScenarioAnalysis
 ```
 
@@ -211,7 +211,7 @@ A `gen_ai.content.first_token` SpanEvent is added at the TTFT offset on successf
 | Gemini API key | - | Analysis agent only; not needed for data generation |
 
 The data generator itself has no API key requirement. An API key is only needed when running
-`--analyse` without `--mock`. The default model is `gemini-2.5-flash` (requires `GEMINI_API_KEY`).
+`--analyse` without `--mock`. The default model is `gemini-2.5-flash-lite` (requires `GEMINI_API_KEY`).
 Set `GOD_AGENT_MODEL` to a Claude model and provide `ANTHROPIC_API_KEY` if you prefer that.
 
 ---
@@ -259,15 +259,15 @@ EOF
 | `GEMINI_API_KEY` | - | Yes, for `--analyse` without `--mock` when using Gemini models | Google Gemini API key |
 | `ANTHROPIC_API_KEY` | - | Yes, for `--analyse` without `--mock` when using Claude models | Anthropic API key |
 | `GOD_MOCK_MODE` | `true` | No | Replace all LLM calls with deterministic mock |
-| `GOD_AGENT_MODEL` | `gemini-2.5-flash` | No | Model for the analysis agent (provider-prefixed or bare name) |
-| `GOD_AGENT_FALLBACK_MODEL` | `gemini-2.0-flash` | No | Fallback when the primary returns a 503/overload error |
+| `GOD_AGENT_MODEL` | `gemini-2.5-flash-lite` | No | Model for the analysis agent (provider-prefixed or bare name) |
+| `GOD_AGENT_FALLBACK_MODEL` | - | No | Fallback when the primary returns a 503/overload error |
 | `GOD_DEFAULT_TRACES` | `100` | No | CLI default when `--traces` is omitted |
 | `GOD_DEFAULT_RATE` | `10.0` | No | CLI default traces/second |
 | `GOD_DEFAULT_BATCH_SIZE` | `50` | No | Flush batch size |
 
-The default model is `gemini-2.5-flash`. To switch to Claude, set `GOD_AGENT_MODEL=claude-haiku-4-5-20251001`
-and provide `ANTHROPIC_API_KEY`. Model names can be bare (`gemini-2.5-flash`) or provider-prefixed
-(`google:gemini-2.5-flash`, `anthropic:claude-haiku-4-5-20251001`, `openai:gpt-4o-mini`).
+The default model is `gemini-2.5-flash-lite`. To switch to Claude, set `GOD_AGENT_MODEL=claude-haiku-4-5-20251001`
+and provide `ANTHROPIC_API_KEY`. Model names can be bare (`gemini-2.5-flash-lite`) or provider-prefixed
+(`google:gemini-2.5-flash-lite`, `anthropic:claude-haiku-4-5-20251001`, `openai:gpt-4o-mini`).
 
 No Elasticsearch or Redis keys are used by this project.
 
@@ -374,7 +374,7 @@ uv run python -m god -n 100 --scenario llm_degradation --analyse
 
 # Run the analysis agent with a specific model
 uv run python -m god -n 100 --scenario llm_degradation --analyse \
-  --agent-model claude-sonnet-4-6
+  --agent-model claude-haiku-4-5-20251001
 
 # List all available scenarios
 uv run python -m god --list-scenarios
@@ -649,8 +649,7 @@ class ScenarioAnalysis:
 ```
 
 The agent is invoked with a pre-computed summary (total spans, error rate, p99 latency, per-service
-error counts, token truncations, tool failures). It uses `gemini-2.5-flash` by default, with
-`gemini-2.0-flash` as an automatic fallback on 503/overload errors.
+error counts, token truncations, tool failures). It uses `gemini-2.5-flash-lite` by default (no fallback configured).
 
 ### Running without an API key
 
@@ -667,14 +666,13 @@ Model names can be bare or provider-prefixed. Bare names are normalised automati
 
 ```bash
 # Gemini (default)
-uv run python -m god -n 200 --analyse --agent-model gemini-2.5-flash
+uv run python -m god -n 200 --analyse --agent-model gemini-2.5-flash-lite
 
 # Claude
 uv run python -m god -n 200 --analyse --agent-model claude-haiku-4-5-20251001
 
 # Via .env
 GOD_AGENT_MODEL=anthropic:claude-haiku-4-5-20251001
-GOD_AGENT_FALLBACK_MODEL=google:gemini-2.0-flash
 ```
 
 Supported provider prefixes: `google:`, `anthropic:`, `openai:`. The provider prefix determines
@@ -887,8 +885,8 @@ and known limitations.
    unlike `gen`, `gen-files`, and `gen-fixtures`. If you have not set `GEMINI_API_KEY` (or the relevant
    key for your chosen model) and are not in mock mode, the analysis agent will fail on `--analyse`.
    Pure generation without `--analyse` works fine without any API key. The default model is
-   `gemini-2.5-flash`; set `GEMINI_API_KEY` rather than `ANTHROPIC_API_KEY` unless you have overridden
-   `GOD_AGENT_MODEL` to a Claude model.
+   `gemini-2.5-flash-lite`; set `GEMINI_API_KEY` rather than `ANTHROPIC_API_KEY` unless you have set
+   `GOD_AGENT_MODEL` to a Claude model (`claude-haiku-4-5-20251001`).
 
 2. **Seed only partially controls randomness.** A few choices inside the generators (HTTP method
    selection, some error type strings) use `random.choice` from the stdlib without seeding. For fully

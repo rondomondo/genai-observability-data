@@ -291,7 +291,7 @@ class TestCacheRoutes:
 
         store_resp = integration_client.post(
             "/cache",
-            json={"question": question, "answer": answer, "model": "gemini-2.0-flash"},
+            json={"question": question, "answer": answer, "model": "gemini-2.5-flash"},
             headers=HEADERS,
         )
         assert store_resp.status_code == 200

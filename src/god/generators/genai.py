@@ -92,7 +92,7 @@ _VECTOR_DB_COLLECTIONS = [
 
 _MODELS: dict[str, dict] = {
     # Anthropic
-    "gemini-2.5-flash": {
+    "claude-sonnet-4-6": {
         "provider": GenAIProvider.ANTHROPIC,
         "input_token_rate": 1.0,  # relative cost multiplier
         "context_window": 200000,
@@ -149,6 +149,17 @@ _MODELS: dict[str, dict] = {
         "inter_token_p99_ms": 0,
     },
     # Google chat models
+    "gemini-2.5-flash-lite": {
+        "provider": GenAIProvider.GOOGLE,
+        "input_token_rate": 0.04,
+        "context_window": 1048576,
+        "typical_input_tokens": (400, 2000),
+        "typical_output_tokens": (80, 400),
+        "ttft_p50_ms": 150,
+        "ttft_p99_ms": 800,
+        "inter_token_p50_ms": 8,
+        "inter_token_p99_ms": 25,
+    },
     "gemini-2.5-flash": {
         "provider": GenAIProvider.GOOGLE,
         "input_token_rate": 0.15,
@@ -172,10 +183,10 @@ _MODELS: dict[str, dict] = {
         "inter_token_p50_ms": 0,
         "inter_token_p99_ms": 0,
     },
-    "gemini-embedding-2": {
+    "gemini-embedding-2-preview": {
         "provider": GenAIProvider.GOOGLE,
         "input_token_rate": 0.015,
-        "context_window": 2048,
+        "context_window": 8192,
         "typical_input_tokens": (30, 400),
         "typical_output_tokens": (0, 0),
         "ttft_p50_ms": 120,
@@ -198,10 +209,10 @@ _MODELS: dict[str, dict] = {
 
 
 _CHAT_MODELS = [
-    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
     "claude-haiku-4-5-20251001",
     "gpt-4o",
-    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
 ]
 
 
@@ -228,7 +239,7 @@ def _token_count(rng: np.random.Generator, lo: int, hi: int) -> int:
 
 
 def _model_info(model: str) -> dict:
-    return _MODELS.get(model, _MODELS["gemini-2.5-flash"])
+    return _MODELS.get(model, _MODELS["gemini-2.5-flash-lite"])
 
 
 # ---------------------------------------------------------------------------

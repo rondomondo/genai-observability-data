@@ -2,8 +2,8 @@ name: gemini-api-tier1
 description: Gemini paid Tier 1. Higher throughput limits - verify RPM against your
   AI Studio dashboard and adjust HTTP_RPS_* accordingly.
 god:
-  agent_model: gemini-2.5-flash
-  agent_fallback_model: gemini-2.0-flash
+  agent_model: gemini-2.5-flash-lite
+  agent_fallback_model:
   mock_mode: false
   default_traces: 5000
   default_rate: 50
@@ -30,7 +30,7 @@ vecstore:
   embed_concurrency: 4
   embed_batch_size: 64
   embed_rate_limit_rpm: 1275
-  summariser_model: claude-sonnet-4-6
+  summariser_model: claude-haiku-4-5-20251001
   summariser_concurrency: 4
   cache_hit_threshold: 0.92
   cache_ttl_seconds: 3600

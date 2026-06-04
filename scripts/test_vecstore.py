@@ -93,7 +93,7 @@ TL;DR for RAG/semantic search: Q8 + 768-dim + M=16 -- Redis-recommended baseline
 
 EMBEDDING_MODELS: dict[str, str] = {
     "gemini-embedding-001": "stable, recommended (3072 dims max)",
-    "gemini-embedding-2": "latest generation (3072 dims max)",
+    "gemini-embedding-2-preview": "latest generation, multimodal 8k context (3072 dims max)",
     "text-embedding-004": "stable, lower-cost (768 dims max)",
 }
 

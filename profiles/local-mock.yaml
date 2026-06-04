@@ -2,8 +2,8 @@ name: local-mock
 description: Full local stack, no API keys needed. God uses mock agent, vecstore uses
   mock embedder.
 god:
-  agent_model: gemini-2.5-flash
-  agent_fallback_model: gemini-2.0-flash
+  agent_model: gemini-2.5-flash-lite
+  agent_fallback_model:
   mock_mode: true
   default_traces: 100
   default_rate: 10
@@ -30,7 +30,7 @@ vecstore:
   embed_concurrency: 2
   embed_batch_size: 32
   embed_rate_limit_rpm: 90
-  summariser_model: claude-sonnet-4-6
+  summariser_model: claude-haiku-4-5-20251001
   summariser_concurrency: 2
   cache_hit_threshold: 0.92
   cache_ttl_seconds: 3600

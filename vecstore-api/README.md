@@ -116,7 +116,7 @@ curl -s -X POST $BASE/cache \
     "question": "What is HNSW?",
     "answer": "Hierarchical Navigable Small World -- a graph-based ANN algorithm.",
     "sources": ["https://en.wikipedia.org/wiki/HNSW"],
-    "model": "gemini-2.0-flash"
+    "model": "gemini-2.5-flash"
   }' | jq .
 
 # Lookup by semantic similarity (different phrasing, same meaning)

@@ -19,7 +19,7 @@ For modes 2 and 3, --project is required (Vertex endpoints are project-scoped).
 
 Embedding models available:
   gemini-embedding-001     (stable, recommended)
-  gemini-embedding-2       (latest)
+  gemini-embedding-2-preview (latest, multimodal 8k context)
   text-embedding-004       (stable, lower-cost)
 
 04JUN2026
@@ -43,7 +43,7 @@ Usage:
     python3 test_connectivity.py --project my-gcp-project --model gemini-2.5-flash --mode query
 
     # API key via Braintrust gateway
-    python3 test_connectivity.py --api-key AIzaSy... --model gemini-2.0-flash --mode query \\
+    python3 test_connectivity.py --api-key AIzaSy... --model gemini-2.5-flash --mode query \\
         --braintrust-key bt-...
 
     # Pipe the JSON result into another tool

@@ -34,7 +34,7 @@ BACKUP_DIR = REPO_ROOT / "profiles" / ".backups"
 
 EMBED_BACKENDS = ["mock", "sidecar", "gemini", "sentence-transformers"]
 EMBED_MODELS_BY_BACKEND: dict[str, list[str]] = {
-    "gemini": ["gemini-embedding-001", "gemini-embedding-2"],
+    "gemini": ["gemini-embedding-001", "gemini-embedding-2-preview"],
     "sidecar": ["Qwen/Qwen3-Embedding-0.6B", "sentence-transformers/all-MiniLM-L6-v2"],
     "sentence-transformers": ["all-MiniLM-L6-v2", "all-mpnet-base-v2"],
     "mock": ["mock-model"],
@@ -47,7 +47,7 @@ EMBED_DIMS_BY_BACKEND: dict[str, int] = {
 }
 AGENT_MODELS = [
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
     "claude-sonnet-4-6",
     "claude-opus-4-7",
     "claude-haiku-4-5-20251001",
@@ -57,7 +57,7 @@ SUMMARISER_MODELS = [
     "claude-opus-4-7",
     "claude-haiku-4-5-20251001",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
 ]
 LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR"]
 LOG_FORMATS = ["console", "json", "logfmt"]
@@ -157,8 +157,8 @@ def _write_env_preserving_secrets(path: Path, new_vals: dict[str, str]) -> None:
 def _profile_to_root_env(profile: dict[str, Any]) -> dict[str, str]:
     g = profile.get("god", {})
     return {
-        "GOD_AGENT_MODEL": str(g.get("agent_model", "gemini-2.5-flash")),
-        "GOD_AGENT_FALLBACK_MODEL": str(g.get("agent_fallback_model", "gemini-2.0-flash")),
+        "GOD_AGENT_MODEL": str(g.get("agent_model", "gemini-2.5-flash-lite")),
+        "GOD_AGENT_FALLBACK_MODEL": str(g.get("agent_fallback_model", "")),
         "GOD_MOCK_MODE": str(g.get("mock_mode", False)).lower(),
         "GOD_DEFAULT_TRACES": str(g.get("default_traces", 100)),
         "GOD_DEFAULT_RATE": str(g.get("default_rate", 10.0)),
@@ -190,7 +190,7 @@ def _profile_to_vecstore_env(profile: dict[str, Any]) -> dict[str, str]:
         "EMBED_CONCURRENCY": str(v.get("embed_concurrency", 2)),
         "EMBED_BATCH_SIZE": str(v.get("embed_batch_size", 32)),
         "EMBED_RATE_LIMIT_RPM": str(v.get("embed_rate_limit_rpm", 90)),
-        "SUMMARISER_MODEL": str(v.get("summariser_model", "claude-sonnet-4-6")),
+        "SUMMARISER_MODEL": str(v.get("summariser_model", "claude-haiku-4-5-20251001")),
         "SUMMARISER_CONCURRENCY": str(v.get("summariser_concurrency", 2)),
         "CACHE_HIT_THRESHOLD": str(v.get("cache_hit_threshold", 0.92)),
         "CACHE_TTL_SECONDS": str(v.get("cache_ttl_seconds", 3600)),
@@ -967,7 +967,7 @@ function newProfile() {
   const newFile = newName.replace(/[^a-z0-9_-]/gi,'_').toLowerCase() + '.yaml';
   state.current = {
     name: newName, description: '',
-    god: { agent_model:'gemini-2.5-flash', agent_fallback_model:'gemini-2.0-flash', mock_mode:true,
+    god: { agent_model:'gemini-2.5-flash-lite', agent_fallback_model:'', mock_mode:true,
            default_traces:100, default_rate:10.0, default_batch_size:50,
            vecstore_summarise_traces:true, vecstore_summarise_logs:false, vecstore_async_mode:true,
            http_rate_ingest:8, http_rate_search:4, http_rate_cache:4, http_rate_admin:2,
@@ -975,7 +975,7 @@ function newProfile() {
            http_retry_attempts:3, http_retry_backoff_min:0.5, http_retry_backoff_max:8.0 },
     vecstore: { embed_backend:'mock', embed_model:'gemini-embedding-001', embed_dim:768,
                 embed_workers:4, embed_concurrency:2, embed_batch_size:32, embed_rate_limit_rpm:90,
-                summariser_model:'claude-sonnet-4-6', summariser_concurrency:2,
+                summariser_model:'claude-haiku-4-5-20251001', summariser_concurrency:2,
                 cache_hit_threshold:0.92, cache_ttl_seconds:3600,
                 rate_limit_ingest:'120/minute', rate_limit_embed:'60/minute',
                 rate_limit_search:'60/minute', rate_limit_cache:'60/minute', rate_limit_summarise:'30/minute',

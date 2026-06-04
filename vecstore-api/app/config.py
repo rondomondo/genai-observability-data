@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(default=3600, ge=60)
 
     # Summariser
-    summariser_model: str = Field(default="claude-sonnet-4-6")
+    summariser_model: str = Field(default="claude-haiku-4-5-20251001")
     summariser_concurrency: int = Field(default=2, ge=1, le=16)
     summariser_llm_threshold_duration_ms: int = Field(default=5000)
 

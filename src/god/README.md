@@ -133,8 +133,7 @@ cat > .env <<'EOF'
 GEMINI_API_KEY=AIza...            # required for --analyse without --mock (default model)
 # ANTHROPIC_API_KEY=sk-ant-...   # required if GOD_AGENT_MODEL is a Claude model
 GOD_MOCK_MODE=true
-GOD_AGENT_MODEL=gemini-2.5-flash
-GOD_AGENT_FALLBACK_MODEL=gemini-2.0-flash
+GOD_AGENT_MODEL=gemini-2.5-flash-lite
 GOD_DEFAULT_TRACES=100
 GOD_DEFAULT_RATE=10.0
 GOD_DEFAULT_BATCH_SIZE=50
@@ -150,8 +149,8 @@ EOF
 | `GEMINI_API_KEY` | - | Google Gemini API key (used when model is a Gemini model) |
 | `ANTHROPIC_API_KEY` | - | Anthropic API key (used when model is a Claude model) |
 | `GOD_MOCK_MODE` | `true` | Replace LLM calls with deterministic mock |
-| `GOD_AGENT_MODEL` | `gemini-2.5-flash` | Analysis agent model (bare or `provider:model`) |
-| `GOD_AGENT_FALLBACK_MODEL` | `gemini-2.0-flash` | Automatic fallback on 503/overload |
+| `GOD_AGENT_MODEL` | `gemini-2.5-flash-lite` | Analysis agent model (bare or `provider:model`) |
+| `GOD_AGENT_FALLBACK_MODEL` | - | Optional fallback on 503/overload |
 | `GOD_DEFAULT_TRACES` | `100` | Default trace count |
 | `GOD_DEFAULT_RATE` | `10.0` | Default traces/second |
 | `GOD_DEFAULT_BATCH_SIZE` | `50` | Flush batch size |
@@ -447,19 +446,19 @@ analysis: ScenarioAnalysis = await analyse_batch(
     traces=traces,
     logs=logs,
     deps=GodDeps(),
-    model_name="gemini-2.5-flash",            # optional override; bare or provider-prefixed
+    model_name="gemini-2.5-flash-lite",        # optional override; bare or provider-prefixed
 )
 ```
 
 `analyse_batch` computes a summary dict (error rate, p99 latency, per-service error counts, token
 truncations, tool failures) and passes it to `scenario_agent` as JSON in the prompt. The default
-model is `gemini-2.5-flash`; an automatic fallback to `gemini-2.0-flash` is attempted on 503 errors.
+model is `gemini-2.5-flash-lite` (no fallback by default).
 
 Pass any pydantic-ai compatible model name:
 
 ```python
 # Google Gemini
-analysis = await analyse_batch(traces, logs, GodDeps(), model_name="gemini-2.5-flash")
+analysis = await analyse_batch(traces, logs, GodDeps(), model_name="gemini-2.5-flash-lite")
 
 # Anthropic Claude
 analysis = await analyse_batch(traces, logs, GodDeps(), model_name="claude-haiku-4-5-20251001")
@@ -634,7 +633,7 @@ stringified Python lists, which increases output size substantially.
    by calling `get_settings()` and printing `settings.model_dump()` to verify what loaded.
 
 2. **`gen-otlp` make target does NOT set mock mode.** It is the only generation target that will
-   attempt real LLM calls when `--analyse` is passed. The default model is `gemini-2.5-flash`, so
+   attempt real LLM calls when `--analyse` is passed. The default model is `gemini-2.5-flash-lite`, so
    you need `GEMINI_API_KEY` (not `ANTHROPIC_API_KEY`) unless you override `GOD_AGENT_MODEL`.
 
 3. **Token budget breach sets error rate to zero, not a positive value.** The scenario calls
