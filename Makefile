@@ -335,6 +335,10 @@ vecstore-typecheck: ## Static type checking for vecstore-api
 vecstore-ci: ## Run full CI pipeline for vecstore-api
 	$(MAKE) -C $(VECSTORE_DIR) ci
 
+.PHONY: ui
+ui: ## Launch the config UI (vecstore-api profile editor)
+	uv run --directory vecstore-api python ../config_ui.py
+
 # -- embedder-sidecar -----------------------------------------
 SIDECAR_DIR  := embedder-sidecar
 EMBED_MODEL  ?= Qwen/Qwen3-Embedding-0.6B

@@ -102,12 +102,14 @@ def _summarise_batch(traces: list[Trace], logs: list[LogEntry]) -> dict[str, Any
     }
 
 
+_GOOGLE_CLOUD_PROVIDERS = {"google-cloud", "google-cloud-global", "google-gla"}
+
+
 def _normalise_model_id(raw: str) -> str:
     """Return a canonical 'provider:model' string from any supported model identifier.
 
     Accepts legacy bare names ('claude-sonnet-4-6', 'gemini-2.5-flash') and
-    already-prefixed names ('anthropic:claude-sonnet-4-6', 'google-gla:gemini-2.5-flash').
-    The google-gla provider alias is kept as-is so callers can target specific GCP endpoints.
+    already-prefixed names ('anthropic:claude-sonnet-4-6', 'google-cloud:gemini-2.5-flash').
     """
     if ":" in raw:
         return raw
@@ -119,29 +121,57 @@ def _normalise_model_id(raw: str) -> str:
     return raw
 
 
+def _build_google_cloud_model(model_name: str) -> Model:
+    """Build a GoogleModel backed by GoogleCloudProvider using Application Default Credentials.
+
+    The provider discovers project and location from GOOGLE_CLOUD_PROJECT /
+    GOOGLE_CLOUD_LOCATION env vars (or gcloud ADC metadata), so no API key is needed.
+    """
+    import google.auth
+    from pydantic_ai.models.google import GoogleModel
+    from pydantic_ai.providers.google_cloud import GoogleCloudProvider
+
+    credentials, project = google.auth.default()
+    provider = GoogleCloudProvider(credentials=credentials, project=project)
+    return GoogleModel(model_name, provider=provider)
+
+
 def _resolve_model(primary: str, fallback: str | None) -> Model | str:
     """Build a pydantic-ai model object from primary and optional fallback model strings.
 
     Falls back only when both models share the same provider -- cross-provider fallback
     is not supported by FallbackModel since providers use incompatible auth and APIs.
+
+    google-cloud: prefix routes through GoogleCloudProvider (ADC / bearer token).
+    All other prefixes are passed to pydantic-ai's infer_model unchanged.
     """
     from pydantic_ai.models import infer_model
 
     norm_primary = _normalise_model_id(primary)
+    primary_provider, _, primary_model = norm_primary.partition(":")
+
+    def _make(norm: str) -> Model:
+        provider, _, model = norm.partition(":")
+        if provider in _GOOGLE_CLOUD_PROVIDERS:
+            return _build_google_cloud_model(model)
+        return infer_model(norm)
 
     if not fallback:
+        if primary_provider in _GOOGLE_CLOUD_PROVIDERS:
+            return _build_google_cloud_model(primary_model)
         return norm_primary
 
     norm_fallback = _normalise_model_id(fallback)
-    primary_provider = norm_primary.split(":")[0]
     fallback_provider = norm_fallback.split(":")[0]
 
     if primary_provider != fallback_provider:
+        if primary_provider in _GOOGLE_CLOUD_PROVIDERS:
+            return _build_google_cloud_model(primary_model)
         return norm_primary
 
     from pydantic_ai.models.fallback import FallbackModel
 
-    return FallbackModel(infer_model(norm_primary), infer_model(norm_fallback))
+    return FallbackModel(_make(norm_primary), _make(norm_fallback))
 
 
 async def analyse_batch(

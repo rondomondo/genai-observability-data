@@ -1,6 +1,7 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+#https://huggingface.co/google/embeddinggemma-300m
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

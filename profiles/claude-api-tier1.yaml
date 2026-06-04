@@ -1,0 +1,44 @@
+name: claude-api-tier1
+description: Claude API Tier 1 (Sonnet 4.x agent, Haiku 4.5 summariser). RPM 50,
+  OTPM 8000 Sonnet / 10000 Haiku. Low concurrency - suitable for initial API access.
+god:
+  agent_model: claude-sonnet-4-6
+  agent_fallback_model: claude-haiku-4-5-20251001
+  mock_mode: false
+  default_traces: 200
+  default_rate: 5
+  default_batch_size: 20
+  vecstore_summarise_traces: true
+  vecstore_summarise_logs: false
+  vecstore_async_mode: true
+  http_rate_ingest: 4
+  http_rate_search: 2
+  http_rate_cache: 2
+  http_rate_admin: 1
+  http_rps_ingest: 1
+  http_rps_search: 1
+  http_rps_cache: 1
+  http_rps_admin: 0
+  http_retry_attempts: 5
+  http_retry_backoff_min: 1.0
+  http_retry_backoff_max: 120
+vecstore:
+  embed_backend: sidecar
+  embed_model: Qwen/Qwen3-Embedding-0.6B
+  embed_dim: 1024
+  embed_workers: 2
+  embed_concurrency: 1
+  embed_batch_size: 16
+  embed_rate_limit_rpm: 60
+  summariser_model: claude-haiku-4-5-20251001
+  summariser_concurrency: 1
+  cache_hit_threshold: 0.92
+  cache_ttl_seconds: 3600
+  # Tier 1: Haiku 50 RPM / 10000 OTPM; Sonnet 50 RPM / 8000 OTPM
+  rate_limit_ingest: 30/minute
+  rate_limit_embed: 60/minute
+  rate_limit_search: 30/minute
+  rate_limit_cache: 30/minute
+  rate_limit_summarise: 20/minute
+  log_level: INFO
+  log_format: json
