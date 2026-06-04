@@ -914,19 +914,19 @@ function patch(key, val) {
 
 function onBackendChange(backend) {
   const opts = state.options;
-  patch('vecstore.embed_backend', backend);
+  patch('v.embed_backend', backend);
   const models = opts.embed_models_by_backend[backend] || [];
   const dim = opts.embed_dims_by_backend[backend] || 768;
-  if (models.length) patch('vecstore.embed_model', models[0]);
-  patch('vecstore.embed_dim', dim);
+  if (models.length) patch('v.embed_model', models[0]);
+  patch('v.embed_dim', dim);
   renderEditor();
 }
 
 function onSummariserBackendChange(backend) {
   const opts = state.options;
-  patch('vecstore.summariser_backend', backend);
+  patch('v.summariser_backend', backend);
   const models = opts.summariser_models_by_backend[backend] || [];
-  if (models.length) patch('vecstore.summariser_model', models[0]);
+  if (models.length) patch('v.summariser_model', models[0]);
   renderEditor();
 }
 

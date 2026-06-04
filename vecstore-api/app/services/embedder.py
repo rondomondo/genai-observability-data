@@ -102,6 +102,22 @@ class _SidecarEmbeddingModel(EmbeddingModel):
         await self._client.aclose()
 
 
+def _build_google_cloud_embedding_model(settings: Settings) -> EmbeddingModel:
+    """Build a GoogleEmbeddingModel backed by GoogleCloudProvider using Application Default Credentials."""
+    try:
+        import google.auth
+        from pydantic_ai.embeddings.google import GoogleEmbeddingModel
+        from pydantic_ai.providers.google_cloud import GoogleCloudProvider
+    except ImportError as exc:
+        raise ImportError(
+            "google-auth and pydantic-ai google support are required for embed_backend='google-cloud'. "
+            "Install with: uv add google-auth pydantic-ai-slim[google]"
+        ) from exc
+    credentials, project = google.auth.default()
+    provider = GoogleCloudProvider(credentials=credentials, project=project)
+    return GoogleEmbeddingModel(settings.embed_model, provider=provider)
+
+
 def _make_model(settings: Settings) -> EmbeddingModel:
     if settings.embed_backend == "mock":
         from pydantic_ai.embeddings import TestEmbeddingModel
@@ -119,6 +135,9 @@ def _make_model(settings: Settings) -> EmbeddingModel:
 
     if settings.embed_backend == "sidecar":
         return _SidecarEmbeddingModel(settings)
+
+    if settings.embed_backend == "google-cloud":
+        return _build_google_cloud_embedding_model(settings)
 
     # gemini (default)
     try:
@@ -146,7 +165,7 @@ class Embedder:
         self._sem = asyncio.Semaphore(settings.embed_concurrency)
         self._limiter: Limiter | None = (
             _make_embed_limiter(settings.embed_rate_limit_rpm)
-            if settings.embed_backend == "gemini"
+            if settings.embed_backend in {"gemini", "google-cloud"}
             else None
         )
 

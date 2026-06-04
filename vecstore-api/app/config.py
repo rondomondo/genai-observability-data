@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # Embedding
     gemini_api_key: str = Field(default="")
-    embed_backend: Literal["gemini", "sentence-transformers", "sidecar", "mock"] = Field(default="mock")
+    embed_backend: Literal["gemini", "google-cloud", "sentence-transformers", "sidecar", "mock"] = Field(default="mock")
     embed_model: str = Field(default="gemini-embedding-001")
     embed_sidecar_url: str = Field(default="http://localhost:8001")
     embed_dim: int = Field(default=256, ge=64, le=3072)
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(default=3600, ge=60)
 
     # Summariser
-    summariser_backend: Literal["mock", "anthropic", "gemini"] = Field(default="mock")
+    summariser_backend: Literal["mock", "anthropic", "gemini", "google-cloud"] = Field(default="mock")
     summariser_model: str = Field(default="claude-haiku-4-5-20251001")
     summariser_mock: bool = Field(default=False)
     summariser_concurrency: int = Field(default=2, ge=1, le=16)

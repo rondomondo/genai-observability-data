@@ -23,14 +23,14 @@ god:
   http_retry_backoff_min: 0.5
   http_retry_backoff_max: 8
 vecstore:
-  embed_backend: mock
+  embed_backend: gemini
   embed_model: gemini-embedding-001
   embed_dim: 768
   embed_workers: 4
   embed_concurrency: 2
   embed_batch_size: 32
   embed_rate_limit_rpm: 90
-  summariser_model: claude-haiku-4-5-20251001
+  summariser_model: mock-model
   summariser_mock: true
   summariser_concurrency: 7
   cache_hit_threshold: 0.92
@@ -43,3 +43,4 @@ vecstore:
   log_level: DEBUG
   log_format: console
   summariser_rate_limit_rpm: 200
+  summariser_backend: mock

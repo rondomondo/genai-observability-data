@@ -49,7 +49,19 @@ class Summariser:
     def _get_agent(self) -> "Agent[None, TraceSummary]":
         if self._agent is None:
             backend = self._settings.summariser_backend
-            if backend == "gemini":
+            if backend == "google-cloud":
+                try:
+                    import google.auth
+                    from pydantic_ai.providers.google_cloud import GoogleCloudProvider
+                except ImportError as exc:
+                    raise ImportError(
+                        "google-auth and pydantic-ai google support are required for "
+                        "summariser_backend='google-cloud'. Install with: uv add google-auth pydantic-ai-slim[google]"
+                    ) from exc
+                credentials, project = google.auth.default()
+                provider = GoogleCloudProvider(credentials=credentials, project=project)
+                model = GeminiModel(self._settings.summariser_model, provider=provider)
+            elif backend == "gemini":
                 model = GeminiModel(self._settings.summariser_model)
             else:
                 model = AnthropicModel(self._settings.summariser_model)
