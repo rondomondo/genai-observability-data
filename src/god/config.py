@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     # When True the pydantic-ai agent is replaced with a FunctionModel (no API key needed)
     mock_mode: bool = Field(default=True, alias="GOD_MOCK_MODE")
 
+    # Agent rate limiting -- set to match your provider quota.
+    # Gemini 2.5 Flash-Lite free tier is 15 RPM; paid tiers are much higher.
+    agent_rpm: int = Field(default=15, alias="GOD_AGENT_RPM")
+    agent_concurrency: int = Field(default=2, alias="GOD_AGENT_CONCURRENCY")
+
     # Gemini API key -- only needed when using the 'google:' provider prefix
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
 
@@ -90,6 +95,9 @@ class Settings(BaseSettings):
     default_seed: int | None = Field(default=None, alias="GOD_DEFAULT_SEED")
     default_scenario: str | None = Field(default=None, alias="GOD_DEFAULT_SCENARIO")
 
+    # Logging
+    log_level: str = Field(default="WARNING", alias="GOD_LOG_LEVEL")
+
     # Output defaults
     default_format: list[str] = Field(default=["otlp_traces", "otlp_logs"], alias="GOD_DEFAULT_FORMAT")
     default_otlp: str | None = Field(default=None, alias="GOD_DEFAULT_OTLP")
@@ -98,7 +106,7 @@ class Settings(BaseSettings):
     vecstore_url: str | None = Field(default=None, alias="GOD_VECSTORE_URL")
     vecstore_api_key: str = Field(default="abcdef", alias="GOD_VECSTORE_API_KEY")
     vecstore_summarise_traces: bool = Field(default=True, alias="GOD_VECSTORE_SUMMARISE_TRACES")
-    vecstore_summarise_logs: bool = Field(default=False, alias="GOD_VECSTORE_SUMMARISE_LOGS")
+    vecstore_summarise_logs: bool = Field(default=True, alias="GOD_VECSTORE_SUMMARISE_LOGS")
     vecstore_async_mode: bool = Field(default=True, alias="GOD_VECSTORE_ASYNC_MODE")
 
 

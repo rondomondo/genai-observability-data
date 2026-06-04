@@ -29,6 +29,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _embedder, _executor
     settings = get_settings()
     logging.basicConfig(level=settings.log_level.upper())
+    log.info(
+        "config embed_model=%s embed_dim=%d host=%s port=%d log_level=%s",
+        settings.embed_model,
+        settings.embed_dim,
+        settings.host,
+        settings.port,
+        settings.log_level,
+    )
     # Load model in a thread so the event loop is not blocked during startup
     _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="embed")
     loop = asyncio.get_running_loop()

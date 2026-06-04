@@ -3,13 +3,13 @@ description: Full local stack, no API keys needed. God uses mock agent, vecstore
   mock embedder.
 god:
   agent_model: gemini-2.5-flash-lite
-  agent_fallback_model:
+  agent_fallback_model: null
   mock_mode: true
   default_traces: 100
   default_rate: 10
   default_batch_size: 50
   vecstore_summarise_traces: true
-  vecstore_summarise_logs: false
+  vecstore_summarise_logs: true
   vecstore_async_mode: true
   http_rate_ingest: 8
   http_rate_search: 4
@@ -31,9 +31,10 @@ vecstore:
   embed_batch_size: 32
   embed_rate_limit_rpm: 90
   summariser_model: claude-haiku-4-5-20251001
-  summariser_concurrency: 2
+  summariser_mock: true
+  summariser_concurrency: 7
   cache_hit_threshold: 0.92
-  cache_ttl_seconds: 3600
+  cache_ttl_seconds: 36000
   rate_limit_ingest: 120/minute
   rate_limit_embed: 60/minute
   rate_limit_search: 60/minute
@@ -41,3 +42,4 @@ vecstore:
   rate_limit_summarise: 30/minute
   log_level: DEBUG
   log_format: console
+  summariser_rate_limit_rpm: 200

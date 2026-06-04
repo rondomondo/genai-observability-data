@@ -263,6 +263,32 @@ profile-dev-cloud: stack-up ## Infra for cloud dev (Gemini embeddings); run vecs
 	@printf "\n"
 	@printf "$(YELLOW)Requires GEMINI_API_KEY set in vecstore-api/.env$(RESET)\n"
 
+.PHONY: profile-dev-mock
+profile-dev-mock: stack-up ## Infra for mock dev (MockEmbeddings); run vecstore-api manually
+	@printf "$(GREEN)Infrastructure ready.$(RESET)\n"
+	@printf "  OTel stack: up\n"
+	@printf "\n"
+	@printf "$(CYAN)Now start the API in a separate terminal:$(RESET)\n"
+	@printf "  cd vecstore-api && EMBED_BACKEND=mock make dev\n"
+	@printf "\n"
+	@printf "$(YELLOW)Requires xxx vecstore-api/.env$(RESET)\n"
+
+.PHONY: profile-dev-cloud-down
+profile-dev-cloud-down: ## Tear down cloud dev infra (OTel stack only)
+	docker compose down
+	@printf "$(GREEN)Cloud dev infra stopped.$(RESET)\n"
+
+.PHONY: profile-dev-mock-down
+profile-dev-mock-down: ## Tear down mock dev infra (OTel stack only)
+	docker compose down
+	@printf "$(GREEN)Cloud dev mock infra stopped.$(RESET)\n"
+
+.PHONY: profile-dev-local-down
+profile-dev-local-down: ## Tear down local dev infra (embedder sidecar + OTel stack)
+	docker compose --profile vecstore stop embedder-sidecar
+	docker compose down
+	@printf "$(GREEN)Local dev local infra stopped.$(RESET)\n"
+
 .PHONY: profile-demo
 profile-demo: stack-up ## Full docker demo stack (vecstore-api + sidecar containerised); then stream a scenario
 	docker compose --profile vecstore up -d
@@ -334,6 +360,10 @@ vecstore-typecheck: ## Static type checking for vecstore-api
 .PHONY: vecstore-ci
 vecstore-ci: ## Run full CI pipeline for vecstore-api
 	$(MAKE) -C $(VECSTORE_DIR) ci
+
+.PHONY: dev
+dev: ## Run vecstore-api dev server (pass EMBED_BACKEND=, SUMMARISER_BACKEND= etc. as env vars)
+	$(MAKE) -C $(VECSTORE_DIR) dev
 
 .PHONY: ui
 ui: ## Launch the config UI (vecstore-api profile editor)

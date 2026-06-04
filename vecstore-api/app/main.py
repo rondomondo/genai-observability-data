@@ -92,6 +92,7 @@ def _setup_otel(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("startup_begin", service="vecstore-api")
+    log.info("config", **settings.as_loggable())
 
     # Redis sync client (used by VectorStore, CacheService)
     r = redis_lib.Redis.from_url(settings.redis_url, decode_responses=True)

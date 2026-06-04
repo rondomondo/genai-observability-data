@@ -52,6 +52,12 @@ AGENT_MODELS = [
     "claude-opus-4-7",
     "claude-haiku-4-5-20251001",
 ]
+SUMMARISER_BACKENDS = ["mock", "anthropic", "gemini"]
+SUMMARISER_MODELS_BY_BACKEND: dict[str, list[str]] = {
+    "mock": ["mock-model"],
+    "anthropic": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
+    "gemini": ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
+}
 SUMMARISER_MODELS = [
     "claude-sonnet-4-6",
     "claude-opus-4-7",
@@ -190,8 +196,11 @@ def _profile_to_vecstore_env(profile: dict[str, Any]) -> dict[str, str]:
         "EMBED_CONCURRENCY": str(v.get("embed_concurrency", 2)),
         "EMBED_BATCH_SIZE": str(v.get("embed_batch_size", 32)),
         "EMBED_RATE_LIMIT_RPM": str(v.get("embed_rate_limit_rpm", 90)),
+        "SUMMARISER_BACKEND": str(v.get("summariser_backend", "mock")),
         "SUMMARISER_MODEL": str(v.get("summariser_model", "claude-haiku-4-5-20251001")),
+        "SUMMARISER_MOCK": str(v.get("summariser_backend", "mock") == "mock").lower(),
         "SUMMARISER_CONCURRENCY": str(v.get("summariser_concurrency", 2)),
+        "SUMMARISER_RATE_LIMIT_RPM": str(v.get("summariser_rate_limit_rpm", 50)),
         "CACHE_HIT_THRESHOLD": str(v.get("cache_hit_threshold", 0.92)),
         "CACHE_TTL_SECONDS": str(v.get("cache_ttl_seconds", 3600)),
         "RATE_LIMIT_INGEST": str(v.get("rate_limit_ingest", "120/minute")),
@@ -262,6 +271,8 @@ async def meta_options() -> JSONResponse:
         "embed_models_by_backend": EMBED_MODELS_BY_BACKEND,
         "embed_dims_by_backend": EMBED_DIMS_BY_BACKEND,
         "agent_models": AGENT_MODELS,
+        "summariser_backends": SUMMARISER_BACKENDS,
+        "summariser_models_by_backend": SUMMARISER_MODELS_BY_BACKEND,
         "summariser_models": SUMMARISER_MODELS,
         "log_levels": LOG_LEVELS,
         "log_formats": LOG_FORMATS,
@@ -705,7 +716,11 @@ function renderEditor() {
   const p = state.current;
   const o = state.options;
   const g = p.god || {};
-  const v = p.vecstore || {};
+  const _v = p.vecstore || {};
+  // migrate legacy summariser_mock bool to summariser_backend string
+  const v = Object.assign({}, _v, {
+    summariser_backend: _v.summariser_backend || (_v.summariser_mock ? 'mock' : 'anthropic'),
+  });
   const isActive = state.currentFile === state.active;
 
   document.getElementById("main").innerHTML = `
@@ -794,8 +809,20 @@ function renderEditor() {
     <div class="section">
       <h3>Summariser</h3>
       <div class="grid2">
-        ${sel('Summariser model', 'v.summariser_model', v.summariser_model, o.summariser_models, 'LLM used to generate natural-language summaries of traces and logs before storage.')}
-        ${rng('Summariser concurrency', 'v.summariser_concurrency', v.summariser_concurrency, 1, 16, 1, false, 'Max simultaneous summarisation calls. Each call hits the LLM - keep proportionate to your LLM rate limit.')}
+        <div class="field">
+          <label data-tip="LLM provider for summarisation. mock = no API key needed; anthropic = Claude models; gemini = Gemini models.">Backend<span class="tip-dot">i</span></label>
+          <select id="f-summariser-backend" onchange="onSummariserBackendChange(this.value)">
+            ${o.summariser_backends.map(b => `<option ${b===v.summariser_backend?'selected':''}>${b}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <select id="f-summariser-model" onchange="patch('vecstore.summariser_model',this.value)">
+            ${(o.summariser_models_by_backend[v.summariser_backend] || [v.summariser_model]).map(m => `<option ${m===v.summariser_model?'selected':''}>${esc(m)}</option>`).join('')}
+          </select>
+        </div>
+        ${rng('Concurrency', 'v.summariser_concurrency', v.summariser_concurrency, 1, 16, 1, false, 'Max simultaneous summarisation calls. Each call hits the LLM - keep proportionate to your LLM rate limit.')}
+        ${rng('Rate limit RPM', 'v.summariser_rate_limit_rpm', v.summariser_rate_limit_rpm, 1, 2000, 1, false, 'Outbound token-bucket cap for LLM summarisation calls. Set to ~90% of your model quota RPM.')}
       </div>
     </div>
 
@@ -888,11 +915,18 @@ function patch(key, val) {
 function onBackendChange(backend) {
   const opts = state.options;
   patch('vecstore.embed_backend', backend);
-  // Set sensible defaults for dimension and model when backend changes
   const models = opts.embed_models_by_backend[backend] || [];
   const dim = opts.embed_dims_by_backend[backend] || 768;
   if (models.length) patch('vecstore.embed_model', models[0]);
   patch('vecstore.embed_dim', dim);
+  renderEditor();
+}
+
+function onSummariserBackendChange(backend) {
+  const opts = state.options;
+  patch('vecstore.summariser_backend', backend);
+  const models = opts.summariser_models_by_backend[backend] || [];
+  if (models.length) patch('vecstore.summariser_model', models[0]);
   renderEditor();
 }
 
@@ -975,7 +1009,7 @@ function newProfile() {
            http_retry_attempts:3, http_retry_backoff_min:0.5, http_retry_backoff_max:8.0 },
     vecstore: { embed_backend:'mock', embed_model:'gemini-embedding-001', embed_dim:768,
                 embed_workers:4, embed_concurrency:2, embed_batch_size:32, embed_rate_limit_rpm:90,
-                summariser_model:'claude-haiku-4-5-20251001', summariser_concurrency:2,
+                summariser_backend:'mock', summariser_model:'mock-model', summariser_concurrency:2, summariser_rate_limit_rpm:50,
                 cache_hit_threshold:0.92, cache_ttl_seconds:3600,
                 rate_limit_ingest:'120/minute', rate_limit_embed:'60/minute',
                 rate_limit_search:'60/minute', rate_limit_cache:'60/minute', rate_limit_summarise:'30/minute',

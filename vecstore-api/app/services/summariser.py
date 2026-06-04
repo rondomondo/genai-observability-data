@@ -12,6 +12,8 @@ import time
 
 from pydantic_ai import Agent
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.gemini import GeminiModel
+from pyrate_limiter import Duration, Limiter, Rate
 
 from app.config import Settings
 from app.logging_config import get_logger
@@ -30,12 +32,27 @@ Return only the structured JSON — no preamble, no markdown fences."""
 class Summariser:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._mock = settings.summariser_backend == "mock" or settings.summariser_mock
         self._agent: Agent[None, TraceSummary] | None = None
         self._sem = asyncio.Semaphore(settings.summariser_concurrency)
+        self._limiter = Limiter(Rate(settings.summariser_rate_limit_rpm, Duration.MINUTE))
+        log.info(
+            "summariser_started",
+            backend=settings.summariser_backend,
+            mock=self._mock,
+            model=settings.summariser_model,
+            llm_threshold_ms=settings.summariser_llm_threshold_duration_ms,
+            concurrency=settings.summariser_concurrency,
+            rate_limit_rpm=settings.summariser_rate_limit_rpm,
+        )
 
     def _get_agent(self) -> "Agent[None, TraceSummary]":
         if self._agent is None:
-            model = AnthropicModel(self._settings.summariser_model)
+            backend = self._settings.summariser_backend
+            if backend == "gemini":
+                model = GeminiModel(self._settings.summariser_model)
+            else:
+                model = AnthropicModel(self._settings.summariser_model)
             self._agent = Agent(
                 model=model,
                 output_type=TraceSummary,
@@ -43,21 +60,38 @@ class Summariser:
             )
         return self._agent
 
+    async def _acquire_token(self) -> None:
+        loop = asyncio.get_running_loop()
+        delay = 0.05
+        waited = 0.0
+        while True:
+            acquired = await loop.run_in_executor(None, lambda: self._limiter.try_acquire("summariser"))
+            if acquired:
+                if waited > 0:
+                    log.warning("summariser_rate_limit_wait", waited_ms=round(waited * 1000))
+                return
+            await asyncio.sleep(delay)
+            waited += delay
+            delay = min(delay * 2, 2.0)
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def summarise_trace(self, trace: TraceEntry, force_llm: bool = False) -> tuple[TraceSummary, int | None]:
         """Returns (TraceSummary, llm_ms | None)."""
-        if force_llm or self._should_use_llm(trace):
+        if not self._settings.summariser_mock and (force_llm or self._should_use_llm(trace)):
             return await self._llm_summarise_trace(trace)
-        else:
-            summary = self._template_summarise_trace(trace)
-            return summary, None
+        path = "mock" if self._settings.summariser_mock else "template"
+        summary = self._template_summarise_trace(trace)
+        log.debug(f"summarise_trace {summary}", path=path, trace_id=trace.trace_id, severity=summary.severity)
+        return summary, None
 
     async def summarise_log(self, entry: LogEntry) -> tuple[TraceSummary, int | None]:
         """Logs use template by default — LLM only for ERROR/FATAL."""
-        if entry.severity in ("ERROR", "FATAL"):
+        if not self._settings.summariser_mock and entry.severity in ("ERROR", "FATAL"):
             return await self._llm_summarise_log(entry)
+        path = "mock" if self._settings.summariser_mock else "template"
         summary = self._template_summarise_log(entry)
+        log.debug(f"summarise_log {summary}", path=path, service=entry.service, severity=entry.severity)
         return summary, None
 
     def trace_to_text(self, trace: TraceEntry) -> str:
@@ -80,6 +114,8 @@ class Summariser:
     # ── Heuristic ─────────────────────────────────────────────────────────────
 
     def _should_use_llm(self, trace: TraceEntry) -> bool:
+        if self._settings.summariser_mock:
+            return False
         if trace.status == "error":
             return True
         if trace.duration_ms > self._settings.summariser_llm_threshold_duration_ms:
@@ -155,12 +191,13 @@ class Summariser:
         t0 = time.perf_counter()
         try:
             agent = self._get_agent()
+            await self._acquire_token()
             async with self._sem:
                 result = await agent.run(prompt)
             elapsed_ms = round((time.perf_counter() - t0) * 1000)
             summary = result.output
             summary.used_llm = True
-            log.info("llm_summarise_trace", trace_id=trace.trace_id, ms=elapsed_ms, severity=summary.severity)
+            log.info("summarise_trace", path="llm", trace_id=trace.trace_id, ms=elapsed_ms, severity=summary.severity)
             return summary, elapsed_ms
         except Exception as exc:
             log.error("llm_summarise_trace_failed", trace_id=trace.trace_id, error=str(exc))
@@ -181,12 +218,13 @@ class Summariser:
         t0 = time.perf_counter()
         try:
             agent = self._get_agent()
+            await self._acquire_token()
             async with self._sem:
                 result = await agent.run(prompt)
             elapsed_ms = round((time.perf_counter() - t0) * 1000)
             summary = result.output
             summary.used_llm = True
-            log.info("llm_summarise_log", service=entry.service, severity=entry.severity, ms=elapsed_ms)
+            log.info("summarise_log", path="llm", service=entry.service, severity=entry.severity, ms=elapsed_ms)
             return summary, elapsed_ms
         except Exception as exc:
             log.error("llm_summarise_log_failed", service=entry.service, error=str(exc))

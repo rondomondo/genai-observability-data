@@ -157,11 +157,15 @@ class Embedder:
             return
         loop = asyncio.get_running_loop()
         delay = 0.01
+        waited = 0.0
         while True:
             acquired = await loop.run_in_executor(None, lambda: self._limiter.try_acquire("embed"))
             if acquired:
+                if waited > 0:
+                    log.warning("embed_rate_limit_wait", waited_ms=round(waited * 1000))
                 return
             await asyncio.sleep(delay)
+            waited += delay
             delay = min(delay * 2, 1.0)
 
     def _drain_token(self) -> None:
@@ -233,6 +237,7 @@ class Embedder:
 
         result = await _attempt()
         elapsed_ms = round((time.perf_counter() - t0) * 1000)
+        log.debug("embed_complete", backend=self._settings.embed_backend, ms=elapsed_ms, is_query=is_query)
         return list(result.embeddings[0]), elapsed_ms
 
     async def embed_batch(
@@ -294,6 +299,13 @@ class Embedder:
             vectors = list(await asyncio.gather(*[_one(t) for t in texts]))
 
         elapsed_ms = round((time.perf_counter() - t0) * 1000)
+        log.debug(
+            "embed_batch_complete",
+            backend=self._settings.embed_backend,
+            count=len(texts),
+            ms=elapsed_ms,
+            is_query=is_query,
+        )
         return vectors, elapsed_ms
 
     @property

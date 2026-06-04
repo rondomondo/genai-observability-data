@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
 from datetime import datetime
@@ -192,6 +193,13 @@ def _status_panel(settings, args) -> Panel:
     )
     add("agent-model", settings.agent_model, _src("GOD_AGENT_MODEL", args.agent_model, None))
 
+    _profiles_active = Path(__file__).parent.parent.parent / "profiles" / ".active"
+    try:
+        active_profile = _profiles_active.read_text(encoding="utf-8").strip()
+    except OSError:
+        active_profile = "none"
+    add("active-profile", active_profile, "profiles/.active", style="cyan" if active_profile != "none" else "dim")
+
     return Panel(t, title="[bold]Runtime status[/bold]", box=box.ROUNDED, border_style="blue", padding=(0, 1))
 
 
@@ -256,6 +264,7 @@ def _print_help(version: str) -> None:
         ("  --list-scenarios", "List available scenario presets"),
         ("  --status", "Show resolved runtime configuration and exit"),
         ("  -q / --quiet", "Suppress progress output"),
+        ("  --log-level LEVEL", "Logging level: DEBUG | INFO | WARNING | ERROR (default: WARNING, env: GOD_LOG_LEVEL)"),
         ("  -V / --version", "Show version and exit"),
     ]
 
@@ -359,6 +368,12 @@ def build_arg_parser():
     meta.add_argument("--list-scenarios", action="store_true", default=False)
     meta.add_argument("--status", action="store_true", default=False)
     meta.add_argument("--quiet", "-q", action="store_true", default=False)
+    meta.add_argument(
+        "--log-level",
+        default=None,
+        metavar="LEVEL",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR). Overrides GOD_LOG_LEVEL.",
+    )
 
     return p
 
@@ -448,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     settings = get_settings()
+    log_level = (args.log_level or settings.log_level).upper()
+    logging.basicConfig(level=log_level, format="%(levelname)s %(name)s %(message)s")
 
     if args.status:
         console.print(_header(__version__))

@@ -9,6 +9,7 @@ network calls, no API key required.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import warnings
 from typing import Any
@@ -16,6 +17,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models import Model, parse_model_id
+from pyrate_limiter import Duration, Limiter, Rate
 
 from god.deps import GodDeps
 from god.models import LogEntry, SpanStatus, Trace
@@ -174,6 +176,34 @@ def _resolve_model(primary: str, fallback: str | None) -> Model | str:
     return FallbackModel(_make(norm_primary), _make(norm_fallback))
 
 
+# Agent RPM default matches Gemini 2.5 Flash-Lite free-tier quota; override with GOD_AGENT_RPM.
+_AGENT_DEFAULT_RPM = 15
+
+_agent_sem: asyncio.Semaphore | None = None
+_agent_limiter: Limiter | None = None
+
+
+def _get_agent_gates(settings: Any) -> tuple[asyncio.Semaphore, Limiter]:
+    global _agent_sem, _agent_limiter
+    if _agent_sem is None:
+        _agent_sem = asyncio.Semaphore(getattr(settings, "agent_concurrency", 2))
+    if _agent_limiter is None:
+        rpm = getattr(settings, "agent_rpm", _AGENT_DEFAULT_RPM)
+        _agent_limiter = Limiter(Rate(rpm, Duration.MINUTE))
+    return _agent_sem, _agent_limiter
+
+
+async def _acquire_agent_token(limiter: Limiter) -> None:
+    loop = asyncio.get_running_loop()
+    delay = 0.05
+    while True:
+        acquired = await loop.run_in_executor(None, lambda: limiter.try_acquire("agent"))
+        if acquired:
+            return
+        await asyncio.sleep(delay)
+        delay = min(delay * 2, 2.0)
+
+
 async def analyse_batch(
     traces: list[Trace],
     logs: list[LogEntry],
@@ -209,5 +239,8 @@ async def analyse_batch(
         primary = model_name or settings.agent_model
         fallback = None if model_name else settings.agent_fallback_model
         effective_model: Model | str = _resolve_model(primary, fallback)
-        result = await scenario_agent.run(prompt, deps=deps, model=effective_model)
+        sem, limiter = _get_agent_gates(settings)
+        await _acquire_agent_token(limiter)
+        async with sem:
+            result = await scenario_agent.run(prompt, deps=deps, model=effective_model)
     return result.output

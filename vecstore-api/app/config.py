@@ -1,8 +1,13 @@
 from functools import lru_cache
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_SENSITIVE_FIELDS = {"api_key", "gemini_api_key"}
+_MASK = "***"
+_PROFILES_ACTIVE = Path(__file__).parent.parent.parent / "profiles" / ".active"
 
 
 class Settings(BaseSettings):
@@ -42,9 +47,12 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(default=3600, ge=60)
 
     # Summariser
+    summariser_backend: Literal["mock", "anthropic", "gemini"] = Field(default="mock")
     summariser_model: str = Field(default="claude-haiku-4-5-20251001")
+    summariser_mock: bool = Field(default=False)
     summariser_concurrency: int = Field(default=2, ge=1, le=16)
     summariser_llm_threshold_duration_ms: int = Field(default=5000)
+    summariser_rate_limit_rpm: int = Field(default=50, ge=1, le=10000)
 
     # OTEL
     otel_exporter_otlp_endpoint: str = Field(default="http://localhost:4317")
@@ -65,6 +73,25 @@ class Settings(BaseSettings):
     rate_limit_search: str = Field(default="60/minute")
     rate_limit_cache: str = Field(default="60/minute")
     rate_limit_summarise: str = Field(default="30/minute")
+
+    def as_loggable(self) -> dict[str, Any]:
+        """Return all settings with sensitive fields masked for safe console/log output.
+
+        Also includes the active profile name from profiles/.active if present.
+        """
+        result: dict[str, Any] = {}
+        for field_name in self.model_fields:
+            value = getattr(self, field_name)
+            if field_name in _SENSITIVE_FIELDS:
+                raw = str(value)
+                result[field_name] = _MASK if not raw else f"{raw[:4]}{_MASK}" if len(raw) > 4 else _MASK
+            else:
+                result[field_name] = value
+        try:
+            result["active_profile"] = _PROFILES_ACTIVE.read_text(encoding="utf-8").strip()
+        except OSError:
+            result["active_profile"] = None
+        return result
 
 
 #@lru_cache
