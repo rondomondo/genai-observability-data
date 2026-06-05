@@ -2,6 +2,7 @@ name: claude-api-tier1
 description: Claude API Tier 1 (Sonnet 4.x agent, Haiku 4.5 summariser). RPM 50,
   OTPM 8000 Sonnet / 10000 Haiku. Low concurrency - suitable for initial API access.
 god:
+  agent_backend: anthropic
   agent_model: claude-sonnet-4-6
   agent_fallback_model: claude-haiku-4-5-20251001
   mock_mode: false

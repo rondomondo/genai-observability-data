@@ -1,11 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
-
-from pydantic import Field
+import os
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_SENSITIVE_FIELDS = {"api_key", "gemini_api_key"}
+_SENSITIVE_FIELDS = {"api_key", "gemini_api_key", "google_access_token"}
 _MASK = "***"
 _PROFILES_ACTIVE = Path(__file__).parent.parent.parent / "profiles" / ".active"
 
@@ -17,9 +17,13 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
-
     # Auth
     api_key: str = Field(default="abcdef")
+
+    # Google Cloud auth (google-cloud backends)
+    google_access_token: str = Field(default=os.environ.get('GOOGLE_ACCESS_TOKEN',""))
+    google_cloud_project: str = Field(default="")
+    google_cloud_location: str = Field(default="us-central1")
 
     # Redis
     redis_url: str = Field(default="redis://localhost:6379")
@@ -28,7 +32,7 @@ class Settings(BaseSettings):
 
     # Embedding
     gemini_api_key: str = Field(default="")
-    embed_backend: Literal["gemini", "google-cloud", "sentence-transformers", "sidecar", "mock"] = Field(default="mock")
+    embed_backend: Literal["google-cloud", "gemini", "sentence-transformers", "sidecar", "mock"] = Field(default="mock")
     embed_model: str = Field(default="gemini-embedding-001")
     embed_sidecar_url: str = Field(default="http://localhost:8001")
     embed_dim: int = Field(default=256, ge=64, le=3072)
@@ -47,9 +51,26 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(default=3600, ge=60)
 
     # Summariser
-    summariser_backend: Literal["mock", "anthropic", "gemini", "google-cloud"] = Field(default="mock")
+    summariser_backend: Literal["google-cloud", "anthropic", "gemini", "mock" ] = Field(default="mock")
     summariser_model: str = Field(default="claude-haiku-4-5-20251001")
     summariser_mock: bool = Field(default=False)
+
+    @model_validator(mode="after")
+    def _parse_combined_model_strings(self) -> "Settings":
+        """Split backend:model combined env var format into separate fields.
+
+        Allows .env to use e.g. EMBED_MODEL=google-cloud:gemini-embedding-001 and
+        SUMMARISER_MODEL=google-cloud:gemini-2.5-flash-lite, matching the GOD_AGENT_MODEL pattern.
+        """
+        if ":" in self.embed_model:
+            backend, _, model = self.embed_model.partition(":")
+            self.embed_backend = backend  # type: ignore[assignment]
+            self.embed_model = model
+        if ":" in self.summariser_model:
+            backend, _, model = self.summariser_model.partition(":")
+            self.summariser_backend = backend  # type: ignore[assignment]
+            self.summariser_model = model
+        return self
     summariser_concurrency: int = Field(default=2, ge=1, le=16)
     summariser_llm_threshold_duration_ms: int = Field(default=5000)
     summariser_rate_limit_rpm: int = Field(default=50, ge=1, le=10000)

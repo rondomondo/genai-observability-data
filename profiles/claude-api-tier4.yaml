@@ -2,6 +2,7 @@ name: claude-api-tier4
 description: Claude API Tier 4 (Sonnet 4.x agent, Haiku 4.5 summariser). RPM 4000,
   OTPM 400000 Sonnet / 800000 Haiku. Maximum standard tier - large-scale data generation.
 god:
+  agent_backend: anthropic
   agent_model: claude-sonnet-4-6
   agent_fallback_model: claude-haiku-4-5-20251001
   mock_mode: false

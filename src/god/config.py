@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     # Prefix with 'google-cloud:' to route through GoogleCloudProvider (ADC / bearer token).
     # Prefix with 'google:' or omit prefix to use the Gemini API key path.
     agent_model: str = Field(default="google-cloud:gemini-2.5-flash-lite", alias="GOD_AGENT_MODEL")
+    agent_backend: str = Field(default="google-cloud", alias="GOD_AGENT_BACKEND")
     # Fallback model tried when the primary returns a 503/overload error (same provider only)
     agent_fallback_model: str | None = Field(
         default=None, alias="GOD_AGENT_FALLBACK_MODEL"

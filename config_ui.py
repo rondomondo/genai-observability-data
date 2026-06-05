@@ -32,14 +32,15 @@ ROOT_ENV = REPO_ROOT / ".env"
 VECSTORE_ENV = REPO_ROOT / "vecstore-api" / ".env"
 BACKUP_DIR = REPO_ROOT / "profiles" / ".backups"
 
-EMBED_BACKENDS = ["mock", "sidecar", "gemini", "sentence-transformers"]
+EMBED_BACKENDS = ["mock", "sidecar", "gemini", "sentence-transformers", "google-cloud"]
 EMBED_MODELS_BY_BACKEND: dict[str, list[str]] = {
-    "gemini": ["gemini-embedding-001", "gemini-embedding-2-preview"],
+    "google-cloud": ["gemini-embedding-001", "gemini-embedding-2-preview"],
     "sidecar": ["Qwen/Qwen3-Embedding-0.6B", "sentence-transformers/all-MiniLM-L6-v2"],
     "sentence-transformers": ["all-MiniLM-L6-v2", "all-mpnet-base-v2"],
     "mock": ["mock-model"],
 }
 EMBED_DIMS_BY_BACKEND: dict[str, int] = {
+    "google-cloud": 768,
     "gemini": 768,
     "sidecar": 1024,
     "sentence-transformers": 384,
@@ -52,11 +53,11 @@ AGENT_MODELS = [
     "claude-opus-4-7",
     "claude-haiku-4-5-20251001",
 ]
-SUMMARISER_BACKENDS = ["mock", "anthropic", "gemini"]
+SUMMARISER_BACKENDS = ["mock", "anthropic", "gemini", "google-cloud"]
 SUMMARISER_MODELS_BY_BACKEND: dict[str, list[str]] = {
     "mock": ["mock-model"],
     "anthropic": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
-    "gemini": ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
+    "google-cloud": ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
 }
 SUMMARISER_MODELS = [
     "claude-sonnet-4-6",
@@ -163,7 +164,7 @@ def _write_env_preserving_secrets(path: Path, new_vals: dict[str, str]) -> None:
 def _profile_to_root_env(profile: dict[str, Any]) -> dict[str, str]:
     g = profile.get("god", {})
     return {
-        "GOD_AGENT_MODEL": str(g.get("agent_model", "gemini-2.5-flash-lite")),
+        "GOD_AGENT_MODEL": f"{g.get('agent_backend', 'google-cloud')}:{g.get('agent_model', 'gemini-2.5-flash-lite')}",
         "GOD_AGENT_FALLBACK_MODEL": str(g.get("agent_fallback_model", "")),
         "GOD_MOCK_MODE": str(g.get("mock_mode", False)).lower(),
         "GOD_DEFAULT_TRACES": str(g.get("default_traces", 100)),
@@ -189,15 +190,13 @@ def _profile_to_root_env(profile: dict[str, Any]) -> dict[str, str]:
 def _profile_to_vecstore_env(profile: dict[str, Any]) -> dict[str, str]:
     v = profile.get("vecstore", {})
     return {
-        "EMBED_BACKEND": str(v.get("embed_backend", "mock")),
-        "EMBED_MODEL": str(v.get("embed_model", "gemini-embedding-001")),
+        "EMBED_MODEL": f"{v.get('embed_backend', 'mock')}:{v.get('embed_model', 'gemini-embedding-001')}",
         "EMBED_DIM": str(v.get("embed_dim", 768)),
         "EMBED_WORKERS": str(v.get("embed_workers", 4)),
         "EMBED_CONCURRENCY": str(v.get("embed_concurrency", 2)),
         "EMBED_BATCH_SIZE": str(v.get("embed_batch_size", 32)),
         "EMBED_RATE_LIMIT_RPM": str(v.get("embed_rate_limit_rpm", 90)),
-        "SUMMARISER_BACKEND": str(v.get("summariser_backend", "mock")),
-        "SUMMARISER_MODEL": str(v.get("summariser_model", "claude-haiku-4-5-20251001")),
+        "SUMMARISER_MODEL": f"{v.get('summariser_backend', 'mock')}:{v.get('summariser_model', 'gemini-2.5-flash-lite')}",
         "SUMMARISER_MOCK": str(v.get("summariser_backend", "mock") == "mock").lower(),
         "SUMMARISER_CONCURRENCY": str(v.get("summariser_concurrency", 2)),
         "SUMMARISER_RATE_LIMIT_RPM": str(v.get("summariser_rate_limit_rpm", 50)),
@@ -718,7 +717,10 @@ function renderEditor() {
   const g = p.god || {};
   const _v = p.vecstore || {};
   // migrate legacy summariser_mock bool to summariser_backend string
-  const v = Object.assign({}, _v, {
+  const v = Object.assign({
+    summariser_concurrency: 2,
+    summariser_rate_limit_rpm: 50,
+  }, _v, {
     summariser_backend: _v.summariser_backend || (_v.summariser_mock ? 'mock' : 'anthropic'),
   });
   const isActive = state.currentFile === state.active;

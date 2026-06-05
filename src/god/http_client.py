@@ -41,7 +41,7 @@ def _make_limiter(rps: float) -> Limiter | None:
     """Build a Limiter for the given rate, or return None when rps <= 0."""
     if rps <= 0:
         return None
-    return Limiter(Rate(rps, Duration.SECOND))
+    return Limiter(Rate(int(rps), Duration.SECOND))
 
 
 class HttpClient:

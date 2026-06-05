@@ -2,10 +2,11 @@ name: gemini-api-tier1
 description: Gemini paid Tier 1. Higher throughput limits - verify RPM against your
   AI Studio dashboard and adjust HTTP_RPS_* accordingly.
 god:
+  agent_backend: google-cloud
   agent_model: gemini-2.5-flash-lite
   agent_fallback_model: null
   mock_mode: false
-  default_traces: 5000
+  default_traces: 20000
   default_rate: 50
   default_batch_size: 100
   vecstore_summarise_traces: true
@@ -23,13 +24,13 @@ god:
   http_retry_backoff_min: 0.5
   http_retry_backoff_max: 60
 vecstore:
-  embed_backend: gemini
+  embed_backend: google-cloud
   embed_model: gemini-embedding-001
   embed_dim: 768
   embed_workers: 8
   embed_concurrency: 4
   embed_batch_size: 64
-  embed_rate_limit_rpm: 1275
+  embed_rate_limit_rpm: 300
   summariser_model: gemini-2.5-flash-lite
   summariser_concurrency: 4
   cache_hit_threshold: 0.92
@@ -39,6 +40,6 @@ vecstore:
   rate_limit_search: 500/minute
   rate_limit_cache: 500/minute
   rate_limit_summarise: 120/minute
-  log_level: DEBUG
+  log_level: INFO
   log_format: json
-  summariser_backend: gemini
+  summariser_backend: google-cloud

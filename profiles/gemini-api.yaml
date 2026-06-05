@@ -2,6 +2,7 @@ name: gemini-api
 description: Full Gemini API stack. Gemini embeddings + agent, Claude summariser.
   Respects Gemini RPM quota.
 god:
+  agent_backend: google-cloud
   agent_model: gemini-2.5-flash-lite
   agent_fallback_model:
   mock_mode: false
@@ -23,7 +24,7 @@ god:
   http_retry_backoff_min: 0.5
   http_retry_backoff_max: 8
 vecstore:
-  embed_backend: gemini
+  embed_backend: google-cloud
   embed_model: gemini-embedding-001
   embed_dim: 768
   embed_workers: 4

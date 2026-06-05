@@ -2,6 +2,7 @@ name: claude-api-tier3
 description: Claude API Tier 3 (Sonnet 4.x agent, Haiku 4.5 summariser). RPM 2000,
   OTPM 160000 Sonnet / 200000 Haiku. High throughput for production-scale generation.
 god:
+  agent_backend: anthropic
   agent_model: claude-sonnet-4-6
   agent_fallback_model: claude-haiku-4-5-20251001
   mock_mode: false

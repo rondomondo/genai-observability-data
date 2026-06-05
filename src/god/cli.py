@@ -9,7 +9,8 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-
+import argparse
+from god.config import Settings
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -282,6 +283,10 @@ async def _run_analysis(traces: list, logs: list, deps, model_override: str | No
 
     return await analyse_batch(traces, logs, deps, model_name=model_override)
 
+def _get_agent_model(args: argparse.Namespace, settings: 'Settings') -> str:
+    model: str = args.agent_model or settings.agent_model
+    backend, _, base = model.partition(":")
+    return model if base else backend
 
 def _capture_analysis(result, scenario: str | None, model: str) -> Path:
     """Write a real-model ScenarioAnalysis to the captured-analyses store.
@@ -598,9 +603,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
 
+
+
+
     if args.analyse:
+        effective_model = _get_agent_model(args, settings)
         console.print("[info]Running scenario analysis agent...[/info]")
-        result = asyncio.run(_run_analysis(all_traces, all_logs, deps, args.agent_model))
+        result = asyncio.run(_run_analysis(all_traces, all_logs, deps, effective_model))
         console.print(_analysis_panel(result))
         if not use_mock:
             effective_model = args.agent_model or settings.agent_model

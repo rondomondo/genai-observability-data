@@ -103,9 +103,14 @@ class _SidecarEmbeddingModel(EmbeddingModel):
 
 
 def _build_google_cloud_embedding_model(settings: Settings) -> EmbeddingModel:
-    """Build a GoogleEmbeddingModel backed by GoogleCloudProvider using Application Default Credentials."""
+    """Build a GoogleEmbeddingModel backed by GoogleCloudProvider.
+
+    Uses an explicit access token when ``settings.google_access_token`` is set,
+    otherwise falls back to Application Default Credentials.
+    """
     try:
         import google.auth
+        import google.oauth2.credentials
         from pydantic_ai.embeddings.google import GoogleEmbeddingModel
         from pydantic_ai.providers.google_cloud import GoogleCloudProvider
     except ImportError as exc:
@@ -113,8 +118,17 @@ def _build_google_cloud_embedding_model(settings: Settings) -> EmbeddingModel:
             "google-auth and pydantic-ai google support are required for embed_backend='google-cloud'. "
             "Install with: uv add google-auth pydantic-ai-slim[google]"
         ) from exc
-    credentials, project = google.auth.default()
-    provider = GoogleCloudProvider(credentials=credentials, project=project)
+    if settings.google_access_token:
+        credentials = google.oauth2.credentials.Credentials(token=settings.google_access_token)
+        project = settings.google_cloud_project or None
+    else:
+        credentials, project = google.auth.default()
+        project = settings.google_cloud_project or project
+    provider = GoogleCloudProvider(
+        credentials=credentials,
+        project=project,
+        location=settings.google_cloud_location or None,
+    )
     return GoogleEmbeddingModel(settings.embed_model, provider=provider)
 
 

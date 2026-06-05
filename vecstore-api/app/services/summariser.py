@@ -12,7 +12,7 @@ import time
 
 from pydantic_ai import Agent
 from pydantic_ai.models.anthropic import AnthropicModel
-from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.models.google import GoogleModel
 from pyrate_limiter import Duration, Limiter, Rate
 
 from app.config import Settings
@@ -52,17 +52,27 @@ class Summariser:
             if backend == "google-cloud":
                 try:
                     import google.auth
+                    import google.oauth2.credentials
                     from pydantic_ai.providers.google_cloud import GoogleCloudProvider
                 except ImportError as exc:
                     raise ImportError(
                         "google-auth and pydantic-ai google support are required for "
                         "summariser_backend='google-cloud'. Install with: uv add google-auth pydantic-ai-slim[google]"
                     ) from exc
-                credentials, project = google.auth.default()
-                provider = GoogleCloudProvider(credentials=credentials, project=project)
-                model = GeminiModel(self._settings.summariser_model, provider=provider)
+                if self._settings.google_access_token:
+                    credentials = google.oauth2.credentials.Credentials(token=self._settings.google_access_token)
+                    project = self._settings.google_cloud_project or None
+                else:
+                    credentials, project = google.auth.default()
+                    project = self._settings.google_cloud_project or project
+                provider = GoogleCloudProvider(
+                    credentials=credentials,
+                    project=project,
+                    location=self._settings.google_cloud_location or None,
+                )
+                model = GoogleModel(self._settings.summariser_model, provider=provider)
             elif backend == "gemini":
-                model = GeminiModel(self._settings.summariser_model)
+                model = GoogleModel(self._settings.summariser_model)
             else:
                 model = AnthropicModel(self._settings.summariser_model)
             self._agent = Agent(

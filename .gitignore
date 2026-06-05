@@ -1,7 +1,7 @@
 # -- Secrets & credentials ----------------------------------------------------
 .env
 .env.*
-!.env.example
+.env.example
 !.env.template
 *.cer
 *.crt
@@ -15,6 +15,7 @@ secrets/
 secrets/**
 *credentials*
 *secret*
+*client_secret*
 
 # -- OS / Editor ---------------------------------------------------------------
 .DS_Store
