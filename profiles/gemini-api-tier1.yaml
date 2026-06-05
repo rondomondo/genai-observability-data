@@ -4,11 +4,11 @@ description: Gemini paid Tier 1. Higher throughput limits - verify RPM against y
 god:
   agent_backend: google-cloud
   agent_model: gemini-2.5-flash-lite
-  agent_fallback_model: null
+  agent_fallback_model: gemini-2.5-flash
   mock_mode: false
-  default_traces: 20000
+  default_traces: 200
   default_rate: 50
-  default_batch_size: 100
+  default_batch_size: 64
   vecstore_summarise_traces: true
   vecstore_summarise_logs: true
   vecstore_async_mode: true
@@ -40,6 +40,9 @@ vecstore:
   rate_limit_search: 500/minute
   rate_limit_cache: 500/minute
   rate_limit_summarise: 120/minute
-  log_level: INFO
+  log_level: DEBUG
   log_format: json
   summariser_backend: google-cloud
+credentials:
+  GOOGLE_CLOUD_PROJECT: nimble-cortex-498410-u8
+  GOOGLE_CLOUD_LOCATION: ''

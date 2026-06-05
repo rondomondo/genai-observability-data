@@ -367,7 +367,7 @@ dev: ## Run vecstore-api dev server (pass EMBED_BACKEND=, SUMMARISER_BACKEND= et
 
 .PHONY: ui
 ui: ## Launch the config UI (vecstore-api profile editor)
-	uv run --directory vecstore-api python ../config_ui.py
+	REPO_ROOT=$(CURDIR) uv run --directory vecstore-api python $(CURDIR)/config_ui.py
 
 # -- embedder-sidecar -----------------------------------------
 SIDECAR_DIR  := embedder-sidecar

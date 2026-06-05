@@ -13,6 +13,7 @@ Or if fastapi/uvicorn/pyyaml are already on PATH:
 import copy
 import json
 import logging
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -26,7 +27,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 log = logging.getLogger("config_ui")
 
-REPO_ROOT = Path(__file__).parent.resolve()
+REPO_ROOT = Path(os.environ["REPO_ROOT"]) if "REPO_ROOT" in os.environ else Path(__file__).parent.resolve()
 PROFILES_DIR = REPO_ROOT / "profiles"
 ROOT_ENV = REPO_ROOT / ".env"
 VECSTORE_ENV = REPO_ROOT / "vecstore-api" / ".env"
@@ -45,6 +46,13 @@ EMBED_DIMS_BY_BACKEND: dict[str, int] = {
     "sidecar": 1024,
     "sentence-transformers": 384,
     "mock": 256,
+}
+AGENT_BACKENDS = ["mock", "google-cloud", "gemini", "anthropic"]
+AGENT_MODELS_BY_BACKEND: dict[str, list[str]] = {
+    "mock": ["mock-model"],
+    "google-cloud": ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
+    "gemini": ["gemini-2.5-flash-lite", "gemini-2.5-flash"],
+    "anthropic": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
 }
 AGENT_MODELS = [
     "gemini-2.5-flash",
@@ -161,9 +169,20 @@ def _write_env_preserving_secrets(path: Path, new_vals: dict[str, str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _credentials_to_env(profile: dict[str, Any]) -> dict[str, str]:
+    """Extract provider credential env vars from the top-level credentials key."""
+    c = profile.get("credentials", {})
+    result: dict[str, str] = {}
+    for key in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION", "EMBED_SIDECAR_URL"):
+        val = c.get(key)
+        if val:
+            result[key] = str(val)
+    return result
+
+
 def _profile_to_root_env(profile: dict[str, Any]) -> dict[str, str]:
     g = profile.get("god", {})
-    return {
+    env = {
         "GOD_AGENT_MODEL": f"{g.get('agent_backend', 'google-cloud')}:{g.get('agent_model', 'gemini-2.5-flash-lite')}",
         "GOD_AGENT_FALLBACK_MODEL": str(g.get("agent_fallback_model", "")),
         "GOD_MOCK_MODE": str(g.get("mock_mode", False)).lower(),
@@ -185,11 +204,16 @@ def _profile_to_root_env(profile: dict[str, Any]) -> dict[str, str]:
         "HTTP_RETRY_BACKOFF_MIN": str(g.get("http_retry_backoff_min", 0.5)),
         "HTTP_RETRY_BACKOFF_MAX": str(g.get("http_retry_backoff_max", 8.0)),
     }
+    creds = _credentials_to_env(profile)
+    for key in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"):
+        if key in creds:
+            env[key] = creds[key]
+    return env
 
 
 def _profile_to_vecstore_env(profile: dict[str, Any]) -> dict[str, str]:
     v = profile.get("vecstore", {})
-    return {
+    env = {
         "EMBED_MODEL": f"{v.get('embed_backend', 'mock')}:{v.get('embed_model', 'gemini-embedding-001')}",
         "EMBED_DIM": str(v.get("embed_dim", 768)),
         "EMBED_WORKERS": str(v.get("embed_workers", 4)),
@@ -210,6 +234,11 @@ def _profile_to_vecstore_env(profile: dict[str, Any]) -> dict[str, str]:
         "LOG_LEVEL": str(v.get("log_level", "INFO")),
         "LOG_FORMAT": str(v.get("log_format", "console")),
     }
+    creds = _credentials_to_env(profile)
+    for key in ("GEMINI_API_KEY", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION", "EMBED_SIDECAR_URL"):
+        if key in creds:
+            env[key] = creds[key]
+    return env
 
 
 # API routes
@@ -269,6 +298,8 @@ async def meta_options() -> JSONResponse:
         "embed_backends": EMBED_BACKENDS,
         "embed_models_by_backend": EMBED_MODELS_BY_BACKEND,
         "embed_dims_by_backend": EMBED_DIMS_BY_BACKEND,
+        "agent_backends": AGENT_BACKENDS,
+        "agent_models_by_backend": AGENT_MODELS_BY_BACKEND,
         "agent_models": AGENT_MODELS,
         "summariser_backends": SUMMARISER_BACKENDS,
         "summariser_models_by_backend": SUMMARISER_MODELS_BY_BACKEND,
@@ -478,7 +509,7 @@ _HTML = r"""<!DOCTYPE html>
   .btn-new:hover { background: #3182ce; }
 
   /* Main */
-  .main { padding: 24px 28px; overflow-y: auto; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.15); margin: 8px 8px 8px 0; }
+  .main { padding: 24px 28px; overflow-y: auto; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.15); margin: 8px 8px 8px 0; user-select: none; }
   body.light .main { box-shadow: inset 0 1px 3px rgba(0,0,0,.08), inset 0 0 0 1px rgba(0,0,0,.06); }
   .title-bar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; gap: 12px; }
   .title-bar h2 { font-size: 18px; font-weight: 700; margin: 0; flex: 1; }
@@ -486,8 +517,14 @@ _HTML = r"""<!DOCTYPE html>
   .main .subtitle { font-size: 13px; color: var(--text-dim); margin-top: 4px; margin-bottom: 12px; }
 
   /* Sections */
-  .section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-  .section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 14px; }
+  .section { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+  .section summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 14px 20px; cursor: pointer; user-select: none; }
+  .section summary::-webkit-details-marker { display: none; }
+  .section summary h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 0; flex: 1; }
+  .section summary::after { content: '▾'; font-size: 18px; color: var(--accent); transition: transform .2s; }
+  .section:not([open]) summary::after { transform: rotate(-90deg); }
+  .section-body { padding: 0 20px 20px; }
+  .main input, .main select, .main textarea { user-select: text; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 
@@ -662,7 +699,7 @@ _HTML = r"""<!DOCTYPE html>
       <div id="profile-list"></div>
       <button class="btn-new" onclick="newProfile()">+ New profile</button>
     </aside>
-    <main class="main" id="main">
+    <main class="main" id="main" ondblclick="toggleAllSections(event)" ontouchend="toggleAllSections(event)">
       <div class="empty"><div class="big">&#9881;</div><p>Select a profile to edit</p></div>
     </main>
   </div>
@@ -714,7 +751,7 @@ async function loadProfile(filename) {
 function renderEditor() {
   const p = state.current;
   const o = state.options;
-  const g = p.god || {};
+  const g = Object.assign({ agent_backend: 'google-cloud' }, p.god || {});
   const _v = p.vecstore || {};
   // migrate legacy summariser_mock bool to summariser_backend string
   const v = Object.assign({
@@ -723,6 +760,7 @@ function renderEditor() {
   }, _v, {
     summariser_backend: _v.summariser_backend || (_v.summariser_mock ? 'mock' : 'anthropic'),
   });
+  const c = p.credentials || {};
   const isActive = state.currentFile === state.active;
 
   document.getElementById("main").innerHTML = `
@@ -744,11 +782,26 @@ function renderEditor() {
       <div class="field"><label>Description</label><input id="f-desc" value="${esc(p.description || '')}" oninput="patch('description',this.value)"></div>
     </div>
 
-    <div class="section">
-      <h3>God agent</h3>
-      <div class="grid2">
-        ${sel('Agent model', 'g.agent_model', g.agent_model, o.agent_models, 'Primary LLM used by the god data generator to drive workflows.')}
-        ${sel('Fallback model', 'g.agent_fallback_model', g.agent_fallback_model, o.agent_models, 'Used automatically if the primary model returns a rate-limit or quota error.')}
+    ${sec('god-agent', 'God agent', `
+      <div class="grid3">
+        <div class="field">
+          <label data-tip="LLM provider for the god agent. mock = no API key needed; google-cloud = Vertex AI; gemini = Gemini API; anthropic = Claude models.">Backend<span class="tip-dot">i</span></label>
+          <select id="f-agent-backend" onchange="onAgentBackendChange(this.value)">
+            ${o.agent_backends.map(b => `<option ${b===g.agent_backend?'selected':''}>${b}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Agent model</label>
+          <select id="f-agent-model" onchange="patch('g.agent_model',this.value)">
+            ${(o.agent_models_by_backend[g.agent_backend] || o.agent_models).map(m => `<option ${m===g.agent_model?'selected':''}>${esc(m)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Fallback model</label>
+          <select id="f-agent-fallback-model" onchange="patch('g.agent_fallback_model',this.value)">
+            ${(o.agent_models_by_backend[g.agent_backend] || o.agent_models).map(m => `<option ${m===g.agent_model?'selected':''}>${esc(m)}</option>`).join('')}
+          </select>
+        </div>
       </div>
       <div style="margin-top:14px">
         ${tog('Mock mode (no API key)', 'g.mock_mode', g.mock_mode)}
@@ -763,10 +816,9 @@ function renderEditor() {
         ${tog('Summarise logs', 'g.vecstore_summarise_logs', g.vecstore_summarise_logs)}
         ${tog('Async mode', 'g.vecstore_async_mode', g.vecstore_async_mode)}
       </div>
-    </div>
+    `)}
 
-    <div class="section">
-      <h3>Egress rate limiting (god HTTP client)</h3>
+    ${sec('egress-rate', 'Egress rate limiting (god HTTP client)', `
       <p style="font-size:11px;color:#718096;margin-bottom:12px">Concurrency = max in-flight requests. RPS = token-bucket cap (0 = unlimited).</p>
       <div class="grid2">
         ${rng('Ingest concurrency', 'g.http_rate_ingest', g.http_rate_ingest, 1, 20, 1, false, 'Max simultaneous ingest requests held open at once (asyncio.Semaphore).')}
@@ -783,10 +835,9 @@ function renderEditor() {
         ${num('Backoff min (s)', 'g.http_retry_backoff_min', g.http_retry_backoff_min, 0.1, 10, 0.1, 'Minimum wait between retries. Actual wait grows exponentially up to the max.')}
         ${num('Backoff max (s)', 'g.http_retry_backoff_max', g.http_retry_backoff_max, 1, 60, 0.5, 'Maximum wait between retries. Set to >=60 if upstream quotas reset on a per-minute window.')}
       </div>
-    </div>
+    `)}
 
-    <div class="section">
-      <h3>Embedding</h3>
+    ${sec('embedding', 'Embedding', `
       <div class="grid2">
         <div class="field">
           <label data-tip="Where embeddings are computed. mock = no API key needed; gemini = Gemini API; sidecar = local inference server; sentence-transformers = local Python library.">Backend<span class="tip-dot">i</span></label>
@@ -806,10 +857,9 @@ function renderEditor() {
         ${rng('Batch size', 'v.embed_batch_size', v.embed_batch_size, 1, 128, 1, false, 'Texts sent per embedding API call. Larger = fewer round trips but higher per-call latency.')}
         ${rng('Rate limit RPM (Gemini)', 'v.embed_rate_limit_rpm', v.embed_rate_limit_rpm, 1, 300, 1, false, 'Outbound token-bucket cap for Gemini embedding calls. Only active when backend=gemini. Set to ~90% of your Gemini embed quota RPM.')}
       </div>
-    </div>
+    `)}
 
-    <div class="section">
-      <h3>Summariser</h3>
+    ${sec('summariser', 'Summariser', `
       <div class="grid2">
         <div class="field">
           <label data-tip="LLM provider for summarisation. mock = no API key needed; anthropic = Claude models; gemini = Gemini models.">Backend<span class="tip-dot">i</span></label>
@@ -826,10 +876,9 @@ function renderEditor() {
         ${rng('Concurrency', 'v.summariser_concurrency', v.summariser_concurrency, 1, 16, 1, false, 'Max simultaneous summarisation calls. Each call hits the LLM - keep proportionate to your LLM rate limit.')}
         ${rng('Rate limit RPM', 'v.summariser_rate_limit_rpm', v.summariser_rate_limit_rpm, 1, 2000, 1, false, 'Outbound token-bucket cap for LLM summarisation calls. Set to ~90% of your model quota RPM.')}
       </div>
-    </div>
+    `)}
 
-    <div class="section">
-      <h3>Semantic cache</h3>
+    ${sec('semantic-cache', 'Semantic cache', `
       <div class="grid3">
         <div class="field">
           <label data-tip="Cosine similarity threshold for a cache hit. 1.0 = exact match only; 0.9 = near-duplicate; lower values return more results but reduce precision.">Hit threshold (${v.cache_hit_threshold})<span class="tip-dot">i</span></label>
@@ -842,10 +891,9 @@ function renderEditor() {
         </div>
         ${num('TTL (seconds)', 'v.cache_ttl_seconds', v.cache_ttl_seconds, 60, 86400, 1, 'How long a cached result is considered valid. After TTL expires the entry is evicted on next read.')}
       </div>
-    </div>
+    `)}
 
-    <div class="section">
-      <h3>Ingress rate limits (vecstore-api per-IP)</h3>
+    ${sec('ingress-rate', 'Ingress rate limits (vecstore-api per-IP)', `
       <p style="font-size:11px;color:#718096;margin-bottom:12px">slowapi / limits syntax: "120/minute", "10/second". Leave blank to disable.</p>
       <div class="grid2">
         ${txt('Ingest', 'v.rate_limit_ingest', v.rate_limit_ingest, 'Per-IP limit on /ingest/* endpoints. Should not exceed embed_workers x embed_concurrency x 60/min.')}
@@ -854,17 +902,74 @@ function renderEditor() {
         ${txt('Cache', 'v.rate_limit_cache', v.rate_limit_cache, 'Per-IP limit on /cache/query and /cache (store).')}
         ${txt('Summarise', 'v.rate_limit_summarise', v.rate_limit_summarise, 'Per-IP limit on /summarise/*. Each call triggers an LLM request - keep lower than ingest.')}
       </div>
-    </div>
+    `)}
 
-    <div class="section">
-      <h3>Logging</h3>
+    ${sec('logging', 'Logging', `
       <div class="grid2">
         ${sel('Log level', 'v.log_level', v.log_level, o.log_levels, 'Minimum severity to emit. DEBUG is very verbose; use INFO or WARNING in production.')}
         ${sel('Log format', 'v.log_format', v.log_format, o.log_formats, 'console = human-readable coloured output; json = structured for log aggregators; logfmt = key=value pairs.')}
       </div>
-    </div>
+    `)}
+
+    ${_credentialsSection(v, g, c)}
   `;
   _applyStoredTheme();
+}
+
+function _credentialsSection(v, g, c) {
+  const eb = v.embed_backend || 'mock';
+  const sb = v.summariser_backend || 'mock';
+  const ab = g.agent_backend || 'mock';
+  const needsGoogle  = eb === 'google-cloud' || sb === 'google-cloud' || ab === 'google-cloud';
+  const needsGemini  = eb === 'gemini' || sb === 'gemini' || ab === 'gemini';
+  const needsAnthropic = sb === 'anthropic' || ab === 'anthropic';
+  const needsSidecar = eb === 'sidecar';
+  if (!needsGoogle && !needsGemini && !needsAnthropic && !needsSidecar) return '';
+  const rows = [];
+  if (needsAnthropic)
+    rows.push(credTxt('Anthropic API key', 'credentials.ANTHROPIC_API_KEY', c.ANTHROPIC_API_KEY, 'sk-ant-...', 'Used by the summariser or agent when backend=anthropic. Written to root .env as ANTHROPIC_API_KEY.'));
+  if (needsGemini)
+    rows.push(credTxt('Gemini API key', 'credentials.GEMINI_API_KEY', c.GEMINI_API_KEY, 'AIza...', 'Used when embed/summariser/agent backend=gemini. Written to both .env files as GEMINI_API_KEY.'));
+  if (needsGoogle) {
+    rows.push(credTxt('Google Cloud project', 'credentials.GOOGLE_CLOUD_PROJECT', c.GOOGLE_CLOUD_PROJECT, 'my-project-123', 'GCP project ID for Vertex AI / google-cloud backends. Written to both .env files as GOOGLE_CLOUD_PROJECT.'));
+    rows.push(credTxt('Google Cloud location', 'credentials.GOOGLE_CLOUD_LOCATION', c.GOOGLE_CLOUD_LOCATION, 'us-central1', 'Vertex AI region. Written to both .env files as GOOGLE_CLOUD_LOCATION.'));
+  }
+  if (needsSidecar)
+    rows.push(credTxt('Embed sidecar URL', 'credentials.EMBED_SIDECAR_URL', c.EMBED_SIDECAR_URL, 'http://localhost:8001', 'Base URL of the local embedding inference server when embed_backend=sidecar. Written to vecstore .env as EMBED_SIDECAR_URL.'));
+  const grid = `<div class="grid2">${rows.join('')}</div>`;
+  return sec('credentials', 'Provider credentials', grid);
+}
+
+// Section helper
+const SECTION_KEY = 'cfg-sections-open';
+function _secOpen(id) {
+  try { const s = JSON.parse(localStorage.getItem(SECTION_KEY)||'{}'); return s[id] !== false; } catch { return true; }
+}
+function _secToggle(el) {
+  try {
+    const s = JSON.parse(localStorage.getItem(SECTION_KEY)||'{}');
+    s[el.id] = el.open;
+    localStorage.setItem(SECTION_KEY, JSON.stringify(s));
+  } catch {}
+}
+let _tapTimer = null;
+function toggleAllSections(ev) {
+  if (ev.type === 'touchend') {
+    if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; } else { _tapTimer = setTimeout(() => { _tapTimer = null; }, 350); return; }
+  }
+  ev.preventDefault();
+  ev.stopPropagation();
+  const sections = document.querySelectorAll('#main details.section');
+  if (!sections.length) return;
+  const anyOpen = Array.from(sections).some(d => d.open);
+  sections.forEach(d => { d.open = !anyOpen; _secToggle(d); });
+}
+function sec(id, title, body) {
+  const open = _secOpen(id) ? ' open' : '';
+  return `<details class="section" id="${id}"${open} ontoggle="_secToggle(this)">
+    <summary><h3>${title}</h3></summary>
+    <div class="section-body">${body}</div>
+  </details>`;
 }
 
 // Field helpers
@@ -883,6 +988,9 @@ function num(label, key, val, min, max, step=1, tip='') {
 }
 function txt(label, key, val, tip='') {
   return `<div class="field">${_lbl(label,tip)}<input type="text" value="${esc(val)}" oninput="patch('${key}',this.value)"></div>`;
+}
+function credTxt(label, key, val, placeholder='', tip='') {
+  return `<div class="field">${_lbl(label,tip)}<input type="password" autocomplete="off" value="${esc(val||'')}" placeholder="${esc(placeholder)}" oninput="patch('${key}',this.value)"></div>`;
 }
 function rng(label, key, val, min, max, step=1, float=false, tip='') {
   const id = 'rng_' + key.replace(/\./g,'_');
@@ -904,12 +1012,13 @@ function patch(key, val) {
   const parts = key.split('.');
   let obj = state.current;
   // map short prefix to actual profile section
-  const section = parts[0] === 'g' ? 'god' : parts[0] === 'v' ? 'vecstore' : null;
-  if (section) {
+  const ALIASES = {g: 'god', v: 'vecstore'};
+  const section = ALIASES[parts[0]] || parts[0];
+  if (parts.length >= 2) {
     if (!obj[section]) obj[section] = {};
     obj[section][parts[1]] = val;
   } else {
-    obj[parts[0]] = val;
+    obj[section] = val;
   }
   state.dirty = true;
 }
@@ -929,6 +1038,14 @@ function onSummariserBackendChange(backend) {
   patch('v.summariser_backend', backend);
   const models = opts.summariser_models_by_backend[backend] || [];
   if (models.length) patch('v.summariser_model', models[0]);
+  renderEditor();
+}
+
+function onAgentBackendChange(backend) {
+  const opts = state.options;
+  patch('g.agent_backend', backend);
+  const models = opts.agent_models_by_backend[backend] || [];
+  if (models.length) patch('g.agent_model', models[0]);
   renderEditor();
 }
 
@@ -1003,7 +1120,7 @@ function newProfile() {
   const newFile = newName.replace(/[^a-z0-9_-]/gi,'_').toLowerCase() + '.yaml';
   state.current = {
     name: newName, description: '',
-    god: { agent_model:'gemini-2.5-flash-lite', agent_fallback_model:'', mock_mode:true,
+    god: { agent_backend:'mock', agent_model:'gemini-2.5-flash-lite', agent_fallback_model:'', mock_mode:true,
            default_traces:100, default_rate:10.0, default_batch_size:50,
            vecstore_summarise_traces:true, vecstore_summarise_logs:false, vecstore_async_mode:true,
            http_rate_ingest:8, http_rate_search:4, http_rate_cache:4, http_rate_admin:2,

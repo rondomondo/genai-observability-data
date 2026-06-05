@@ -69,7 +69,8 @@ except ImportError:
 
 ANTHROPIC_MODELS: set[str] = {"claude-sonnet-4-6"}
 BRAINTRUST_BASE_URL = "https://braintrustproxy.com/v1"
-DEFAULT_LOCATION = "us-central1"
+DEFAULT_LOCATION = ""
+#DEFAULT_LOCATION = "us-central1"
 
 EMBEDDING_MODELS: dict[str, str] = {
     # Gemini Series (High dimension, advanced reasoning)
@@ -109,7 +110,8 @@ _SORTED_QUERY_MODELS = sorted(QUERY_MODELS)
 _ALL_KNOWN_MODELS = sorted({*EMBEDDING_MODELS, *QUERY_MODELS})
 
 
-def _build_client_api_key(api_key: str, braintrust_key: str | None) -> genai.Client:
+print(os.environ)
+def build_client_api_key(api_key: str, braintrust_key: str | None) -> genai.Client:
     """Build a GenAI client authenticated with a Google API key.
 
     Args:
@@ -129,7 +131,7 @@ def _build_client_api_key(api_key: str, braintrust_key: str | None) -> genai.Cli
     return genai.Client(api_key=api_key)
 
 
-def _build_client_vertex(
+def build_client_vertex(
     project: str,
     location: str,
     access_token: str | None,
@@ -184,7 +186,7 @@ def _build_client_vertex(
     )
 
 
-async def _run_embed(client: genai.Client, model: str) -> dict[str, Any]:
+async def run_embed(client: genai.Client, model: str) -> dict[str, Any]:
     """Run an embedding sample and return a result payload.
 
     Args:
@@ -228,10 +230,11 @@ async def _run_embed(client: genai.Client, model: str) -> dict[str, Any]:
         "first_5_values": [round(v, 6) for v in vector[:5]],
         "text_preview": SAMPLE_TEXT[:80],
         "task_type": getattr(embedding_obj, "task_type", None),
+#        "result": result.model_dump(),
     }
 
 
-async def _run_query(client: genai.Client, model: str) -> dict[str, Any]:
+async def run_query(client: genai.Client, model: str) -> dict[str, Any]:
     """Run a minimal generative query sample and return result fields.
 
     Args:
@@ -275,7 +278,7 @@ async def _run_query(client: genai.Client, model: str) -> dict[str, Any]:
     }
 
 
-async def _run_query_anthropic(api_key: str, model: str) -> dict[str, Any]:
+async def run_query_anthropic(api_key: str, model: str) -> dict[str, Any]:
     """Run a minimal generative query via the Anthropic SDK and return result fields.
 
     Args:
@@ -328,7 +331,7 @@ async def _run_query_anthropic(api_key: str, model: str) -> dict[str, Any]:
     }
 
 
-def _emit_model_help() -> str:
+def emit_model_help() -> str:
     lines = ["Model to use. Defaults to gemini-embedding-001 for embed mode, gemini-2.5-flash for query mode."]
     lines.append("Embedding models:")
     for name, desc in sorted(EMBEDDING_MODELS.items()):
@@ -339,7 +342,7 @@ def _emit_model_help() -> str:
     return " ".join(lines)
 
 
-async def _async_main() -> None:
+async def async_main() -> None:
     parser = argparse.ArgumentParser(
         description="Test Google GenAI connectivity (API key, bearer token, or ADC)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -349,8 +352,8 @@ async def _async_main() -> None:
     auth_group.add_argument(
         "--api-key",
         metavar="KEY",
-        default=os.environ.get("GEMINI_API_KEY"),
-        help="Google API key for the Gemini endpoint (default: $GEMINI_API_KEY)",
+        default=os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"),
+        help="Google API key for the Gemini endpoint (default: $GOOGLE_API_KEY or $GEMINI_API_KEY)",
     )
     auth_group.add_argument(
         "--anthropic-key",
@@ -387,7 +390,7 @@ async def _async_main() -> None:
         metavar="MODEL",
         default=None,
         choices=_ALL_KNOWN_MODELS,
-        help=_emit_model_help(),
+        help=emit_model_help(),
     )
     parser.add_argument(
         "--mode",
@@ -486,6 +489,11 @@ async def _async_main() -> None:
         client = None
     else:
         # Determine Google auth mode
+        # A GEMINI_API_KEY / GOOGLE_API_KEY starting with ya29. is an OAuth2 bearer token, not a static key
+        api_key_is_token = args.api_key is not None and args.api_key.startswith("ya29.")
+        if api_key_is_token and args.access_token is None:
+            args.access_token = args.api_key
+            args.api_key = None
         use_vertex = args.access_token is not None or args.api_key is None
         if use_vertex and not args.api_key and not args.project:
             print(
@@ -500,22 +508,22 @@ async def _async_main() -> None:
             log(f"  location:{args.location}")
             if args.access_token:
                 log(f"  token:   {args.access_token[:12]}{'*' * max(0, len(args.access_token) - 12)}")
-            client = _build_client_vertex(args.project, args.location, args.access_token)
+            client = build_client_vertex(args.project, args.location, args.access_token)
             auth_mode = "access_token" if args.access_token else "adc"
         else:
             log(f"  api_key: {args.api_key[:8]}{'*' * max(0, len(args.api_key) - 8)}")
-            client = _build_client_api_key(args.api_key, args.braintrust_key)
+            client = build_client_api_key(args.api_key, args.braintrust_key)
             auth_mode = "api_key"
 
     log("  sending sample request ...")
 
     try:
         if use_anthropic:
-            sample_result = await _run_query_anthropic(args.anthropic_key, args.model)
+            sample_result = await run_query_anthropic(args.anthropic_key, args.model)
         elif mode == "embed":
-            sample_result = await _run_embed(client, args.model)
+            sample_result = await run_embed(client, args.model)
         else:
-            sample_result = await _run_query(client, args.model)
+            sample_result = await run_query(client, args.model)
     except TimeoutError:
         output: dict[str, Any] = {
             "ok": False,
@@ -567,7 +575,7 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Synchronous entry point for CLI invocation."""
-    asyncio.run(_async_main())
+    asyncio.run(async_main())
 
 
 if __name__ == "__main__":
