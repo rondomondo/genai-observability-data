@@ -1,0 +1,46 @@
+{
+  "active_scenarios": [
+    "agentic_cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "High error rate observed in postgres-auth, agent-service, and payments-service."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "High error rate observed in postgres-auth, agent-service, and payments-service."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "High error rate observed in postgres-auth, agent-service, and payments-service."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "LLM token truncations detected."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "medium",
+      "detail": "Tool execution failures detected."
+    }
+  ],
+  "error_rate": 0.2105,
+  "p99_latency_ms": 12850.6,
+  "recommended_action": "Investigate the root cause of the high error rates in postgres-auth, agent-service, and payments-service. The active fault injection scenario 'agentic_cascading_failure' may be contributing to these issues. Also, check LLM token truncation and tool failure rates.",
+  "summary": "High error rate (21%) and high p99 latency (12.8s) with critical errors in postgres-auth and agent-service, high errors in payments-service. An 'agentic_cascading_failure' scenario is active, alongside LLM token truncations and tool failures.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash-lite",
+    "captured_at": "2026JUN05043150",
+    "scenario": "agentic_cascading_failure"
+  }
+}

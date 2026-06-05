@@ -1,0 +1,28 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "2 errors in postgres-auth"
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "1 errors in auth-service"
+    }
+  ],
+  "error_rate": 0.0968,
+  "p99_latency_ms": 4482.1,
+  "recommended_action": "Investigate the 'postgres-auth' service for the source of the errors. The 'cascading_failure' scenario may be exacerbating the issue.",
+  "summary": "High error rate (9.68%) primarily from 'postgres-auth' and 'auth-service', with a high p99 latency of 4482ms. A 'cascading_failure' scenario is active.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash-lite",
+    "captured_at": "2026JUN05041616",
+    "scenario": "cascading_failure"
+  }
+}

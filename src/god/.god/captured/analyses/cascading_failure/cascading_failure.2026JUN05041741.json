@@ -1,0 +1,34 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "auth-service has 1 error spans"
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "postgres-auth has 2 error spans"
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "payments-service has 1 error spans"
+    }
+  ],
+  "error_rate": 0.16,
+  "p99_latency_ms": 465.0,
+  "recommended_action": "Investigate errors in auth-service and postgres-auth. Consider disabling fault injection if cascading_failure is not intentional.",
+  "summary": "The application is experiencing a 16% error rate with p99 latency at 465ms, with errors concentrated in auth-service and postgres-auth. A cascading_failure scenario is active.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash-lite",
+    "captured_at": "2026JUN05041741",
+    "scenario": "cascading_failure"
+  }
+}

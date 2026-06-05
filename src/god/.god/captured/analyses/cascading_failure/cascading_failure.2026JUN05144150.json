@@ -1,0 +1,40 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "all services",
+      "signal_type": "latency_spike",
+      "severity": "critical",
+      "detail": "Overall p99 latency is 15536.5 ms, indicating significant performance degradation."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "30% error rate (3 out of 10 spans) in postgres-auth service."
+    },
+    {
+      "service": "workflow-orchestrator",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "25% error rate (1 out of 4 spans) in workflow-orchestrator service."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "low",
+      "detail": "10% error rate (1 out of 10 spans) in auth-service."
+    }
+  ],
+  "error_rate": 0.0581,
+  "p99_latency_ms": 15536.5,
+  "recommended_action": "Investigate postgres-auth and workflow-orchestrator errors and their impact on cascading failures.",
+  "summary": "High p99 latency (over 15s) and elevated error rates detected, particularly in postgres-auth and workflow-orchestrator, likely exacerbated by an active cascading failure scenario.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash",
+    "captured_at": "2026JUN05144150",
+    "scenario": "cascading_failure"
+  }
+}

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOD - Genai Observability Data</title>
+    <style>
+        :root {
+            --bg-color: #0d0e12;
+            --text-color: #f3f4f6;
+            --accent-color: #6366f1;
+            --muted-color: #9ca3af;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 600px;
+            padding: 20px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-color);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin: 0 0 1rem 0;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, #ffffff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            font-size: 1.25rem;
+            color: var(--muted-color);
+            margin: 0 0 2rem 0;
+            line-height: 1.6;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--muted-color);
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="badge">Test Page</div>
+        <h1>GOD</h1>
+        <p>Genai Observability Data</p>
+        
+A synthetic observability data generator that produces realistic distributed traces and structured logs
+for GenAI-powered systems, following the [OpenTelemetry GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+(semconv 1.41.0, experimental).
+
+Use it to populate an OTel stack (Jaeger + Loki + Grafana + Prometheus) with representative data for
+dashboarding, alerting rule development, anomaly detection, or testing observability tooling against
+GenAI workloads - without needing a live production system.
+
+        <div class="status">
+            <div class="pulse"></div>
+            <span>Systems initialising. Launching soon.</span>
+        </div>
+    </div>
+
+</body>
+</html>

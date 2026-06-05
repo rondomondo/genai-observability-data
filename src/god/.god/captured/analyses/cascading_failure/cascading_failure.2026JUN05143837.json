@@ -1,0 +1,28 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "3 errors detected in postgres-auth service."
+    },
+    {
+      "service": "overall",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "P99 latency is 6136.7 ms, indicating significant performance degradation for some requests."
+    }
+  ],
+  "error_rate": 0.0375,
+  "p99_latency_ms": 6136.7,
+  "recommended_action": "Investigate postgres-auth service health and performance to mitigate cascading failure.",
+  "summary": "Detected a high p99 latency of over 6 seconds and an error spike in postgres-auth, potentially related to a cascading failure scenario.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash",
+    "captured_at": "2026JUN05143837",
+    "scenario": "cascading_failure"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "Multiple errors in auth-service"
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "medium",
+      "detail": "1 tool failure in tool-executor"
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "1 error in llm-gemini"
+    },
+    {
+      "service": "embed-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "1 error in embed-service"
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "1 error in postgres-auth"
+    }
+  ],
+  "error_rate": 0.1282,
+  "p99_latency_ms": 4583.6,
+  "recommended_action": "Investigate high error rate in auth-service and potential cascading failures. Check tool-executor for failure details.",
+  "summary": "High error rate (12.8%) and p99 latency of 4.5s detected, with elevated errors in auth-service and one tool failure. Cascading failure scenario is active.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash-lite",
+    "captured_at": "2026JUN05042029",
+    "scenario": "cascading_failure"
+  }
+}

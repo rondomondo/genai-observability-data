@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>genai-observability-data</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 12px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <span id="markdown-mermaid" aria-hidden="true" data-config="{&quot;darkModeTheme&quot;:&quot;vscode&quot;,&quot;lightModeTheme&quot;:&quot;vscode&quot;,&quot;maxTextSize&quot;:50000,&quot;clickDrag&quot;:&quot;alt&quot;,&quot;showControls&quot;:&quot;onHoverOrFocus&quot;,&quot;resizable&quot;:true,&quot;maxHeight&quot;:&quot;&quot;}"></span>
+				<h1 id="genai-observability-data">genai-observability-data</h1>
+<p>A synthetic observability data generator that produces realistic distributed traces and structured logs
+for GenAI-powered systems, following the <a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">OpenTelemetry GenAI Semantic Conventions</a>
+(semconv 1.41.0, experimental).</p>
+<p>Use it to populate an OTel stack (Jaeger + Loki + Grafana + Prometheus) with representative data for
+dashboarding, alerting rule development, anomaly detection, or testing observability tooling against
+GenAI workloads - without needing a live production system.</p>
+<pre><code>god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
+      |
+      +-- ScenarioEngine   (time-bounded fault injection)
+      |       |
+      |       +-- ScenarioSpec (Pydantic config) + ScenarioHandler (stateless fault logic)
+      |       +-- db_degradation / llm_latency_spike / provider_failover / ...
+      |       +-- tool_call_timeout / memory_store_degradation / agent_bootstrap_failure / ...
+      |
+      +-- ServiceRegistry  (15-service topology with dependency graph)
+      |
+      +-- generate_dataset (Trace + LogEntry per virtual request)
+      |       |
+      |       +-- api-gateway root span
+      |       +-- auth-service + postgres-auth
+      |       +-- RAG path: embed -&gt; vector-db -&gt; llm-gemini (+ tool/MCP)
+      |       +-- payments path: payments-service -&gt; postgres-payments + kafka
+      |       +-- agentic path: workflow-orchestrator -&gt; agent-service -&gt; llm + tools + memory
+      |
+      +-- Sinks: stdout | FileSink | OTLPHttpSink | MultiSink
+      |
+      +-- Optional: scenario_agent (pydantic-ai, gemini-2.5-flash-lite default)
+                    analyses batch -&gt; ScenarioAnalysis
+</code></pre>
+<hr>
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#objective">Objective</a></li>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#configuration">Configuration</a></li>
+<li><a href="#quick-start">Quick start</a></li>
+<li><a href="#cli-reference">CLI reference</a></li>
+<li><a href="#root-cli-god-cli">Root CLI (god-cli)</a></li>
+<li><a href="#scenarios">Scenarios</a></li>
+<li><a href="#otel-stack-docker">OTel stack (Docker)</a></li>
+<li><a href="#output-formats">Output formats</a></li>
+<li><a href="#running-tests">Running tests</a></li>
+<li><a href="#evaluation--analysis-agent">Evaluation / analysis agent</a></li>
+<li><a href="#project-structure">Project structure</a></li>
+<li><a href="#make-targets">Make targets</a></li>
+<li><a href="#extending">Extending</a></li>
+<li><a href="#rate-limiting">Rate limiting</a></li>
+<li><a href="#gotchas">Gotchas</a></li>
+</ul>
+<hr>
+<h2 id="objective">Objective</h2>
+<p>Real GenAI traces are hard to get at scale for tooling development. This project generates a
+multi-service system (API gateway, RAG service, LLM inference, embedding, vector DB, payments, auth)
+with controllable fault scenarios injected at precise moments. You get:</p>
+<ul>
+<li>OTLP-compatible trace JSON (spans with correct parent-child relationships, timing, attributes)</li>
+<li>Structured logs correlated to traces by <code>trace_id</code></li>
+<li>Loki-compatible log push format</li>
+<li>Anomaly signals strong enough to trigger real alerting rules</li>
+<li>A pydantic-ai agent that analyses the batch and returns a <code>ScenarioAnalysis</code> with per-service signals</li>
+</ul>
+<hr>
+<h2 id="architecture">Architecture</h2>
+<h3 id="service-topology">Service topology</h3>
+<p>Fifteen services, fully wired with dependency edges and latency profiles:</p>
+<pre class="mermaid" style="all: unset;">flowchart LR
+    GW["api-gateway&lt;br&gt;HTTP p50=15ms"]
+    AUTH["auth-service&lt;br&gt;gRPC p50=8ms"]
+    PGA["postgres-auth&lt;br&gt;DB p50=3ms"]
+    RAG["rag-service&lt;br&gt;RAG p50=800ms"]
+    EMB["embed-service&lt;br&gt;Embed p50=120ms"]
+    VDB["vector-db&lt;br&gt;VectorDB p50=20ms"]
+    LLM["llm-gemini&lt;br&gt;LLM p50=1200ms"]
+    PAY["payments-service&lt;br&gt;HTTP p50=200ms"]
+    PGP["postgres-payments&lt;br&gt;DB p50=5ms"]
+    KFK["kafka&lt;br&gt;Queue p50=10ms"]
+    NOT["notifications-service&lt;br&gt;gRPC p50=50ms"]
+    AGT["agent-service&lt;br&gt;Agent p50=3000ms"]
+    TOOL["tool-executor&lt;br&gt;ToolExec p50=80ms"]
+    MEM["memory-service&lt;br&gt;Memory p50=40ms"]
+    WFL["workflow-orchestrator&lt;br&gt;Workflow p50=5000ms"]
+
+    GW --&gt; AUTH
+    GW --&gt; RAG
+    GW --&gt; PAY
+    AUTH --&gt; PGA
+    RAG --&gt; EMB
+    RAG --&gt; VDB
+    RAG --&gt; LLM
+    LLM --&gt;|"tool dep"| VDB
+    PAY --&gt; PGP
+    PAY --&gt; KFK
+    KFK --&gt; NOT
+    WFL --&gt; AGT
+    WFL --&gt; MEM
+    AGT --&gt; LLM
+    AGT --&gt; MEM
+    AGT --&gt; TOOL</pre>
+<p>Latency is sampled from a lognormal distribution derived from each service's p50/p99 profile. Error
+rates are per-service baselines, overridden by the active scenario.</p>
+<h3 id="trace-structure">Trace structure</h3>
+<p>Each generated trace represents one incoming request. The orchestrator always builds:</p>
+<ol>
+<li><code>api-gateway</code> root span (HTTP SERVER)</li>
+<li><code>auth-service</code> + <code>postgres-auth</code> sub-trace (every request)</li>
+<li>RAG path (~50% of requests): <code>embed-service</code> -&gt; <code>vector-db</code> -&gt; <code>llm-gemini</code> (+ 25% chance of a
+tool or MCP tool span as a child of the LLM span)</li>
+<li>Payments path (~40% of requests): <code>payments-service</code> -&gt; <code>postgres-payments</code> + <code>kafka</code></li>
+<li>Agentic path (~25% of requests): <code>workflow-orchestrator</code> -&gt; plan -&gt; <code>memory-service</code> (search) -&gt;
+<code>agent-service</code> -&gt; <code>llm-gemini</code> (chat) + 1-3 tool spans -&gt; <code>memory-service</code> (upsert)</li>
+</ol>
+<p>Approximately 15% of requests traverse both the RAG and payments paths.</p>
+<h3 id="scenario-engine">Scenario engine</h3>
+<p>Scenarios are time-bounded fault injectors. Each scenario defines a <code>start_offset_s</code>, <code>end_offset_s</code>,
+<code>apply(registry)</code> callable, and <code>recover(registry)</code> callable. The engine ticks once per virtual second
+of generated time and transitions scenarios through <code>PENDING -&gt; ACTIVE -&gt; DONE</code>.</p>
+<p>Fault propagation: when a downstream service is degraded, its immediate upstream callers inherit 30% of
+the error rate increase and 50% of the latency multiplier (one hop only, not transitive).</p>
+<pre class="mermaid" style="all: unset;">stateDiagram-v2
+    [*] --&gt; PENDING
+    PENDING --&gt; ACTIVE : elapsed &gt;= start_offset_s&lt;br&gt;(apply called)
+    ACTIVE --&gt; DONE : elapsed &gt;= end_offset_s&lt;br&gt;(recover called)
+    DONE --&gt; [*]</pre>
+<h3 id="genai-span-attributes">GenAI span attributes</h3>
+<p>All spans follow OTel GenAI semconv 1.41.0. Key attributes by operation type:</p>
+<p><strong>Inference / chat</strong></p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gen_ai.system</code></td>
+<td><code>google</code></td>
+<td>Provider</td>
+</tr>
+<tr>
+<td><code>gen_ai.operation.name</code></td>
+<td><code>chat</code></td>
+<td>GenAIOperation enum</td>
+</tr>
+<tr>
+<td><code>gen_ai.request.model</code></td>
+<td><code>gemini-2.5-flash</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>gen_ai.request.max_tokens</code></td>
+<td><code>4096</code></td>
+<td>Random choice: 1024/2048/4096/8192</td>
+</tr>
+<tr>
+<td><code>gen_ai.usage.input_tokens</code></td>
+<td><code>1204</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>gen_ai.usage.output_tokens</code></td>
+<td><code>312</code></td>
+<td>0 on error</td>
+</tr>
+<tr>
+<td><code>gen_ai.response.finish_reasons</code></td>
+<td><code>[&quot;stop&quot;]</code></td>
+<td><code>&quot;length&quot;</code> = token truncation</td>
+</tr>
+<tr>
+<td><code>gen_ai.server.time_to_first_token</code></td>
+<td><code>0.412</code></td>
+<td>Seconds (OTel spec)</td>
+</tr>
+<tr>
+<td><code>gen_ai.server.ttft_ms</code></td>
+<td><code>412.3</code></td>
+<td>Milliseconds (convenience, non-standard)</td>
+</tr>
+<tr>
+<td><code>gen_ai.client.operation.duration</code></td>
+<td><code>2340.1</code></td>
+<td>Full span duration in ms</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Agent / workflow</strong></p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gen_ai.agent.id</code></td>
+<td><code>agt-abc123</code></td>
+<td>Unique agent instance ID</td>
+</tr>
+<tr>
+<td><code>gen_ai.agent.name</code></td>
+<td><code>FinancialAnalystAgent</code></td>
+<td>Human-readable name</td>
+</tr>
+<tr>
+<td><code>gen_ai.agent.description</code></td>
+<td><code>Analyses financial...</code></td>
+<td>Short description</td>
+</tr>
+<tr>
+<td><code>gen_ai.agent.version</code></td>
+<td><code>2.1.0</code></td>
+<td>Agent version</td>
+</tr>
+<tr>
+<td><code>gen_ai.conversation.id</code></td>
+<td><code>conv-xyz789</code></td>
+<td>Multi-turn conversation identifier</td>
+</tr>
+<tr>
+<td><code>gen_ai.workflow.name</code></td>
+<td><code>MultiAgentResearchWorkflow</code></td>
+<td>Workflow name</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Tool execution</strong></p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gen_ai.tool.name</code></td>
+<td><code>fetch_stock_price</code></td>
+<td>Tool name</td>
+</tr>
+<tr>
+<td><code>gen_ai.tool.type</code></td>
+<td><code>extension</code></td>
+<td><code>function</code> / <code>extension</code> / <code>datastore</code></td>
+</tr>
+<tr>
+<td><code>gen_ai.tool.call.id</code></td>
+<td><code>call-abc123</code></td>
+<td>Call ID linking to parent invoke</td>
+</tr>
+<tr>
+<td><code>gen_ai.tool.call.arguments</code></td>
+<td><code>{&quot;ticker&quot;: &quot;AAPL&quot;}</code></td>
+<td>JSON arguments</td>
+</tr>
+<tr>
+<td><code>gen_ai.tool.call.result</code></td>
+<td><code>{&quot;price&quot;: 182.34}</code></td>
+<td>JSON result (success only)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Memory operations</strong></p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gen_ai.memory.store.id</code></td>
+<td><code>mem-store-prod-1</code></td>
+<td>Memory store identifier</td>
+</tr>
+<tr>
+<td><code>gen_ai.memory.query.text</code></td>
+<td><code>user preferences...</code></td>
+<td>Query for search operations</td>
+</tr>
+<tr>
+<td><code>gen_ai.memory.record.count</code></td>
+<td><code>5</code></td>
+<td>Records returned / written</td>
+</tr>
+<tr>
+<td><code>gen_ai.memory.record.id</code></td>
+<td><code>mem-rec-abc</code></td>
+<td>Record ID for upsert/delete</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>gen_ai.content.first_token</code> SpanEvent is added at the TTFT offset on successful inference spans.</p>
+<hr>
+<h2 id="prerequisites">Prerequisites</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Version</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python</td>
+<td>3.12+</td>
+<td>Runtime</td>
+</tr>
+<tr>
+<td><a href="https://docs.astral.sh/uv/">uv</a></td>
+<td>latest</td>
+<td>Package manager</td>
+</tr>
+<tr>
+<td>Docker Desktop</td>
+<td>latest</td>
+<td>OTel stack (Jaeger, Loki, Grafana, Prometheus)</td>
+</tr>
+<tr>
+<td>Gemini API key</td>
+<td>-</td>
+<td>Analysis agent only; not needed for data generation</td>
+</tr>
+</tbody>
+</table>
+<p>The data generator itself has no API key requirement. An API key is only needed when running
+<code>--analyse</code> without <code>--mock</code>. The default model is <code>gemini-2.5-flash-lite</code> (requires <code>GEMINI_API_KEY</code>).
+Set <code>GOD_AGENT_MODEL</code> to a Claude model and provide <code>ANTHROPIC_API_KEY</code> if you prefer that.</p>
+<hr>
+<h2 id="installation">Installation</h2>
+<p>From the repo root:</p>
+<pre><code class="language-bash">make install
+</code></pre>
+<p>Or via clone &amp; uv</p>
+<pre><code class="language-bash">git <span class="hljs-built_in">clone</span> &lt;repo-url&gt;
+<span class="hljs-built_in">cd</span> genai-observability-data/src/god
+uv <span class="hljs-built_in">sync</span> --all-extras
+</code></pre>
+<p>This creates <code>.venv/</code> and installs all runtime and dev dependencies.</p>
+<hr>
+<h2 id="configuration">Configuration</h2>
+<p>Settings are read from environment variables or a <code>.env</code> file placed in <code>src/god/</code> (the working
+directory when the package runs).</p>
+<p>Create your <code>.env</code>:</p>
+<pre><code class="language-bash"><span class="hljs-built_in">cp</span> src/god/.env.example src/god/.env   <span class="hljs-comment"># if the example exists</span>
+<span class="hljs-comment"># or create manually:</span>
+<span class="hljs-built_in">cat</span> &gt; src/god/.env &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span>
+GEMINI_API_KEY=AIza...
+GOD_MOCK_MODE=<span class="hljs-literal">false</span>
+EOF
+</code></pre>
+<h3 id="all-settings">All settings</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GEMINI_API_KEY</code></td>
+<td>-</td>
+<td>Yes, for <code>--analyse</code> without <code>--mock</code> when using Gemini models</td>
+<td>Google Gemini API key</td>
+</tr>
+<tr>
+<td><code>ANTHROPIC_API_KEY</code></td>
+<td>-</td>
+<td>Yes, for <code>--analyse</code> without <code>--mock</code> when using Claude models</td>
+<td>Anthropic API key</td>
+</tr>
+<tr>
+<td><code>GOD_MOCK_MODE</code></td>
+<td><code>true</code></td>
+<td>No</td>
+<td>Replace all LLM calls with deterministic mock</td>
+</tr>
+<tr>
+<td><code>GOD_AGENT_MODEL</code></td>
+<td><code>gemini-2.5-flash-lite</code></td>
+<td>No</td>
+<td>Model for the analysis agent (provider-prefixed or bare name)</td>
+</tr>
+<tr>
+<td><code>GOD_AGENT_FALLBACK_MODEL</code></td>
+<td>-</td>
+<td>No</td>
+<td>Fallback when the primary returns a 503/overload error</td>
+</tr>
+<tr>
+<td><code>GOD_DEFAULT_TRACES</code></td>
+<td><code>100</code></td>
+<td>No</td>
+<td>CLI default when <code>--traces</code> is omitted</td>
+</tr>
+<tr>
+<td><code>GOD_DEFAULT_RATE</code></td>
+<td><code>10.0</code></td>
+<td>No</td>
+<td>CLI default traces/second</td>
+</tr>
+<tr>
+<td><code>GOD_DEFAULT_BATCH_SIZE</code></td>
+<td><code>50</code></td>
+<td>No</td>
+<td>Flush batch size</td>
+</tr>
+</tbody>
+</table>
+<p>The default model is <code>gemini-2.5-flash-lite</code>. To switch to Claude, set <code>GOD_AGENT_MODEL=claude-haiku-4-5-20251001</code>
+and provide <code>ANTHROPIC_API_KEY</code>. Model names can be bare (<code>gemini-2.5-flash-lite</code>) or provider-prefixed
+(<code>google:gemini-2.5-flash-lite</code>, <code>anthropic:claude-haiku-4-5-20251001</code>, <code>openai:gpt-4o-mini</code>).</p>
+<p>No Elasticsearch or Redis keys are used by this project.</p>
+<hr>
+<h2 id="quick-start">Quick start</h2>
+<h3 id="generate-and-print-logs-to-stdout-no-docker-no-api-key">Generate and print logs to stdout (no Docker, no API key)</h3>
+<pre><code class="language-bash"><span class="hljs-built_in">cd</span> src/god
+uv run python -m god --traces 20
+</code></pre>
+<h3 id="stream-to-a-local-otel-stack">Stream to a local OTel stack</h3>
+<pre><code class="language-bash"><span class="hljs-comment"># Start Jaeger + Loki + Grafana + Prometheus</span>
+make stack-up
+
+<span class="hljs-comment"># Stream 500 traces of a cascading failure scenario</span>
+make demo-scenario SCENARIO=cascading_failure TRACES=500
+
+<span class="hljs-comment"># Open Grafana</span>
+open http://localhost:3000
+<span class="hljs-comment"># Open Jaeger</span>
+open http://localhost:16686
+</code></pre>
+<h3 id="write-files-in-all-formats">Write files in all formats</h3>
+<pre><code class="language-bash"><span class="hljs-built_in">cd</span> src/god
+uv run python -m god --traces 200 --output ./output --format otlp_traces otlp_logs logfmt loki
+</code></pre>
+<hr>
+<h2 id="cli-reference">CLI reference</h2>
+<pre><code>usage: god [-h] [--traces N] [--rate RATE] [--scenario PRESET]
+           [--seed SEED] [--capture-content]
+           [--format FORMAT [FORMAT ...]] [--output DIR]
+           [--otlp URL] [--otlp-header KEY=VALUE]
+           [--compress] [--batch-size N]
+           [--analyse] [--agent-model MODEL] [--mock]
+           [--list-scenarios] [--quiet] [--version]
+</code></pre>
+<h4 id="generation">Generation</h4>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--traces</code>, <code>-n</code></td>
+<td><code>GOD_DEFAULT_TRACES</code></td>
+<td>Number of traces to generate</td>
+</tr>
+<tr>
+<td><code>--rate</code></td>
+<td><code>GOD_DEFAULT_RATE</code></td>
+<td>Target traces per second (virtual time)</td>
+</tr>
+<tr>
+<td><code>--scenario</code></td>
+<td>(none)</td>
+<td>Fault scenario preset name</td>
+</tr>
+<tr>
+<td><code>--seed</code></td>
+<td>(none, non-deterministic)</td>
+<td>RNG seed for reproducible output</td>
+</tr>
+<tr>
+<td><code>--capture-content</code></td>
+<td>off</td>
+<td>Include <code>gen_ai.input.messages</code> and <code>gen_ai.output.messages</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="output">Output</h4>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--format</code></td>
+<td><code>otlp_traces otlp_logs logfmt</code></td>
+<td>One or more output formats</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>(none)</td>
+<td>Write files to this directory</td>
+</tr>
+<tr>
+<td><code>--otlp</code></td>
+<td>(none)</td>
+<td>POST to this OTLP HTTP endpoint</td>
+</tr>
+<tr>
+<td><code>--otlp-header</code></td>
+<td>(none, repeatable)</td>
+<td>Extra headers, e.g. <code>Authorization=Bearer ...</code></td>
+</tr>
+<tr>
+<td><code>--compress</code></td>
+<td>off</td>
+<td>Gzip output files</td>
+</tr>
+<tr>
+<td><code>--batch-size</code></td>
+<td><code>GOD_DEFAULT_BATCH_SIZE</code></td>
+<td>Flush every N traces</td>
+</tr>
+</tbody>
+</table>
+<p>Sink selection: <code>--output</code> -&gt; FileSink, <code>--otlp</code> -&gt; OTLPHttpSink, both -&gt; MultiSink, neither -&gt; StdoutSink.</p>
+<h4 id="analysis-agent">Analysis agent</h4>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--analyse</code></td>
+<td>off</td>
+<td>Run the pydantic-ai agent on the generated batch</td>
+</tr>
+<tr>
+<td><code>--agent-model</code></td>
+<td><code>GOD_AGENT_MODEL</code></td>
+<td>Override the analysis model</td>
+</tr>
+<tr>
+<td><code>--mock</code></td>
+<td>off</td>
+<td>Use deterministic FunctionModel instead of calling Anthropic</td>
+</tr>
+</tbody>
+</table>
+<h4 id="meta">Meta</h4>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--list-scenarios</code></td>
+<td>Print scenario table and exit</td>
+</tr>
+<tr>
+<td><code>--quiet</code>, <code>-q</code></td>
+<td>Suppress progress output</td>
+</tr>
+<tr>
+<td><code>--version</code>, <code>-V</code></td>
+<td>Print version and exit</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples">Examples</h3>
+<pre><code class="language-bash"><span class="hljs-comment"># 1000 traces, deterministic, quiet, written as OTLP + logfmt</span>
+uv run python -m god -n 1000 --seed 42 --output ./data/fixtures -q \
+  --format otlp_traces otlp_logs logfmt loki
+
+<span class="hljs-comment"># Stream a specific scenario to a local collector with a bearer token</span>
+uv run python -m god -n 500 --scenario rag_meltdown --rate 5 \
+  --otlp http://collector:4318 \
+  --otlp-header <span class="hljs-string">&quot;Authorization=Bearer mytoken&quot;</span>
+
+<span class="hljs-comment"># Run the analysis agent in mock mode (no API key needed)</span>
+uv run python -m god -n 100 --scenario llm_degradation --analyse
+
+<span class="hljs-comment"># Run the analysis agent with a specific model</span>
+uv run python -m god -n 100 --scenario llm_degradation --analyse \
+  --agent-model claude-haiku-4-5-20251001
+
+<span class="hljs-comment"># List all available scenarios</span>
+uv run python -m god --list-scenarios
+</code></pre>
+<hr>
+<h2 id="root-cli-god-cli">Root CLI (god-cli)</h2>
+<p>The repo root ships a standalone <code>god-cli</code> script that wraps the package with a Rich terminal UI. It
+requires no installation beyond the existing <code>uv</code> environment - just run it from the repo root.</p>
+<pre><code class="language-bash"><span class="hljs-comment"># From the repo root (no cd required)</span>
+./god-cli --<span class="hljs-built_in">help</span>
+./god-cli --list-scenarios
+./god-cli -n 50
+./god-cli -n 500 --scenario cascading_failure -o ./output --format otlp_traces otlp_logs logfmt
+./god-cli -n 200 --scenario llm_degradation --analyse
+</code></pre>
+<p>The script resolves <code>src/god</code> via <code>sys.path</code> automatically, so it works without activating the venv
+or installing the package as an entry point.</p>
+<h3 id="what-the-root-cli-adds-over-python--m-god">What the root CLI adds over <code>python -m god</code></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>python -m god</code></th>
+<th><code>./god-cli</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Output</td>
+<td>Plain stderr progress</td>
+<td>Rich panels, progress bar, colour</td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>argparse default</td>
+<td>Formatted table with grouped options</td>
+</tr>
+<tr>
+<td><code>--list-scenarios</code></td>
+<td>Plain text</td>
+<td>Rich table with tags and descriptions</td>
+</tr>
+<tr>
+<td>Analysis output</td>
+<td>Plain print</td>
+<td>Severity-coloured anomaly signal panel</td>
+</tr>
+<tr>
+<td>Run config</td>
+<td>Inline log line</td>
+<td>Pre-run configuration panel</td>
+</tr>
+<tr>
+<td><code>gen-scenario</code> subcommand</td>
+<td>Not available</td>
+<td>Batch all or one scenario into <code>output/&lt;scenario&gt;/</code></td>
+</tr>
+</tbody>
+</table>
+<p>The underlying generation logic, all flags, and all defaults are identical. Use <code>./god-cli</code> for
+interactive terminal sessions; use <code>python -m god</code> (or the <code>god</code> entry point) in scripts and CI.</p>
+<h3 id="gen-scenario-subcommand">gen-scenario subcommand</h3>
+<p><code>god-cli</code> adds a <code>gen-scenario</code> subcommand that runs one or all presets, writing each to its own
+subdirectory under <code>--output</code> (default <code>./output/</code>). Multiple scenarios are run concurrently.</p>
+<pre><code class="language-bash"><span class="hljs-comment"># Generate every preset into ./output/&lt;scenario-name&gt;/</span>
+./god-cli gen-scenario all
+
+<span class="hljs-comment"># One scenario, 200 traces, deterministic</span>
+./god-cli gen-scenario cascading_failure --traces 200 --seed 42
+
+<span class="hljs-comment"># Stream a scenario to an OTLP collector (disable mock when using a real model)</span>
+./god-cli gen-scenario rag_meltdown --otlp http://localhost:4318 --no-mock
+</code></pre>
+<pre><code>usage: god-cli gen-scenario [SCENARIO] [--traces N] [--rate N]
+                             [--format FMT ...] [--output DIR]
+                             [--seed N] [--otlp URL] [--otlp-header KEY=VALUE]
+                             [--compress] [--no-mock] [--quiet]
+</code></pre>
+<p><code>SCENARIO</code> can be any preset name or <code>all</code>. Mock mode is on by default; pass <code>--no-mock</code> when you
+have an API key and want real analysis.</p>
+<h3 id="quiet--pipe-mode">Quiet / pipe mode</h3>
+<p><code>--quiet</code> (<code>-q</code>) suppresses all Rich output to stderr. Stdout stays clean data, suitable for piping:</p>
+<pre><code class="language-bash">./god-cli -n 1000 -q | grep <span class="hljs-string">&quot;level=ERROR&quot;</span> | <span class="hljs-built_in">wc</span> -l
+</code></pre>
+<hr>
+<h2 id="scenarios">Scenarios</h2>
+<p>Run <code>python -m god --list-scenarios</code> for the current table. Built-in presets:</p>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th>Description</th>
+<th>Services affected</th>
+<th>Faults</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>db_incident</code></td>
+<td>DB connection pool exhaustion (40% errors, 8x latency)</td>
+<td>postgres-payments</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>llm_degradation</code></td>
+<td>LLM latency spike + token truncations</td>
+<td>llm-gemini</td>
+<td>2 overlapping</td>
+</tr>
+<tr>
+<td><code>rag_meltdown</code></td>
+<td>Vector DB slow + LLM spike + provider failover (95% errors)</td>
+<td>vector-db, llm-gemini</td>
+<td>3 staggered</td>
+</tr>
+<tr>
+<td><code>payment_outage</code></td>
+<td>Payments errors (60%) + DB degradation</td>
+<td>payments-service, postgres-payments</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>cascading_failure</code></td>
+<td>Auth DB -&gt; auth outage -&gt; payments cascade -&gt; LLM spike</td>
+<td>4 services, chained</td>
+<td>4 staggered</td>
+</tr>
+<tr>
+<td><code>tool_meltdown</code></td>
+<td>External tool timeouts + agent bootstrap failures</td>
+<td>tool-executor, agent-service</td>
+<td>2 staggered</td>
+</tr>
+<tr>
+<td><code>memory_incident</code></td>
+<td>Memory service latency spike + follow-on tool timeouts</td>
+<td>memory-service, tool-executor</td>
+<td>2 staggered</td>
+</tr>
+<tr>
+<td><code>agent_failure</code></td>
+<td>Agent creation failures (90% error rate)</td>
+<td>agent-service</td>
+<td>1 burst</td>
+</tr>
+<tr>
+<td><code>rag_quality_degradation</code></td>
+<td>Stale vector index + LLM latency spike</td>
+<td>vector-db, llm-gemini</td>
+<td>2 overlapping</td>
+</tr>
+<tr>
+<td><code>agentic_cascading_failure</code></td>
+<td>Agent bootstrap -&gt; tool timeouts -&gt; memory degradation -&gt; LLM spike</td>
+<td>4 services, chained</td>
+<td>4 staggered</td>
+</tr>
+<tr>
+<td><code>event_degradation</code></td>
+<td>Kafka consumer lag spike (10x latency, notifications delayed)</td>
+<td>kafka</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>quiet</code></td>
+<td>No faults injected</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td>Every preset run concurrently (useful with <code>god-cli gen-scenario all</code>)</td>
+<td>all</td>
+<td>all</td>
+</tr>
+</tbody>
+</table>
+<p>Pass a scenario with <code>--scenario &lt;preset&gt;</code>. Fault injection uses virtual time, not wall time, so
+trace count determines how much of the scenario you observe.</p>
+<h3 id="how-fault-injection-works">How fault injection works</h3>
+<p>Each scenario is a <code>ScenarioSpec</code> (validated Pydantic config) paired with a <code>ScenarioHandler</code>
+(stateless fault logic). The <code>ScenarioEngine</code> ticks once per virtual second and drives each
+<code>Scenario</code> through its state machine.</p>
+<pre class="mermaid" style="all: unset;">stateDiagram-v2
+    [*] --&gt; PENDING
+    PENDING --&gt; ACTIVE : elapsed &gt;= start_offset_s&lt;br&gt;(handler.apply called)
+    ACTIVE --&gt; RECOVERING : elapsed &gt;= end_offset_s&lt;br&gt;(handler.recover called)
+    RECOVERING --&gt; DONE
+    DONE --&gt; [*]</pre>
+<pre class="mermaid" style="all: unset;">flowchart TD
+    A["ScenarioEngine.tick(elapsed_s)"] --&gt; B{state?}
+    B --&gt;|PENDING, elapsed &gt;= start| C["handler.apply(registry, spec)&lt;br&gt;set error_rate + latency overrides"]
+    B --&gt;|ACTIVE, elapsed &gt;= end| D["handler.recover(registry, spec)&lt;br&gt;clear overrides"]
+    C --&gt; E["propagate_fault&lt;br&gt;30% err bleed to callers&lt;br&gt;50% latency bleed to callers"]
+    D --&gt; F["direct clear only&lt;br&gt;no transitive recovery"]</pre>
+<p>The <code>token_budget_breach</code> scenario is special: it sets <code>_error_rate_override = 0.0</code> (suppressing
+baseline errors entirely). The truncation signal comes from a separate 5% random chance in
+<code>build_inference_span</code>, independent of the error rate.</p>
+<hr>
+<h2 id="otel-stack-docker">OTel stack (Docker)</h2>
+<p>The included <code>docker-compose.yml</code> starts a complete observability stack:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Port</th>
+<th>UI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OTel Collector (OTLP HTTP)</td>
+<td>4318</td>
+<td>-</td>
+</tr>
+<tr>
+<td>OTel Collector (OTLP gRPC)</td>
+<td>4317</td>
+<td>-</td>
+</tr>
+<tr>
+<td>Jaeger</td>
+<td>16686</td>
+<td><a href="http://localhost:16686">http://localhost:16686</a></td>
+</tr>
+<tr>
+<td>Loki</td>
+<td>3100</td>
+<td>(API only)</td>
+</tr>
+<tr>
+<td>Grafana</td>
+<td>3000</td>
+<td><a href="http://localhost:3000">http://localhost:3000</a> (admin/admin)</td>
+</tr>
+<tr>
+<td>Prometheus</td>
+<td>9090</td>
+<td><a href="http://localhost:9090">http://localhost:9090</a></td>
+</tr>
+</tbody>
+</table>
+<p>Grafana datasources (Jaeger, Loki, Prometheus) are auto-provisioned. Fourteen dashboards are
+auto-provisioned from <code>infra/grafana/dashboards/</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Dashboard</th>
+<th>Focus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GenAI Observability - Overview</td>
+<td>Cross-model request rates, errors, token throughput</td>
+</tr>
+<tr>
+<td>GenAI - LLM Performance</td>
+<td>TTFT latency (p50/p95), throughput by model and operation type</td>
+</tr>
+<tr>
+<td>GenAI - Finish Reasons</td>
+<td>stop / length / tool_calls / content_filter breakdown by model</td>
+</tr>
+<tr>
+<td>GenAI - Token Economics</td>
+<td>Input/output token ratios, embedding batch sizes, provider spend</td>
+</tr>
+<tr>
+<td>GenAI Operation Topology</td>
+<td>Volume and error rate across all 12 <code>gen_ai.operation.name</code> values</td>
+</tr>
+<tr>
+<td>Provider and System Analysis</td>
+<td>Per-provider (google / openai) request rates, TTFT, token throughput</td>
+</tr>
+<tr>
+<td>RAG Pipeline</td>
+<td>Stage latency, retrieval yield rate, vector search diagnostics</td>
+</tr>
+<tr>
+<td>Tool and MCP Usage</td>
+<td>Tool call rates and error rates by type (MCP / extension / datastore / function)</td>
+</tr>
+<tr>
+<td>Agent Operations</td>
+<td>Agent create/invoke rates, planning latency, invocation duration</td>
+</tr>
+<tr>
+<td>Workflow Orchestration</td>
+<td>Workflow invocation rates, stage durations, error rates by workflow name</td>
+</tr>
+<tr>
+<td>Memory Store Operations</td>
+<td>All 4 memory op types, record counts, search latency</td>
+</tr>
+<tr>
+<td>Service RED Metrics</td>
+<td>Request/error rates for all 15 services, split infra vs GenAI+agentic</td>
+</tr>
+<tr>
+<td>Error Analysis</td>
+<td>Error classification and log drill-down</td>
+</tr>
+<tr>
+<td>OTel Collector Metrics</td>
+<td>Collector self-metrics: receive/export rates, queue depth, dropped spans</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash">make stack-up       <span class="hljs-comment"># start all services</span>
+make stack-down     <span class="hljs-comment"># stop all services</span>
+make stack-reset    <span class="hljs-comment"># stop + wipe all volumes</span>
+make stack-logs     <span class="hljs-comment"># tail collector + loki logs</span>
+</code></pre>
+<p>Collector pipeline: OTLP receive -&gt; batch (1s / 1024 spans) + memory_limiter (512 MiB) -&gt; Jaeger
+(traces) + Loki (logs). Prometheus scrapes collector self-metrics on <code>:8888</code>.</p>
+<hr>
+<h2 id="output-formats">Output formats</h2>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>otlp_traces</code></td>
+<td><code>traces.otlp.jsonl</code></td>
+<td>One OTLP <code>resourceSpans</code> JSON object per line</td>
+</tr>
+<tr>
+<td><code>otlp_logs</code></td>
+<td><code>logs.otlp.jsonl</code></td>
+<td>One OTLP <code>resourceLogs</code> JSON object per line</td>
+</tr>
+<tr>
+<td><code>logfmt</code></td>
+<td><code>logs.logfmt</code></td>
+<td>Human-readable logfmt, one log per line</td>
+</tr>
+<tr>
+<td><code>loki</code></td>
+<td><code>logs.loki.jsonl</code></td>
+<td>Loki push API format, grouped by service</td>
+</tr>
+</tbody>
+</table>
+<p>All file outputs append by default across multiple <code>flush()</code> calls. Use <code>--compress</code> to write <code>.gz</code>
+files (gzip append mode, not seek-rewrite).</p>
+<h3 id="otlp-traces-structure">OTLP traces structure</h3>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;resourceSpans&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-punctuation">{</span>
+      <span class="hljs-attr">&quot;resource&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;attributes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;key&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;service.name&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;value&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;stringValue&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;rag-service&quot;</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">&quot;scopeSpans&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-punctuation">{</span>
+        <span class="hljs-attr">&quot;scope&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;synthetic.rag-service&quot;</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+        <span class="hljs-attr">&quot;spans&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;traceId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;spanId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span> ... <span class="hljs-punctuation">}</span><span class="hljs-punctuation">]</span>
+      <span class="hljs-punctuation">}</span><span class="hljs-punctuation">]</span>
+    <span class="hljs-punctuation">}</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p>Int attributes are serialised as <code>{&quot;intValue&quot;: &quot;1234&quot;}</code> (string, per OTLP JSON spec).</p>
+<hr>
+<h2 id="running-tests">Running tests</h2>
+<p>All tests are in <code>src/god/tests/</code>. The test suite requires no API keys or running services.</p>
+<pre><code class="language-bash"><span class="hljs-comment"># From src/god/</span>
+uv run pytest
+
+<span class="hljs-comment"># With coverage</span>
+uv run pytest --cov=. --cov-report=term-missing
+
+<span class="hljs-comment"># Single module</span>
+uv run pytest tests/test_generators.py -v
+
+<span class="hljs-comment"># Via make</span>
+make <span class="hljs-built_in">test</span>           <span class="hljs-comment"># full suite with coverage</span>
+make test-unit      <span class="hljs-comment"># alias</span>
+</code></pre>
+<p><code>pytest.ini_options</code> are configured in <code>src/god/pyproject.toml</code>:</p>
+<ul>
+<li><code>asyncio_mode = &quot;auto&quot;</code> - all async test functions run automatically (no <code>@pytest.mark.asyncio</code>)</li>
+<li><code>pythonpath = [&quot;..&quot;]</code> - imports resolve as <code>from god.models import ...</code></li>
+<li><code>addopts = &quot;-v --tb=short&quot;</code></li>
+</ul>
+<h3 id="test-patterns">Test patterns</h3>
+<ul>
+<li>All LLM calls use the <code>autouse</code> fixture in <code>test_agent.py</code> that calls <code>activate_mock_mode()</code> /
+<code>deactivate_mock_mode()</code> around each test. No <code>ALLOW_MODEL_REQUESTS</code> guard is needed separately.</li>
+<li>Deterministic generation: pass <code>rng_seed=42</code> (or any int) to <code>generate_dataset</code> to get identical
+output on every run. Omit to get non-deterministic output.</li>
+<li>Mock mode can be tested at the CLI level: <code>GOD_MOCK_MODE=true uv run python -m god -n 5</code></li>
+</ul>
+<h3 id="what-each-test-file-covers">What each test file covers</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Tests</th>
+<th>Focus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>test_models.py</code></td>
+<td>11</td>
+<td>Serialisation: Span/Trace/LogEntry -&gt; OTLP/Loki/logfmt</td>
+</tr>
+<tr>
+<td><code>test_services.py</code></td>
+<td>12</td>
+<td>LatencyProfile math, fault overrides, propagation, registry</td>
+</tr>
+<tr>
+<td><code>test_scenarios.py</code></td>
+<td>16+</td>
+<td>State machine, handler apply/recover, fault lifecycle, all presets</td>
+</tr>
+<tr>
+<td><code>test_generators.py</code></td>
+<td>20+</td>
+<td>Span builders, TTFT event, content capture, RAG + agentic trace shape</td>
+</tr>
+<tr>
+<td><code>test_orchestrator.py</code></td>
+<td>12</td>
+<td>End-to-end trace assembly, dataset yield count, log correlation</td>
+</tr>
+<tr>
+<td><code>test_sinks.py</code></td>
+<td>14</td>
+<td>File formats, gzip, append, OTLP HTTP (mocked), multi-sink</td>
+</tr>
+<tr>
+<td><code>test_agent.py</code></td>
+<td>5</td>
+<td>Analysis agent, mock mode, severity signals</td>
+</tr>
+<tr>
+<td><code>test_root_cli.py</code></td>
+<td>-</td>
+<td>Root CLI (<code>god-cli</code>) integration tests</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="evaluation--analysis-agent">Evaluation / analysis agent</h2>
+<p>The optional <code>--analyse</code> flag runs a pydantic-ai agent against the generated batch. The agent returns
+a <code>ScenarioAnalysis</code> with structured anomaly signals.</p>
+<pre><code class="language-python"><span class="hljs-meta">@dataclass</span>
+<span class="hljs-keyword">class</span> <span class="hljs-title class_">AnomalySignal</span>:
+    service: <span class="hljs-built_in">str</span>
+    signal_type: <span class="hljs-built_in">str</span>   <span class="hljs-comment"># error_spike | latency_spike | token_truncation | tool_failure</span>
+    severity: <span class="hljs-built_in">str</span>      <span class="hljs-comment"># low | medium | high | critical</span>
+
+<span class="hljs-meta">@dataclass</span>
+<span class="hljs-keyword">class</span> <span class="hljs-title class_">ScenarioAnalysis</span>:
+    active_scenarios: <span class="hljs-built_in">list</span>[<span class="hljs-built_in">str</span>]
+    anomaly_signals: <span class="hljs-built_in">list</span>[AnomalySignal]
+    error_rate: <span class="hljs-built_in">float</span>
+    p99_latency_ms: <span class="hljs-built_in">float</span>
+    recommended_action: <span class="hljs-built_in">str</span>
+    summary: <span class="hljs-built_in">str</span>
+</code></pre>
+<p>The agent is invoked with a pre-computed summary (total spans, error rate, p99 latency, per-service
+error counts, token truncations, tool failures). It uses <code>gemini-2.5-flash-lite</code> by default (no fallback configured).</p>
+<h3 id="running-without-an-api-key">Running without an API key</h3>
+<p>Pass <code>--mock</code> to activate a deterministic <code>FunctionModel</code> that replicates the analysis logic locally.
+Mock mode is on by default (<code>GOD_MOCK_MODE=true</code>).</p>
+<pre><code class="language-bash">uv run python -m god -n 200 --scenario cascading_failure --analyse
+</code></pre>
+<h3 id="model-override">Model override</h3>
+<p>Model names can be bare or provider-prefixed. Bare names are normalised automatically.</p>
+<pre><code class="language-bash"><span class="hljs-comment"># Gemini (default)</span>
+uv run python -m god -n 200 --analyse --agent-model gemini-2.5-flash-lite
+
+<span class="hljs-comment"># Claude</span>
+uv run python -m god -n 200 --analyse --agent-model claude-haiku-4-5-20251001
+
+<span class="hljs-comment"># Via .env</span>
+GOD_AGENT_MODEL=anthropic:claude-haiku-4-5-20251001
+</code></pre>
+<p>Supported provider prefixes: <code>google:</code>, <code>anthropic:</code>, <code>openai:</code>. The provider prefix determines
+which API key is used (<code>GEMINI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, or <code>OPENAI_API_KEY</code>).</p>
+<hr>
+<h2 id="project-structure">Project structure</h2>
+<pre><code>genai-observability-data/
+  Makefile                         # Root build/run targets (primary)
+  god-cli                          # Rich terminal wrapper CLI + gen-scenario subcommand
+  docker-compose.yml               # OTel stack: Collector + Jaeger + Loki + Grafana + Prometheus
+  infra/
+    otel-collector-config.yaml     # Collector pipeline config
+    prometheus.yml                 # Scrape config (collector self-metrics)
+    grafana/
+      dashboards/                  # Pre-built Grafana dashboards (GenAI overview, RAG, tools, etc.)
+      provisioning/
+        datasources/datasources.yaml   # Auto-provisioned Jaeger + Loki + Prometheus
+        dashboards/dashboards.yaml     # Auto-provisioned dashboard file provider
+  src/
+    god/                           # The real package root
+      pyproject.toml               # Canonical package declaration
+      Makefile                     # Convenience wrapper
+      uv.lock                      # Pinned dependencies
+      __init__.py                  # Public API + __version__
+      __main__.py                  # CLI entry point (python -m god)
+      cli.py                       # Rich CLI implementation (god-cli)
+      agent.py                     # pydantic-ai analysis agent + ScenarioAnalysis model
+      config.py                    # Settings (pydantic-settings, reads .env)
+      deps.py                      # GodDeps dependency injection container
+      models.py                    # Span, Trace, LogEntry, enums, OTLP serialisation
+      orchestrator.py              # generate_trace + generate_dataset
+      services.py                  # ServiceRegistry, ServiceDef, LatencyProfile (15 services)
+      sinks.py                     # StdoutSink, FileSink, OTLPHttpSink, MultiSink
+      py.typed                     # PEP 561 marker
+      scenarios/
+        __init__.py                # Re-exports all public symbols + ScenarioSpec extension API
+        _base.py                   # ScenarioSpec, Scenario, ScenarioState, ScenarioEngine
+        _handlers.py               # Stateless fault handlers (DbDegradation, LlmLatencySpike, ...)
+        _registry.py               # Factory functions + SCENARIO_PRESETS dict
+      generators/
+        genai.py                   # GenAI span builders: inference, embed, retrieval, tool, MCP,
+                                   #   agent, invoke_agent, memory, workflow, plan + agentic trace
+        infra.py                   # Infra span builders (HTTP, gRPC, DB, queue) + log generators
+      mock/
+        activate.py                # Process-level mock activation via agent.override()
+        models.py                  # Deterministic FunctionModel for the analysis agent
+      tests/
+        test_agent.py
+        test_generators.py
+        test_models.py
+        test_orchestrator.py
+        test_root_cli.py
+        test_scenarios.py
+        test_services.py
+        test_sinks.py
+</code></pre>
+<hr>
+<h2 id="make-targets">Make targets</h2>
+<p>Run <code>make help</code> from the repo root. Key targets:</p>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make install</code></td>
+<td><code>uv sync --all-extras</code> in <code>src/god/</code></td>
+</tr>
+<tr>
+<td><code>make test</code></td>
+<td>Full test suite with coverage</td>
+</tr>
+<tr>
+<td><code>make test-unit</code></td>
+<td>Alias for <code>make test</code></td>
+</tr>
+<tr>
+<td><code>make lint</code></td>
+<td>Ruff lint + autofix</td>
+</tr>
+<tr>
+<td><code>make format</code></td>
+<td>Ruff format</td>
+</tr>
+<tr>
+<td><code>make typecheck</code></td>
+<td>mypy</td>
+</tr>
+<tr>
+<td><code>make ci</code></td>
+<td>format + lint + typecheck + test</td>
+</tr>
+<tr>
+<td><code>make gen</code></td>
+<td>100 traces to stdout (mock mode, no API key needed)</td>
+</tr>
+<tr>
+<td><code>make gen-files</code></td>
+<td>OTLP + logfmt to <code>./output/</code></td>
+</tr>
+<tr>
+<td><code>make gen-otlp</code></td>
+<td>Stream to <code>http://localhost:4318</code> (requires API key or <code>GOD_MOCK_MODE=true</code>)</td>
+</tr>
+<tr>
+<td><code>make gen-fixtures</code></td>
+<td>200 traces, seed=42, all formats -&gt; <code>./data/fixtures/</code></td>
+</tr>
+<tr>
+<td><code>make gen-scenario SCENARIO=&lt;name&gt;</code></td>
+<td>Run a named scenario</td>
+</tr>
+<tr>
+<td><code>make list-scenarios</code></td>
+<td>Print scenario table</td>
+</tr>
+<tr>
+<td><code>make stack-up</code></td>
+<td>Start OTel stack (Docker), polls health</td>
+</tr>
+<tr>
+<td><code>make stack-down</code></td>
+<td>Stop OTel stack</td>
+</tr>
+<tr>
+<td><code>make stack-reset</code></td>
+<td>Stop + wipe volumes</td>
+</tr>
+<tr>
+<td><code>make demo</code></td>
+<td>stack-up + gen-otlp</td>
+</tr>
+<tr>
+<td><code>make demo-scenario SCENARIO=cascading_failure</code></td>
+<td>stack-up + 500 traces of scenario at rate=5</td>
+</tr>
+<tr>
+<td><code>make build</code></td>
+<td>Build sdist + wheel</td>
+</tr>
+<tr>
+<td><code>make publish-test</code></td>
+<td>Publish to TestPyPI</td>
+</tr>
+<tr>
+<td><code>make publish</code></td>
+<td>Publish to PyPI</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="extending">Extending</h2>
+<h3 id="adding-a-new-scenario">Adding a new scenario</h3>
+<p>Scenarios are now split across three files in <code>src/god/scenarios/</code>:</p>
+<ul>
+<li><code>_handlers.py</code> - stateless fault logic (subclass <code>ScenarioHandler</code>, register with <code>register_handler</code>)</li>
+<li><code>_registry.py</code> - factory functions and <code>SCENARIO_PRESETS</code> dict</li>
+<li><code>__init__.py</code> - re-exports (add your new symbols here)</li>
+</ul>
+<p>For simple faults the built-in <code>SimplePropagateHandler</code> is sufficient - just add a factory function
+in <code>_registry.py</code> and a preset entry in <code>SCENARIO_PRESETS</code>:</p>
+<pre><code class="language-python"><span class="hljs-comment"># src/god/scenarios/_registry.py</span>
+<span class="hljs-keyword">from</span> god.scenarios._base <span class="hljs-keyword">import</span> Scenario, ScenarioSpec
+<span class="hljs-keyword">from</span> god.scenarios._handlers <span class="hljs-keyword">import</span> build_handler
+
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">my_embed_overload</span>(<span class="hljs-params">
+    target: <span class="hljs-built_in">str</span> = <span class="hljs-string">&quot;embed-service&quot;</span>,
+    start_s: <span class="hljs-built_in">float</span> = <span class="hljs-number">30</span>,
+    duration_s: <span class="hljs-built_in">float</span> = <span class="hljs-number">150</span>,
+    error_rate: <span class="hljs-built_in">float</span> = <span class="hljs-number">0.3</span>,
+    latency_multiplier: <span class="hljs-built_in">float</span> = <span class="hljs-number">4.0</span>,
+</span>) -&gt; Scenario:
+    <span class="hljs-keyword">return</span> _make(ScenarioSpec(
+        name=<span class="hljs-string">&quot;embed_overload&quot;</span>,
+        handler_type=<span class="hljs-string">&quot;simple_propagate&quot;</span>,
+        description=<span class="hljs-string">f&quot;Embedding saturation on <span class="hljs-subst">{target}</span>: latency x<span class="hljs-subst">{latency_multiplier}</span>&quot;</span>,
+        start_offset_s=start_s,
+        end_offset_s=start_s + duration_s,
+        target=target,
+        error_rate=error_rate,
+        latency_multiplier=latency_multiplier,
+        tags=[<span class="hljs-string">&quot;genai&quot;</span>, <span class="hljs-string">&quot;embed&quot;</span>, <span class="hljs-string">&quot;latency&quot;</span>],
+    ))
+
+SCENARIO_PRESETS[<span class="hljs-string">&quot;embed_overload&quot;</span>] = <span class="hljs-keyword">lambda</span>: [my_embed_overload()]
+</code></pre>
+<p>For custom recovery logic, subclass <code>ScenarioHandler</code> in <code>_handlers.py</code> and register it:</p>
+<pre><code class="language-python"><span class="hljs-comment"># src/god/scenarios/_handlers.py</span>
+<span class="hljs-keyword">from</span> god.scenarios._base <span class="hljs-keyword">import</span> ScenarioSpec
+<span class="hljs-keyword">from</span> god.services <span class="hljs-keyword">import</span> ServiceRegistry
+
+<span class="hljs-keyword">class</span> <span class="hljs-title class_">MyHandler</span>(<span class="hljs-title class_ inherited__">ScenarioHandler</span>):
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">apply</span>(<span class="hljs-params">self, registry: ServiceRegistry, spec: ScenarioSpec</span>) -&gt; <span class="hljs-literal">None</span>:
+        registry.propagate_fault(spec.target, error_rate=spec.error_rate,
+                                 latency_multiplier=spec.latency_multiplier)
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">recover</span>(<span class="hljs-params">self, registry: ServiceRegistry, spec: ScenarioSpec</span>) -&gt; <span class="hljs-literal">None</span>:
+        svc = registry.get(spec.target)
+        svc._error_rate_override = <span class="hljs-literal">None</span>
+        svc._latency_multiplier = <span class="hljs-number">1.0</span>
+
+register_handler(<span class="hljs-string">&quot;my_handler&quot;</span>, MyHandler)
+</code></pre>
+<p>Then use <code>handler_type=&quot;my_handler&quot;</code> in your <code>ScenarioSpec</code>.</p>
+<h3 id="adding-a-new-span-builder">Adding a new span builder</h3>
+<p>Add a function to <code>src/god/generators/genai.py</code> or <code>src/god/generators/infra.py</code> with the signature:</p>
+<pre><code class="language-python"><span class="hljs-keyword">def</span> <span class="hljs-title function_">build_my_span</span>(<span class="hljs-params">
+    svc: ServiceDef,
+    trace_id: <span class="hljs-built_in">str</span>,
+    parent_span_id: <span class="hljs-built_in">str</span> | <span class="hljs-literal">None</span>,
+    start_ms: <span class="hljs-built_in">float</span>,
+    rng: np.random.Generator,
+</span>) -&gt; <span class="hljs-built_in">tuple</span>[Span, <span class="hljs-built_in">float</span>]:
+    ...
+    <span class="hljs-keyword">return</span> span, end_ms
+</code></pre>
+<p>Then call it from <code>orchestrator.py</code> where appropriate.</p>
+<h3 id="adding-a-new-output-sink">Adding a new output sink</h3>
+<p>Subclass <code>Sink</code> from <code>src/god/sinks.py</code>:</p>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">MySink</span>(<span class="hljs-title class_ inherited__">Sink</span>):
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">flush</span>(<span class="hljs-params">self, traces: <span class="hljs-built_in">list</span>[Trace], logs: <span class="hljs-built_in">list</span>[LogEntry]</span>) -&gt; <span class="hljs-literal">None</span>:
+        ...
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">close</span>(<span class="hljs-params">self</span>) -&gt; <span class="hljs-literal">None</span>:
+        ...
+</code></pre>
+<h3 id="changing-the-service-topology">Changing the service topology</h3>
+<p>Edit <code>src/god/services.py</code>. Add a <code>ServiceDef</code> to <code>DEFAULT_SERVICES</code> and wire up dependencies via
+the <code>dependencies</code> list. Existing tests assert on specific service names - update <code>test_services.py</code>
+accordingly.</p>
+<hr>
+<h2 id="rate-limiting">Rate limiting</h2>
+<p>The <code>god</code> HTTP client uses a two-layer rate-limiting strategy for outbound LLM and
+embedding calls: a per-operation token bucket (proactive throughput cap) and a concurrency
+semaphore (in-flight cap). 429 responses feed back into the token bucket to self-throttle
+under sustained upstream pressure.</p>
+<p>See <a href="RATE_LIMITING.html">RATE_LIMITING.md</a> for full configuration reference, tuning guidance,
+and known limitations.</p>
+<hr>
+<h2 id="gotchas">Gotchas</h2>
+<ol>
+<li>
+<p><strong><code>gen-otlp</code> requires an API key (or mock mode).</strong> The make target does not set <code>GOD_MOCK_MODE=true</code>
+unlike <code>gen</code>, <code>gen-files</code>, and <code>gen-fixtures</code>. If you have not set <code>GEMINI_API_KEY</code> (or the relevant
+key for your chosen model) and are not in mock mode, the analysis agent will fail on <code>--analyse</code>.
+Pure generation without <code>--analyse</code> works fine without any API key. The default model is
+<code>gemini-2.5-flash-lite</code>; set <code>GEMINI_API_KEY</code> rather than <code>ANTHROPIC_API_KEY</code> unless you have set
+<code>GOD_AGENT_MODEL</code> to a Claude model (<code>claude-haiku-4-5-20251001</code>).</p>
+</li>
+<li>
+<p><strong>Seed only partially controls randomness.</strong> A few choices inside the generators (HTTP method
+selection, some error type strings) use <code>random.choice</code> from the stdlib without seeding. For fully
+reproducible output, call <code>random.seed(n)</code> yourself before invoking <code>generate_dataset</code>.</p>
+</li>
+<li>
+<p><strong><code>gen_ai.server.time_to_first_token</code> is in seconds (OTel spec); <code>gen_ai.server.ttft_ms</code> is a
+non-standard convenience attribute in milliseconds</strong> emitted alongside it. Do not treat them as
+duplicates when writing dashboards.</p>
+</li>
+<li>
+<p><strong>Token budget breach suppresses baseline errors.</strong> <code>_error_rate_override = 0.0</code> means the service
+emits zero hard errors during that scenario window. The anomaly signal is purely in
+<code>finish_reason=length</code> spans, not in span status.</p>
+</li>
+<li>
+<p><strong>OTLPHttpSink is synchronous.</strong> It uses <code>urllib.request</code>, not httpx. Large batches will block the
+main thread. Use a small <code>--batch-size</code> if this is a concern.</p>
+</li>
+<li>
+<p><strong>Grafana dashboards are auto-provisioned</strong> from <code>infra/grafana/dashboards/</code> on container start.
+Edits in the UI are ephemeral unless <code>allowUiUpdates: true</code> in the provisioning config (it is).</p>
+</li>
+<li>
+<p><strong><code>int</code> attribute values are serialised as strings in OTLP JSON</strong> per the OTLP spec:
+<code>{&quot;intValue&quot;: &quot;1234&quot;}</code>. Some downstream consumers may need this handled explicitly.</p>
+</li>
+<li>
+<p><strong>The <code>tasks/</code> refactor plan</strong> describes flattening <code>src/god/god/</code> -&gt; <code>src/god/</code>. The file system
+already reflects the flat layout. If you encounter import errors referencing a double-nested path,
+the plan is stale.</p>
+</li>
+</ol>
+
+            
+            
+        </body>
+        </html>

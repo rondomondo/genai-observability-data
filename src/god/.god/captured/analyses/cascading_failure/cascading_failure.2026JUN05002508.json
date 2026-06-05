@@ -1,0 +1,46 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "api-gateway has 2270 errors, forming the majority of the error rate."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "auth-service has 1290 errors."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "payments-service has 772 errors."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "167 LLM token truncations detected."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "medium",
+      "detail": "131 tool failures detected."
+    }
+  ],
+  "error_rate": 0.1416,
+  "p99_latency_ms": 11894.3,
+  "recommended_action": "Investigate the high error rate in api-gateway, auth-service, and payments-service. Check for cascading failures and LLM/tool issues.",
+  "summary": "High error rate (14.16%) with significant contributions from api-gateway, auth-service, and payments-service. P99 latency is high at 11.89s. There are also notable LLM token truncations and tool failures.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash-lite",
+    "captured_at": "2026JUN05002508",
+    "scenario": "cascading_failure"
+  }
+}

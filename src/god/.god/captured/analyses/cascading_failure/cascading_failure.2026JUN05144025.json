@@ -1,0 +1,34 @@
+{
+  "active_scenarios": [
+    "cascading_failure"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "system",
+      "signal_type": "latency_spike",
+      "severity": "high",
+      "detail": "Overall p99 latency of 9670.2ms is high."
+    },
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "critical",
+      "detail": "4 out of 10 spans (40%) in postgres-auth failed."
+    },
+    {
+      "service": "auth-service",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "1 out of 10 spans (10%) in auth-service failed."
+    }
+  ],
+  "error_rate": 0.0641,
+  "p99_latency_ms": 9670.2,
+  "recommended_action": "Investigate auth-service and postgres-auth for cascading failures leading to high latency and errors.",
+  "summary": "The system is experiencing high p99 latency and significant errors within the authentication services, potentially indicating a cascading failure.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash",
+    "captured_at": "2026JUN05144025",
+    "scenario": "cascading_failure"
+  }
+}

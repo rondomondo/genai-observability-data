@@ -1,0 +1,52 @@
+{
+  "active_scenarios": [
+    "all"
+  ],
+  "anomaly_signals": [
+    {
+      "service": "postgres-auth",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "High error rate in postgres-auth, agent-service, payments-service, and api-gateway."
+    },
+    {
+      "service": "agent-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "High error rate in postgres-auth, agent-service, payments-service, and api-gateway."
+    },
+    {
+      "service": "payments-service",
+      "signal_type": "error_spike",
+      "severity": "high",
+      "detail": "High error rate in postgres-auth, agent-service, payments-service, and api-gateway."
+    },
+    {
+      "service": "api-gateway",
+      "signal_type": "error_spike",
+      "severity": "medium",
+      "detail": "High error rate in postgres-auth, agent-service, payments-service, and api-gateway."
+    },
+    {
+      "service": "llm-gemini",
+      "signal_type": "token_truncation",
+      "severity": "medium",
+      "detail": "13 GenAI token truncations detected."
+    },
+    {
+      "service": "tool-executor",
+      "signal_type": "tool_failure",
+      "severity": "medium",
+      "detail": "7 GenAI tool failures detected."
+    }
+  ],
+  "error_rate": 0.2176,
+  "p99_latency_ms": 13551.8,
+  "recommended_action": "Investigate high error rates in postgres-auth, agent-service, and payments-service. Review GenAI token truncations and tool failures.",
+  "summary": "High error rate (21.76%) and p99 latency (13.5s) with significant errors in authentication and agent services. There are also GenAI token truncations and tool failures.",
+  "_meta": {
+    "model": "google-cloud:gemini-2.5-flash-lite",
+    "captured_at": "2026JUN05043021",
+    "scenario": "all"
+  }
+}
