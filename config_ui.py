@@ -31,6 +31,7 @@ REPO_ROOT = Path(os.environ["REPO_ROOT"]) if "REPO_ROOT" in os.environ else Path
 PROFILES_DIR = REPO_ROOT / "profiles"
 ROOT_ENV = REPO_ROOT / ".env"
 VECSTORE_ENV = REPO_ROOT / "vecstore-api" / ".env"
+GOD_ENV = REPO_ROOT / "src" / "god" / ".env"
 BACKUP_DIR = REPO_ROOT / "profiles" / ".backups"
 
 EMBED_BACKENDS = ["mock", "sidecar", "gemini", "sentence-transformers", "google-cloud"]
@@ -211,6 +212,30 @@ def _profile_to_root_env(profile: dict[str, Any]) -> dict[str, str]:
     return env
 
 
+def _profile_to_god_env(profile: dict[str, Any]) -> dict[str, str]:
+    """Build env vars for src/god/.env from a profile."""
+    g = profile.get("god", {})
+    backend = g.get("agent_backend", "google-cloud")
+    model = g.get("agent_model", "gemini-2.5-flash-lite")
+    env = {
+        "GOD_AGENT_MODEL": f"{backend}:{model}",
+        "GOD_AGENT_BACKEND": backend,
+        "GOD_AGENT_FALLBACK_MODEL": str(g.get("agent_fallback_model", "")),
+        "GOD_MOCK_MODE": str(g.get("mock_mode", False)).lower(),
+        "GOD_DEFAULT_TRACES": str(g.get("default_traces", 100)),
+        "GOD_DEFAULT_RATE": str(g.get("default_rate", 10.0)),
+        "GOD_DEFAULT_BATCH_SIZE": str(g.get("default_batch_size", 50)),
+        "GOD_VECSTORE_SUMMARISE_TRACES": str(g.get("vecstore_summarise_traces", True)).lower(),
+        "GOD_VECSTORE_SUMMARISE_LOGS": str(g.get("vecstore_summarise_logs", False)).lower(),
+        "GOD_VECSTORE_ASYNC_MODE": str(g.get("vecstore_async_mode", True)).lower(),
+    }
+    creds = _credentials_to_env(profile)
+    for key in ("GEMINI_API_KEY", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"):
+        if key in creds:
+            env[key] = creds[key]
+    return env
+
+
 def _profile_to_vecstore_env(profile: dict[str, Any]) -> dict[str, str]:
     v = profile.get("vecstore", {})
     env = {
@@ -274,10 +299,15 @@ async def apply_profile(filename: str) -> JSONResponse:
     profile = _load_profile(path)
     root_vals = _profile_to_root_env(profile)
     vecstore_vals = _profile_to_vecstore_env(profile)
+    god_vals = _profile_to_god_env(profile)
     _write_env_preserving_secrets(ROOT_ENV, root_vals)
     _write_env_preserving_secrets(VECSTORE_ENV, vecstore_vals)
+    _write_env_preserving_secrets(GOD_ENV, god_vals)
     _set_active_profile(filename)
-    return JSONResponse({"ok": True, "applied": filename, "root_env": str(ROOT_ENV), "vecstore_env": str(VECSTORE_ENV)})
+    return JSONResponse({
+        "ok": True, "applied": filename,
+        "root_env": str(ROOT_ENV), "vecstore_env": str(VECSTORE_ENV), "god_env": str(GOD_ENV),
+    })
 
 
 @app.delete("/api/profiles/{filename}")

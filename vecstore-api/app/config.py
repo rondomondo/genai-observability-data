@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Google Cloud auth (google-cloud backends)
     google_access_token: str = Field(default=os.environ.get('GOOGLE_ACCESS_TOKEN',""))
     google_cloud_project: str = Field(default="")
-    google_cloud_location: str = Field(default="us-central1")
+    google_cloud_location: str = Field(default="")
 
     # Redis
     redis_url: str = Field(default="redis://localhost:6379")

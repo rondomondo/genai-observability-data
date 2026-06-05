@@ -259,7 +259,7 @@ profile-dev-cloud: stack-up ## Infra for cloud dev (Gemini embeddings); run vecs
 	@printf "  OTel stack: up\n"
 	@printf "\n"
 	@printf "$(CYAN)Now start the API in a separate terminal:$(RESET)\n"
-	@printf "  cd vecstore-api && EMBED_BACKEND=gemini make dev\n"
+	@printf "  cd vecstore-api && SUMMARISER_BACKEND=google-cloud EMBED_BACKEND=google-cloud make dev\n"
 	@printf "\n"
 	@printf "$(YELLOW)Requires GEMINI_API_KEY set in vecstore-api/.env$(RESET)\n"
 
