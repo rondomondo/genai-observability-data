@@ -45,3 +45,4 @@ vecstore:
   log_format: console
   summariser_rate_limit_rpm: 200
   summariser_backend: mock
+editor_enabled: true

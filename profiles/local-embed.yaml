@@ -4,7 +4,7 @@ description: Local sidecar embedder (Qwen3), Gemini agent, Claude summariser. No
 god:
   agent_backend: google-cloud
   agent_model: gemini-2.5-flash-lite
-  agent_fallback_model:
+  agent_fallback_model: null
   mock_mode: false
   default_traces: 500
   default_rate: 10
@@ -42,3 +42,4 @@ vecstore:
   rate_limit_summarise: 30/minute
   log_level: INFO
   log_format: console
+editor_enabled: false

@@ -27,7 +27,7 @@ from app.rate_limits import limiter
 from app.logging_config import configure_logging, get_logger
 from app.middleware.auth import APIKeyMiddleware
 from app.middleware.correlation import CorrelationMiddleware
-from app.routers import cache, embed, ingest, search, status, summarise
+from app.routers import cache, embed, ingest, search, status, summarise, topologies
 from app.services.cache import CacheService
 from app.services.embedder import Embedder
 from app.services.jobs import JobStore
@@ -167,6 +167,7 @@ def create_app() -> FastAPI:
     app.include_router(search.router)
     app.include_router(summarise.router)
     app.include_router(status.router)
+    app.include_router(topologies.router)
 
     # Health (no auth)
     @app.get("/health", tags=["health"], include_in_schema=False)

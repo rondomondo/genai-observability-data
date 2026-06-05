@@ -46,3 +46,4 @@ vecstore:
 credentials:
   GOOGLE_CLOUD_PROJECT: nimble-cortex-498410-u8
   GOOGLE_CLOUD_LOCATION: '""'
+editor_enabled: true

@@ -21,15 +21,17 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         self._api_key = api_key
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if request.url.path in SKIP_PATHS:
+        if request.url.path in SKIP_PATHS or request.method == "OPTIONS":
             return await call_next(request)
 
         provided = request.headers.get("x-api-key", "")
         if provided != self._api_key:
             log.warning("auth_failed", path=request.url.path)
+            origin = request.headers.get("origin", "*")
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or missing X-API-Key header"},
+                headers={"Access-Control-Allow-Origin": origin},
             )
 
         return await call_next(request)

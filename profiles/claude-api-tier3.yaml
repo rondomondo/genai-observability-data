@@ -35,7 +35,6 @@ vecstore:
   summariser_concurrency: 8
   cache_hit_threshold: 0.92
   cache_ttl_seconds: 3600
-  # Tier 3: Haiku 2000 RPM / 200000 OTPM; Sonnet 2000 RPM / 160000 OTPM
   rate_limit_ingest: 1200/minute
   rate_limit_embed: 600/minute
   rate_limit_search: 600/minute
@@ -43,3 +42,4 @@ vecstore:
   rate_limit_summarise: 400/minute
   log_level: INFO
   log_format: json
+editor_enabled: false

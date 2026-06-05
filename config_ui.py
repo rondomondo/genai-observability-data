@@ -100,7 +100,12 @@ def _list_profiles() -> list[dict[str, str]]:
     profiles = []
     for p in sorted(PROFILES_DIR.glob("*.yaml")):
         data = _load_profile(p)
-        profiles.append({"file": p.name, "name": data.get("name", p.stem), "description": data.get("description", "")})
+        profiles.append({
+            "file": p.name,
+            "name": data.get("name", p.stem),
+            "description": data.get("description", ""),
+            "editor_enabled": bool(data.get("editor_enabled", True)),
+        })
     return profiles
 
 
@@ -228,6 +233,8 @@ def _profile_to_god_env(profile: dict[str, Any]) -> dict[str, str]:
         "GOD_VECSTORE_SUMMARISE_TRACES": str(g.get("vecstore_summarise_traces", True)).lower(),
         "GOD_VECSTORE_SUMMARISE_LOGS": str(g.get("vecstore_summarise_logs", False)).lower(),
         "GOD_VECSTORE_ASYNC_MODE": str(g.get("vecstore_async_mode", True)).lower(),
+        "LOG_LEVEL": str(g.get("log_level", "INFO")),
+        "LOG_FORMAT": str(g.get("log_format", "console")),
     }
     creds = _credentials_to_env(profile)
     for key in ("GEMINI_API_KEY", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"):
@@ -320,6 +327,13 @@ async def delete_profile(filename: str) -> JSONResponse:
         raise HTTPException(status_code=400, detail="Cannot delete the active profile")
     path.unlink()
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/meta/vecstore-key")
+async def vecstore_key() -> JSONResponse:
+    """Read API_KEY from vecstore-api/.env for use by the topology UI."""
+    key = _read_env_file(VECSTORE_ENV).get("API_KEY", "")
+    return JSONResponse({"api_key": key})
 
 
 @app.get("/api/meta/options")
@@ -527,14 +541,18 @@ _HTML = r"""<!DOCTYPE html>
   body.light .sidebar { box-shadow: inset 0 1px 3px rgba(0,0,0,.08), inset 0 0 0 1px rgba(0,0,0,.06); }
   .sidebar h1 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
   #profile-list { display: flex; flex-direction: column; gap: 6px; }
-  .profile-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: border-color .15s; }
-  .profile-card:hover { border-color: var(--border-hover); }
-  .profile-card.active  { border-color: var(--active-bdr); background: var(--active-bg); }
-  .profile-card.editing { border-color: var(--focus); background: var(--info-bg); }
-  .profile-card .pname { font-size: 13px; font-weight: 600; }
-  .profile-card .pdesc { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
-  .profile-card .pbadge { display: inline-block; margin-top: 4px; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--green-bg); color: var(--green-text); }
-  .profile-card .pbadge-editing { display: inline-block; margin-top: 4px; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--info-bg); color: var(--info-text); border: 1px solid var(--focus); }
+  .profile-details { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; transition: border-color .15s; }
+  .profile-details:hover { border-color: var(--border-hover); }
+  .profile-details.active  { border-color: var(--active-bdr); background: var(--active-bg); }
+  .profile-details.editing { border-color: var(--focus); background: var(--info-bg); }
+  .profile-details summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: default; user-select: none; }
+  .profile-details summary::-webkit-details-marker { display: none; }
+  .profile-details .pname { font-size: 13px; font-weight: 600; flex: 1; }
+  .profile-summary-cb { cursor: pointer; flex-shrink: 0; }
+  .profile-body { padding: 4px 12px 10px; cursor: pointer; }
+  .profile-body .pdesc { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+  .profile-body .pbadge { display: inline-block; margin-top: 4px; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--green-bg); color: var(--green-text); }
+  .profile-body .pbadge-editing { display: inline-block; margin-top: 4px; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--info-bg); color: var(--info-text); border: 1px solid var(--focus); }
   .btn-new { background: #2b6cb0; color: #fff; border: none; border-radius: 6px; padding: 8px 12px; font-size: 12px; cursor: pointer; width: 100%; margin-top: 8px; }
   .btn-new:hover { background: #3182ce; }
 
@@ -641,6 +659,31 @@ _HTML = r"""<!DOCTYPE html>
   .empty { text-align: center; padding: 60px 0; color: var(--text-hint); }
   .empty .big { font-size: 40px; margin-bottom: 12px; }
 
+  /* Topology import */
+  .topo-drop {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    margin-bottom: 14px;
+  }
+  .topo-drop.drag-over { border-color: var(--focus); background: var(--info-bg); color: var(--info-text); }
+  .topo-drop input[type=file] { display: none; }
+  .topo-preview { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-bottom: 14px; font-size: 12px; }
+  .topo-preview h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 10px; }
+  .topo-svc-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .topo-svc-table th { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-weight: 600; }
+  .topo-svc-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); color: var(--text-muted); font-family: monospace; }
+  .topo-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .topo-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; }
+  .topo-item .tname { font-size: 12px; font-weight: 600; flex: 1; }
+  .topo-item .tmeta { font-size: 10px; color: var(--text-dim); }
+  .topo-item .btn-del-topo { background: transparent; border: 1px solid #c53030; color: #fc8181; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+
   /* Responsive - tablet */
   @media (max-width: 900px) {
     .page-wrap { width: 90%; }
@@ -722,12 +765,37 @@ _HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<div class="modal-backdrop" id="topo-modal" onclick="if(event.target===this)closeTopoImport()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="topo-modal-title">
+    <div class="modal-header">
+      <h2 id="topo-modal-title">Import topology from OTel trace file</h2>
+      <button class="modal-close" onclick="closeTopoImport()" title="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="topo-modal-body">
+      <div class="topo-drop" id="topo-drop-zone"
+           onclick="document.getElementById('topo-file-input').click()"
+           ondragover="topoOnDragOver(event)" ondragleave="topoOnDragLeave(event)" ondrop="topoOnDrop(event)">
+        <input type="file" id="topo-file-input" accept=".json,.jsonl" onchange="topoOnFileSelect(event)">
+        <div style="font-size:28px;margin-bottom:8px">&#8659;</div>
+        Drop an OTel JSON trace file here, or click to browse
+        <div style="font-size:11px;margin-top:6px;color:var(--text-hint)">Supports OTLP JSON and JSONL (resourceSpans format)</div>
+      </div>
+      <div id="topo-preview-area"></div>
+    </div>
+  </div>
+</div>
+
 <div class="page-wrap">
   <div class="layout">
     <aside class="sidebar">
       <h1>Profiles</h1>
       <div id="profile-list"></div>
       <button class="btn-new" onclick="newProfile()">+ New profile</button>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+        <h1 style="margin-bottom:8px">Topologies</h1>
+        <div id="topo-list"><p style="font-size:12px;color:#4a5568">Loading...</p></div>
+        <button class="btn-new" style="margin-top:8px" onclick="openTopoImport()">+ Import topology</button>
+      </div>
     </aside>
     <main class="main" id="main" ondblclick="toggleAllSections(event)" ontouchend="toggleAllSections(event)">
       <div class="empty"><div class="big">&#9881;</div><p>Select a profile to edit</p></div>
@@ -738,16 +806,25 @@ _HTML = r"""<!DOCTYPE html>
 <script>
 const API = "";
 let state = { profiles: [], active: null, options: {}, current: null, dirty: false };
+let _vecstoreKey = '';
+
+function _topoHeaders(extra) {
+  const h = { 'X-API-Key': _vecstoreKey, ...extra };
+  return h;
+}
 
 async function init() {
-  const [pl, opts] = await Promise.all([
+  const [pl, opts, keyData] = await Promise.all([
     fetch(`${API}/api/profiles`).then(r => r.json()),
     fetch(`${API}/api/meta/options`).then(r => r.json()),
+    fetch(`${API}/api/meta/vecstore-key`).then(r => r.json()).catch(() => ({})),
   ]);
   state.profiles = pl.profiles;
   state.active = pl.active;
   state.options = opts;
+  _vecstoreKey = keyData.api_key || '';
   renderSidebar();
+  _loadTopologies();
   if (state.active) {
     const match = state.profiles.find(p => p.file === state.active);
     if (match) loadProfile(match.file);
@@ -757,17 +834,44 @@ async function init() {
 function renderSidebar() {
   const el = document.getElementById("profile-list");
   if (!state.profiles.length) { el.innerHTML = '<p style="font-size:12px;color:#4a5568">No profiles yet</p>'; return; }
-  el.innerHTML = state.profiles.map(p => {
+  const sorted = [...state.profiles].sort((a, b) => {
+    const ae = a.editor_enabled !== false;
+    const be = b.editor_enabled !== false;
+    return ae === be ? 0 : ae ? -1 : 1;
+  });
+  el.innerHTML = sorted.map(p => {
     const isActive  = p.file === state.active;
     const isEditing = p.file === state.currentFile && !isActive;
-    const cls = isActive ? 'active' : isEditing ? 'editing' : '';
+    const cls       = isActive ? 'active' : isEditing ? 'editing' : '';
+    const enabled   = p.editor_enabled !== false;
+    const openAttr  = enabled ? ' open' : '';
+    const cbChecked = enabled ? ' checked' : '';
     return `
-    <div class="profile-card ${cls}" onclick="loadProfile('${p.file}')">
-      <div class="pname">${esc(p.name)}</div>
-      <div class="pdesc">${esc(p.description)}</div>
-      ${isActive ? '<span class="pbadge">active</span>' : isEditing ? '<span class="pbadge-editing">editing</span>' : ''}
-    </div>`;
+    <details class="profile-details ${cls}"${openAttr}>
+      <summary>
+        <input class="profile-summary-cb" type="checkbox"${cbChecked}
+               onclick="event.stopPropagation();toggleEditorEnabled('${p.file}',this.checked)"
+               title="Show this profile in editor">
+        <span class="pname">${esc(p.name)}</span>
+      </summary>
+      <div class="profile-body" onclick="loadProfile('${p.file}')">
+        <div class="pdesc">${esc(p.description)}</div>
+        ${isActive ? '<span class="pbadge">active</span>' : isEditing ? '<span class="pbadge-editing">editing</span>' : ''}
+      </div>
+    </details>`;
   }).join('');
+}
+
+async function toggleEditorEnabled(filename, enabled) {
+  const data = await fetch(`${API}/api/profiles/${filename}`).then(r => r.json());
+  data.editor_enabled = enabled;
+  await fetch(`${API}/api/profiles/${filename}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+  });
+  const pl = await fetch(`${API}/api/profiles`).then(r => r.json());
+  state.profiles = pl.profiles;
+  state.active   = pl.active;
+  renderSidebar();
 }
 
 async function loadProfile(filename) {
@@ -781,7 +885,7 @@ async function loadProfile(filename) {
 function renderEditor() {
   const p = state.current;
   const o = state.options;
-  const g = Object.assign({ agent_backend: 'google-cloud' }, p.god || {});
+  const g = Object.assign({ agent_backend: 'google-cloud', log_level: 'INFO', log_format: 'console' }, p.god || {});
   const _v = p.vecstore || {};
   // migrate legacy summariser_mock bool to summariser_backend string
   const v = Object.assign({
@@ -935,9 +1039,27 @@ function renderEditor() {
     `)}
 
     ${sec('logging', 'Logging', `
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="log-apply-all"${_logApplyAll ? ' checked' : ''} onchange="onLogApplyAll(this.checked)">
+          Apply to all components
+        </label>
+      </div>
       <div class="grid2">
-        ${sel('Log level', 'v.log_level', v.log_level, o.log_levels, 'Minimum severity to emit. DEBUG is very verbose; use INFO or WARNING in production.')}
-        ${sel('Log format', 'v.log_format', v.log_format, o.log_formats, 'console = human-readable coloured output; json = structured for log aggregators; logfmt = key=value pairs.')}
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:8px">Vecstore</div>
+          <div class="grid2">
+            ${selFn('Log level', 'v.log_level', v.log_level, o.log_levels, 'onLogFieldChange', 'Minimum severity for vecstore-api logs. DEBUG is very verbose; use INFO or WARNING in production.')}
+            ${selFn('Log format', 'v.log_format', v.log_format, o.log_formats, 'onLogFieldChange', 'console = human-readable; json = structured for log aggregators; logfmt = key=value pairs.')}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:8px">God agent</div>
+          <div class="grid2">
+            ${selFn('Log level', 'g.log_level', g.log_level, o.log_levels, 'onLogFieldChange', 'Minimum severity for god agent logs.')}
+            ${selFn('Log format', 'g.log_format', g.log_format, o.log_formats, 'onLogFieldChange', 'Output format for god agent logs.')}
+          </div>
+        </div>
       </div>
     `)}
 
@@ -1013,6 +1135,9 @@ function _lbl(label, tip) {
 function sel(label, key, val, opts, tip='') {
   return `<div class="field">${_lbl(label,tip)}<select onchange="patch('${key}',this.value)">${(opts||[]).map(o=>`<option ${o==val?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
 }
+function selFn(label, key, val, opts, fnName, tip='') {
+  return `<div class="field">${_lbl(label,tip)}<select onchange="${fnName}('${key}',this.value)">${(opts||[]).map(o=>`<option ${o==val?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
+}
 function num(label, key, val, min, max, step=1, tip='') {
   return `<div class="field">${_lbl(label,tip)}<input type="number" value="${val}" min="${min}" max="${max}" step="${step}" oninput="patch('${key}',+this.value)"></div>`;
 }
@@ -1077,6 +1202,31 @@ function onAgentBackendChange(backend) {
   const models = opts.agent_models_by_backend[backend] || [];
   if (models.length) patch('g.agent_model', models[0]);
   renderEditor();
+}
+
+let _logApplyAll = false;
+
+function onLogApplyAll(enabled) {
+  _logApplyAll = enabled;
+  if (!enabled) return;
+  const level  = (state.current.vecstore || {}).log_level  || 'INFO';
+  const format = (state.current.vecstore || {}).log_format || 'console';
+  patch('g.log_level',  level);
+  patch('g.log_format', format);
+  renderEditor();
+  const cb = document.getElementById('log-apply-all');
+  if (cb) cb.checked = true;
+}
+
+function onLogFieldChange(key, val) {
+  patch(key, val);
+  if (!_logApplyAll) return;
+  const subKey = key.split('.').pop();
+  patch('v.' + subKey, val);
+  patch('g.' + subKey, val);
+  renderEditor();
+  const cb = document.getElementById('log-apply-all');
+  if (cb) cb.checked = true;
 }
 
 async function saveProfile() {
@@ -1149,13 +1299,14 @@ function newProfile() {
   if (!newName) return;
   const newFile = newName.replace(/[^a-z0-9_-]/gi,'_').toLowerCase() + '.yaml';
   state.current = {
-    name: newName, description: '',
+    name: newName, description: '', editor_enabled: true,
     god: { agent_backend:'mock', agent_model:'gemini-2.5-flash-lite', agent_fallback_model:'', mock_mode:true,
            default_traces:100, default_rate:10.0, default_batch_size:50,
            vecstore_summarise_traces:true, vecstore_summarise_logs:false, vecstore_async_mode:true,
            http_rate_ingest:8, http_rate_search:4, http_rate_cache:4, http_rate_admin:2,
            http_rps_ingest:0.0, http_rps_search:0.0, http_rps_cache:0.0, http_rps_admin:0.0,
-           http_retry_attempts:3, http_retry_backoff_min:0.5, http_retry_backoff_max:8.0 },
+           http_retry_attempts:3, http_retry_backoff_min:0.5, http_retry_backoff_max:8.0,
+           log_level:'INFO', log_format:'console' },
     vecstore: { embed_backend:'mock', embed_model:'gemini-embedding-001', embed_dim:768,
                 embed_workers:4, embed_concurrency:2, embed_batch_size:32, embed_rate_limit_rpm:90,
                 summariser_backend:'mock', summariser_model:'mock-model', summariser_concurrency:2, summariser_rate_limit_rpm:50,
@@ -1200,7 +1351,292 @@ function openHelp() {
 function closeHelp() {
   document.getElementById('help-modal').classList.remove('open');
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeHelp(); closeTopoImport(); } });
+
+// Topology import
+
+const VECSTORE_API = 'http://localhost:8000';
+let _topoExtracted = null;
+
+async function _loadTopologies() {
+  const el = document.getElementById('topo-list');
+  if (!el) return;
+  try {
+    const data = await fetch(`${VECSTORE_API}/topologies`, { headers: _topoHeaders() }).then(r => r.json());
+    const topos = data.topologies || [];
+    if (!topos.length) {
+      el.innerHTML = '<p style="font-size:12px;color:#4a5568">None saved yet</p>';
+      return;
+    }
+    el.innerHTML = '<div class="topo-list">' + topos.map(t => `
+      <div class="topo-item">
+        <div>
+          <div class="tname">${esc(t.name)}</div>
+          <div class="tmeta">${t.service_count} services</div>
+        </div>
+        <button class="btn-del-topo" onclick="deleteTopo('${esc(t.file)}')">x</button>
+      </div>`).join('') + '</div>';
+  } catch {
+    el.innerHTML = '<p style="font-size:11px;color:var(--text-hint)">vecstore-api not reachable</p>';
+  }
+}
+
+async function deleteTopo(filename) {
+  if (!confirm(`Delete topology "${filename}"?`)) return;
+  await fetch(`${VECSTORE_API}/topologies/${filename}`, { method: 'DELETE', headers: _topoHeaders() });
+  _loadTopologies();
+}
+
+function openTopoImport() {
+  _topoExtracted = null;
+  document.getElementById('topo-preview-area').innerHTML = '';
+  document.getElementById('topo-file-input').value = '';
+  document.getElementById('topo-modal').classList.add('open');
+}
+function closeTopoImport() {
+  document.getElementById('topo-modal').classList.remove('open');
+}
+
+function topoOnDragOver(e) { e.preventDefault(); document.getElementById('topo-drop-zone').classList.add('drag-over'); }
+function topoOnDragLeave()  { document.getElementById('topo-drop-zone').classList.remove('drag-over'); }
+function topoOnDrop(e) {
+  e.preventDefault();
+  topoOnDragLeave();
+  const file = e.dataTransfer.files[0];
+  if (file) _topoReadFile(file);
+}
+function topoOnFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) _topoReadFile(file);
+}
+
+function _parseJsonOrJsonl(text) {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {}
+  }
+  // JSONL - merge all resourceSpans arrays into one envelope
+  const allResourceSpans = [];
+  for (const line of trimmed.split('\n')) {
+    const l = line.trim();
+    if (!l) continue;
+    const obj = JSON.parse(l);
+    const rs = obj.resourceSpans || obj.resource_spans || [];
+    allResourceSpans.push(...rs);
+  }
+  return { resourceSpans: allResourceSpans };
+}
+
+function _topoReadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const raw = _parseJsonOrJsonl(ev.target.result);
+      _topoExtracted = _parseOtelTrace(raw, file.name);
+      _renderTopoPreview(_topoExtracted, file.name);
+    } catch(err) {
+      document.getElementById('topo-preview-area').innerHTML =
+        `<div class="status err">Failed to parse file: ${esc(String(err))}</div>`;
+    }
+  };
+  reader.readAsText(file);
+}
+
+function _parseOtelTrace(raw, filename) {
+  const resourceSpans = raw.resourceSpans || raw.resource_spans || [];
+  if (!resourceSpans.length) throw new Error('No resourceSpans found - is this an OTLP JSON trace file?');
+
+  // Collect per-service span durations and error counts
+  const svcs = {};
+
+  for (const rs of resourceSpans) {
+    const attrs = _otelAttrsToObj(rs.resource?.attributes || []);
+    const svcName = attrs['service.name'] || 'unknown';
+
+    if (!svcs[svcName]) {
+      svcs[svcName] = {
+        name: svcName,
+        resource_attrs: attrs,
+        durations_ms: [],
+        error_count: 0,
+        span_count: 0,
+        parent_services: new Set(),
+        span_ids: new Set(),
+        parent_span_ids: {},  // spanId -> parentSpanId
+      };
+    }
+    const svc = svcs[svcName];
+
+    for (const ss of rs.scopeSpans || rs.scope_spans || []) {
+      for (const span of ss.spans || []) {
+        const startNs = BigInt(span.startTimeUnixNano || span.start_time_unix_nano || 0);
+        const endNs   = BigInt(span.endTimeUnixNano   || span.end_time_unix_nano   || 0);
+        const durMs   = Number(endNs - startNs) / 1_000_000;
+        if (durMs > 0) svc.durations_ms.push(durMs);
+
+        const statusCode = span.status?.code ?? span.status?.Code ?? 0;
+        if (statusCode === 2) svc.error_count++;
+        svc.span_count++;
+
+        if (span.spanId || span.span_id) svc.span_ids.add(span.spanId || span.span_id);
+        if (span.parentSpanId || span.parent_span_id) {
+          svc.parent_span_ids[span.spanId || span.span_id] = span.parentSpanId || span.parent_span_id;
+        }
+      }
+    }
+  }
+
+  // Resolve cross-service parent relationships -> dependencies
+  const spanToService = {};
+  for (const [svcName, svc] of Object.entries(svcs)) {
+    for (const sid of svc.span_ids) spanToService[sid] = svcName;
+  }
+  for (const [svcName, svc] of Object.entries(svcs)) {
+    for (const [, parentId] of Object.entries(svc.parent_span_ids)) {
+      const parentSvc = spanToService[parentId];
+      if (parentSvc && parentSvc !== svcName) svc.parent_services.add(parentSvc);
+    }
+  }
+
+  // Build services list - dependencies are services this svc calls (i.e. its children are its deps,
+  // but since we track parent_services = who called me, deps of caller = this svc)
+  const callerToDeps = {};
+  for (const [svcName, svc] of Object.entries(svcs)) {
+    for (const caller of svc.parent_services) {
+      if (!callerToDeps[caller]) callerToDeps[caller] = new Set();
+      callerToDeps[caller].add(svcName);
+    }
+  }
+
+  const services = Object.values(svcs).map(svc => {
+    const durs = svc.durations_ms.sort((a, b) => a - b);
+    const p50 = durs.length ? durs[Math.floor(durs.length * 0.5)] : 50;
+    const p99 = durs.length ? durs[Math.floor(durs.length * 0.99)] : 500;
+    const errorRate = svc.span_count ? svc.error_count / svc.span_count : 0.01;
+    const deps = Array.from(callerToDeps[svc.name] || []);
+
+    const ra = svc.resource_attrs;
+    return {
+      name: svc.name,
+      type: _inferServiceType(svc.name, ra),
+      version: ra['service.version'] || '1.0.0',
+      environment: ra['deployment.environment'] || 'production',
+      region: ra['cloud.region'] || 'eu-west-1',
+      p50_ms: Math.round(p50),
+      p99_ms: Math.round(p99),
+      error_rate: Math.round(errorRate * 1000) / 1000,
+      dependencies: deps,
+      provider: ra['gen_ai.provider.name'] || null,
+      model: ra['gen_ai.request.model'] || null,
+    };
+  });
+
+  return { services, source_file: filename };
+}
+
+function _otelAttrsToObj(attrs) {
+  const obj = {};
+  for (const kv of attrs) {
+    const v = kv.value;
+    obj[kv.key] = v.stringValue ?? v.intValue ?? v.doubleValue ?? v.boolValue ?? '';
+  }
+  return obj;
+}
+
+function _inferServiceType(name, attrs) {
+  const n = name.toLowerCase();
+  if (attrs['gen_ai.provider.name']) {
+    if (n.includes('embed')) return 'genai_embed';
+    if (n.includes('agent')) return 'genai_agent';
+    if (n.includes('memory')) return 'genai_memory';
+    if (n.includes('workflow')) return 'genai_workflow';
+    if (n.includes('tool')) return 'genai_tool_executor';
+    if (n.includes('rag') || n.includes('retriev')) return 'genai_rag';
+    if (n.includes('vector') || n.includes('vect')) return 'genai_vector_db';
+    return 'genai_llm';
+  }
+  if (n.includes('postgres') || n.includes('mysql') || n.includes('db') || n.includes('database')) return 'database';
+  if (n.includes('redis') || n.includes('cache') || n.includes('memcache')) return 'cache';
+  if (n.includes('kafka') || n.includes('rabbit') || n.includes('queue') || n.includes('pubsub')) return 'queue';
+  if (n.includes('grpc')) return 'grpc_service';
+  return 'http_api';
+}
+
+function _renderTopoPreview(extracted, filename) {
+  const svcs = extracted.services;
+  const rows = svcs.map(s => `<tr>
+    <td>${esc(s.name)}</td>
+    <td>${esc(s.type)}</td>
+    <td>${s.p50_ms}</td>
+    <td>${s.p99_ms}</td>
+    <td>${(s.error_rate * 100).toFixed(1)}%</td>
+    <td>${s.dependencies.join(', ') || '-'}</td>
+  </tr>`).join('');
+
+  document.getElementById('topo-preview-area').innerHTML = `
+    <div class="topo-preview">
+      <h4>Extracted: ${svcs.length} services from ${esc(filename)}</h4>
+      <div class="field" style="margin-bottom:10px">
+        <label>Topology name</label>
+        <input id="topo-name" type="text" value="${esc(filename.replace(/\.json$/i,''))}"
+               style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 8px;font-size:12px;width:100%">
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Description (optional)</label>
+        <input id="topo-desc" type="text" placeholder="e.g. production trace from 2026-06-05 incident"
+               style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 8px;font-size:12px;width:100%">
+      </div>
+      <table class="topo-svc-table">
+        <thead><tr><th>Service</th><th>Type</th><th>p50 ms</th><th>p99 ms</th><th>Err%</th><th>Dependencies</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn-save" onclick="saveTopology()">Save topology</button>
+      <button class="btn btn-delete" onclick="document.getElementById('topo-preview-area').innerHTML=''">Discard</button>
+      <span id="topo-save-status" class="status info" style="display:none"></span>
+    </div>`;
+}
+
+async function saveTopology() {
+  if (!_topoExtracted) return;
+  const name = document.getElementById('topo-name')?.value?.trim() || 'imported';
+  const desc = document.getElementById('topo-desc')?.value?.trim() || '';
+  const statusEl = document.getElementById('topo-save-status');
+  statusEl.style.display = '';
+  statusEl.className = 'status info';
+  statusEl.textContent = 'Saving...';
+
+  const payload = {
+    name,
+    description: desc,
+    source_file: _topoExtracted.source_file,
+    services: _topoExtracted.services,
+  };
+
+  try {
+    const resp = await fetch(`${VECSTORE_API}/topologies`, {
+      method: 'POST',
+      headers: _topoHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    if (resp.ok) {
+      statusEl.className = 'status ok';
+      statusEl.textContent = 'Saved.';
+      _loadTopologies();
+      setTimeout(closeTopoImport, 1200);
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      statusEl.className = 'status err';
+      statusEl.textContent = `Error: ${err.detail || resp.statusText}`;
+    }
+  } catch(err) {
+    statusEl.className = 'status err';
+    statusEl.textContent = `Network error: ${err.message}`;
+  }
+}
 
 _applyStoredTheme();
 init();

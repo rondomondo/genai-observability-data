@@ -42,3 +42,4 @@ vecstore:
   rate_limit_summarise: 30/minute
   log_level: INFO
   log_format: json
+editor_enabled: true

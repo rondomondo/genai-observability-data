@@ -53,6 +53,7 @@ god --traces 500 --scenario rag_meltdown --otlp http://localhost:4318
 - [Project structure](#project-structure)
 - [Make targets](#make-targets)
 - [Extending](#extending)
+- [Importing real topologies](#importing-real-topologies)
 - [Rate limiting](#rate-limiting)
 - [Gotchas](#gotchas)
 
@@ -864,6 +865,59 @@ class MySink(Sink):
 Edit `src/god/services.py`. Add a `ServiceDef` to `DEFAULT_SERVICES` and wire up dependencies via
 the `dependencies` list. Existing tests assert on specific service names - update `test_services.py`
 accordingly.
+
+---
+
+## Importing real topologies
+
+You can import a real OTel trace file to derive a service topology and add it to the scenario
+library alongside the built-in synthetic services.
+
+### How it works
+
+1. Open the Config UI (`python config_ui.py`, then `http://localhost:8080`).
+2. Click **+ Import topology** in the sidebar.
+3. Drop an OTLP JSON trace file (the `resourceSpans` format that god itself produces, or any
+   compatible collector export) onto the drop zone.
+4. The browser parses the file entirely client-side - no trace content leaves your machine.
+   It extracts: service names, p50/p99 latency from span durations, error rates from span
+   status codes, and dependency edges from parent-child span relationships across services.
+5. A preview table shows the extracted services. Give the topology a name and click **Save topology**.
+6. The topology is saved as YAML to `src/god/.god/topologies/<name>.yaml` via the vecstore-api
+   `/topologies` endpoint.
+
+### Topology YAML format
+
+```yaml
+name: my-production-system
+description: Derived from incident trace 2026-06-05
+source_file: traces.otlp.json
+imported_at: '2026-06-05T14:30:00+00:00'
+services:
+  - name: checkout-api
+    type: http_api
+    p50_ms: 140
+    p99_ms: 920
+    error_rate: 0.032
+    dependencies: [postgres-checkout, kafka]
+  - name: postgres-checkout
+    type: database
+    p50_ms: 8
+    p99_ms: 120
+    error_rate: 0.005
+    dependencies: []
+```
+
+`type` is inferred from the service name and resource attributes; the valid values match
+`ServiceType` in `src/god/services.py`. You can edit the YAML directly to correct any
+mis-inferred types before using it.
+
+### Using a topology with god
+
+Topology YAMLs in `src/god/.god/topologies/` augment `DEFAULT_SERVICES` - they do not replace
+the built-in service graph. Future CLI support (`--topology <name>`) will allow selecting a
+specific topology for a run; for now you can load a YAML and construct a `ServiceRegistry`
+directly in Python.
 
 ---
 

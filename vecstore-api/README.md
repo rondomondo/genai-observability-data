@@ -73,6 +73,38 @@ X-API-Key: <your API_KEY>
 | GET | `/status` | Service health, queue depth, vset cardinalities |
 | GET | `/status/job/{job_id}` | Async batch job status |
 
+### Topologies
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/topologies` | List all saved topology YAML files |
+| GET | `/topologies/{filename}` | Get a single topology by filename |
+| POST | `/topologies` | Save an imported topology (see schema below) |
+| DELETE | `/topologies/{filename}` | Delete a topology |
+
+Topologies are service graphs extracted from real OTel trace files and stored as YAML under
+`src/god/.god/topologies/`. They augment the synthetic `DEFAULT_SERVICES` when god generates
+data. The Config UI (`config_ui.py`) provides a drag-drop import flow that parses trace files
+client-side before posting the extracted schema here.
+
+**POST /topologies body:**
+```json
+{
+  "name": "my-system",
+  "description": "Derived from production trace",
+  "source_file": "traces.otlp.json",
+  "services": [
+    {
+      "name": "checkout-api",
+      "type": "http_api",
+      "p50_ms": 140,
+      "p99_ms": 920,
+      "error_rate": 0.032,
+      "dependencies": ["postgres-checkout"]
+    }
+  ]
+}
+```
+
 ---
 
 ## Examples
