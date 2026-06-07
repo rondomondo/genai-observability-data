@@ -1,0 +1,266 @@
+{
+  "id": null,
+  "uid": "rag-pipeline",
+  "title": "RAG Pipeline",
+  "tags": ["genai", "otel", "rag"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "10s",
+  "time": { "from": "now-10m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "RAG pipeline stage request rate (req/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"Embeddings generated\" [1m])) * 60",
+          "legendFormat": "1. embed-service"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"Vector search complete\" [1m])) * 60",
+          "legendFormat": "2. vector-db"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference\" [1m])) * 60",
+          "legendFormat": "3. llm-gemini"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "RAG pipeline stage error rate",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\", service_name=\"embed-service\"} [1m])) * 60",
+          "legendFormat": "embed-service errors/min"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\", service_name=\"vector-db\"} [1m])) * 60",
+          "legendFormat": "vector-db errors/min"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\", service_name=\"llm-gemini\"} [1m])) * 60",
+          "legendFormat": "llm-gemini errors/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 1 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "Embedding avg latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\", service_name=\"embed-service\"} |= \"Embeddings generated\" | logfmt | unwrap duration_ms [1m]))",
+          "legendFormat": "embed avg ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Vector search -- top_k vs returned ratio",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Vector search complete\" | logfmt | unwrap top_k [1m]))",
+          "legendFormat": "avg top_k"
+        },
+        {
+          "refId": "B",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Vector search complete\" | logfmt | unwrap returned [1m]))",
+          "legendFormat": "avg returned"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 5,
+      "title": "LLM TTFT for RAG requests (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\", service_name=\"llm-gemini\"} |= \"LLM inference complete\" | logfmt | unwrap ttft_ms [1m]))",
+          "legendFormat": "avg TTFT ms"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.95, {job=~\".+\", service_name=\"llm-gemini\"} |= \"LLM inference complete\" | logfmt | unwrap ttft_ms [5m])",
+          "legendFormat": "p95 TTFT ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 6,
+      "title": "Retrieval yield rate (returned / top_k) -- degradation signal",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 15, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"Vector search complete\" | logfmt | unwrap returned [5m])) / avg(avg_over_time({job=~\".+\"} |= \"Vector search complete\" | logfmt | unwrap top_k [5m]))",
+          "legendFormat": "returned/top_k ratio"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "green", "value": 0.8 }
+            ]
+          },
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "RAG pipeline stage summary -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 15, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Embeddings generated\" [1h]))",
+          "legendFormat": "embed calls"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Vector search complete\" [1h]))",
+          "legendFormat": "vector searches"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(count_over_time({job=~\".+\", service_name=\"llm-gemini\"} |= \"LLM inference\" [1h]))",
+          "legendFormat": "llm calls"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Traces -- RAG service (Jaeger)",
+      "type": "traces",
+      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 7 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "search",
+          "service": "rag-service",
+          "limit": 20
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 9,
+      "title": "Traces -- llm-gemini (Jaeger)",
+      "type": "traces",
+      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 7 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "search",
+          "service": "llm-gemini",
+          "limit": 20
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 10,
+      "title": "RAG pipeline logs (embed + vector + llm)",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 29, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=~\".+\", service_name=~\"embed-service|vector-db|llm-gemini|rag-service\"}",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}

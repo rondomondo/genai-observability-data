@@ -16,6 +16,34 @@ datasources:
     url: http://jaeger:16686
     isDefault: true
     editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-20m"
+        spanEndTimeShift: "20m"
+        filterByTraceID: true
+        filterBySpanID: true
+        customQuery: true
+        query: '{job=~".+"} |= `${__trace.traceId}` |= `${__span.spanId}`'
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: false
+    editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-20m"
+        spanEndTimeShift: "20m"
+        filterByTraceID: true
+        filterBySpanID: true
+        customQuery: true
+        query: '{job=~".+"} |= `${__trace.traceId}` |= `${__span.spanId}`'
+      serviceMap:
+        datasourceUid: prometheus
 
   - name: Prometheus
     uid: prometheus
@@ -24,3 +52,11 @@ datasources:
     url: http://prometheus:9090
     isDefault: false
     editable: true
+    jsonData:
+      timeInterval: "60s"
+      exemplarTraceIdDestinations:
+        - datasourceUid: jaeger
+          name: trace_id
+        - url: http://localhost:16686/jaeger/ui/trace/$${__value.raw}
+          name: trace_id
+          urlDisplayLabel: View in Jaeger UI

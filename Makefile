@@ -208,7 +208,7 @@ list-scenarios: check-uv ## List all available fault injection scenario presets
 # -- OTel observability stack ---------------------------------
 .PHONY: stack-up
 stack-up: ## Start the OTel stack (Collector, Jaeger, Loki, Grafana, Prometheus) — vecstore-api excluded
-	docker compose up -d
+	docker compose up --force-recreate --remove-orphans --detach -V
 	@printf "$(CYAN)Waiting for OTel Collector...$(RESET)\n"
 	@for i in $$(seq 1 20); do \
 	  curl -sf http://localhost:13133 >/dev/null 2>&1 && \
@@ -234,10 +234,14 @@ stack-down: ## Stop the OTel stack
 stack-logs: ## Tail logs from all stack services
 	docker compose logs -f
 
-.PHONY: stack-reset
-stack-reset: ## Wipe stack volumes and restart fresh
+.PHONY: stack-clean
+stack-clean: ## Tear down the stack and delete all named volumes (loki, grafana, prometheus, jaeger, redis)
 	docker compose down -v
-	$(MAKE) stack-up;
+	@printf "$(GREEN)Stack stopped and volumes removed.$(RESET)\n"
+
+.PHONY: stack-reset
+stack-reset: stack-clean ## Wipe stack volumes and restart fresh
+	$(MAKE) stack-up
 
 # -- Run profiles ---------------------------------------------
 # These targets bring up the required infrastructure and print the command
@@ -275,7 +279,7 @@ profile-dev-mock: stack-up ## Infra for mock dev (MockEmbeddings); run vecstore-
 
 .PHONY: profile-dev-cloud-down
 profile-dev-cloud-down: ## Tear down cloud dev infra (OTel stack only)
-	docker compose down
+	$(MAKE) stack-clean
 	@printf "$(GREEN)Cloud dev infra stopped.$(RESET)\n"
 
 .PHONY: profile-dev-mock-down

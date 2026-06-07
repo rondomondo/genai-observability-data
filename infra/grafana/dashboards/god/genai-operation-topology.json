@@ -1,0 +1,253 @@
+{
+  "id": null,
+  "uid": "genai-operation-topology",
+  "title": "GenAI Operation Topology",
+  "tags": ["genai", "otel", "operations"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-10m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "All operation rates (ops/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed\" [1m])) * 60",
+          "legendFormat": "chat"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"Embeddings generated\" [1m])) * 60",
+          "legendFormat": "embeddings"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate({job=~\".+\"} |= \"Vector search complete\" [1m])) * 60",
+          "legendFormat": "retrieve"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(rate({job=~\".+\"} |~ \"Tool.*execution\" [1m])) * 60",
+          "legendFormat": "execute_tool"
+        },
+        {
+          "refId": "E",
+          "expr": "sum(rate({job=~\".+\"} |~ \"Agent provisioned|Agent creation failed\" [1m])) * 60",
+          "legendFormat": "create_agent"
+        },
+        {
+          "refId": "F",
+          "expr": "sum(rate({job=~\".+\"} |~ \"Agent invocation complete|Agent invocation failed\" [1m])) * 60",
+          "legendFormat": "invoke_agent"
+        },
+        {
+          "refId": "G",
+          "expr": "sum(rate({job=~\".+\"} |~ \"Workflow complete|Workflow failed\" [1m])) * 60",
+          "legendFormat": "invoke_workflow"
+        },
+        {
+          "refId": "H",
+          "expr": "sum(rate({job=~\".+\"} |~ \"Agent planning complete|Agent planning failed\" [1m])) * 60",
+          "legendFormat": "plan"
+        },
+        {
+          "refId": "I",
+          "expr": "sum(rate({job=~\".+\"} |~ \"Memory search complete|Memory upsert_memory complete|Memory create_memory complete|Memory delete_memory complete|Memory operation failed\" [1m])) * 60",
+          "legendFormat": "memory ops"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Operation volume -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 9, "w": 12, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed\" [1h]))",
+          "legendFormat": "chat"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Embeddings generated\" [1h]))",
+          "legendFormat": "embeddings"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"Vector search complete\" [1h]))",
+          "legendFormat": "retrieve"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"Tool.*execution\" [1h]))",
+          "legendFormat": "execute_tool"
+        },
+        {
+          "refId": "E",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"Agent provisioned|Agent creation failed\" [1h]))",
+          "legendFormat": "create_agent"
+        },
+        {
+          "refId": "F",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"Agent invocation complete|Agent invocation failed\" [1h]))",
+          "legendFormat": "invoke_agent"
+        },
+        {
+          "refId": "G",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"Workflow complete|Workflow failed\" [1h]))",
+          "legendFormat": "invoke_workflow"
+        },
+        {
+          "refId": "H",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"Agent planning complete|Agent planning failed\" [1h]))",
+          "legendFormat": "plan"
+        },
+        {
+          "refId": "I",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"Memory search complete|Memory upsert_memory complete|Memory create_memory complete|Memory delete_memory complete|Memory operation failed\" [1h]))",
+          "legendFormat": "memory ops"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Error rate by operation -- last 5 min",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 9, "w": 12, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference failed\" [5m])) / sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed\" [5m]))",
+          "legendFormat": "chat"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |= \"Embeddings generated\" [5m])) / sum(rate({job=~\".+\"} |= \"Embeddings generated\" [5m]))",
+          "legendFormat": "embeddings"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |= \"Vector search complete\" [5m])) / sum(rate({job=~\".+\"} |= \"Vector search complete\" [5m]))",
+          "legendFormat": "retrieve"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |~ \"Tool.*execution\" [5m])) / sum(rate({job=~\".+\"} |~ \"Tool.*execution\" [5m]))",
+          "legendFormat": "execute_tool"
+        },
+        {
+          "refId": "E",
+          "expr": "sum(rate({job=~\".+\"} |= \"Agent creation failed\" [5m])) / sum(rate({job=~\".+\"} |~ \"Agent provisioned|Agent creation failed\" [5m]))",
+          "legendFormat": "create_agent"
+        },
+        {
+          "refId": "F",
+          "expr": "sum(rate({job=~\".+\"} |= \"Agent invocation failed\" [5m])) / sum(rate({job=~\".+\"} |~ \"Agent invocation complete|Agent invocation failed\" [5m]))",
+          "legendFormat": "invoke_agent"
+        },
+        {
+          "refId": "G",
+          "expr": "sum(rate({job=~\".+\"} |= \"Workflow failed\" [5m])) / sum(rate({job=~\".+\"} |~ \"Workflow complete|Workflow failed\" [5m]))",
+          "legendFormat": "invoke_workflow"
+        },
+        {
+          "refId": "H",
+          "expr": "sum(rate({job=~\".+\"} |= \"Agent planning failed\" [5m])) / sum(rate({job=~\".+\"} |~ \"Agent planning complete|Agent planning failed\" [5m]))",
+          "legendFormat": "plan"
+        },
+        {
+          "refId": "I",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory operation failed\" [5m])) / sum(rate({job=~\".+\"} |~ \"Memory search complete|Memory upsert_memory complete|Memory create_memory complete|Memory delete_memory complete|Memory operation failed\" [5m]))",
+          "legendFormat": "memory ops"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Error rate trend by operation group",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 19, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference failed\" [2m])) / sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed\" [2m]))",
+          "legendFormat": "chat"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\", level=~\"error|ERROR\"} |~ \"Tool.*execution\" [2m])) / sum(rate({job=~\".+\"} |~ \"Tool.*execution\" [2m]))",
+          "legendFormat": "execute_tool"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate({job=~\".+\"} |= \"Agent invocation failed\" [2m])) / sum(rate({job=~\".+\"} |~ \"Agent invocation complete|Agent invocation failed\" [2m]))",
+          "legendFormat": "invoke_agent"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(rate({job=~\".+\"} |= \"Workflow failed\" [2m])) / sum(rate({job=~\".+\"} |~ \"Workflow complete|Workflow failed\" [2m]))",
+          "legendFormat": "invoke_workflow"
+        },
+        {
+          "refId": "E",
+          "expr": "sum(rate({job=~\".+\"} |= \"Memory operation failed\" [2m])) / sum(rate({job=~\".+\"} |~ \"Memory search complete|Memory upsert_memory complete|Memory create_memory complete|Memory delete_memory complete|Memory operation failed\" [2m]))",
+          "legendFormat": "memory ops"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    }
+  ]
+}

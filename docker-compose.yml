@@ -1,8 +1,8 @@
 services:
 
-  # OTel Collector — receives OTLP from god, fans out to Jaeger + Loki + Prometheus
+  # OTel Collector — receives OTLP from god, fans out to Jaeger + Tempo + Loki + Prometheus
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.104.0
+    image: otel/opentelemetry-collector-contrib:0.153.0
     command: ["--config=/etc/otel/config.yaml"]
     volumes:
       - ./infra/otel-collector-config.yaml:/etc/otel/config.yaml:ro
@@ -13,6 +13,7 @@ services:
       - "13133:13133" # Health check
     depends_on:
       - jaeger
+      - tempo
       - loki
     restart: unless-stopped
 
@@ -34,6 +35,18 @@ services:
     restart: unless-stopped
 
 
+  # Tempo — distributed trace backend (Traces Drilldown plugin requires Tempo)
+  tempo:
+    image: grafana/tempo:2.5.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infra/tempo-config.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP API
+      - "4317"        # OTLP gRPC (internal; collector -> tempo)
+    restart: unless-stopped
+
   # Loki — log aggregation backend
   loki:
     image: grafana/loki:3.1.0
@@ -51,8 +64,8 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/home.json
-      - GF_INSTALL_PLUGINS=grafana-lokioperational-app
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/god/home.json
+      - GF_INSTALL_PLUGINS=grafana-lokioperational-app,grafana-exploretraces-app
     volumes:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
@@ -62,6 +75,7 @@ services:
     depends_on:
       - loki
       - jaeger
+      - tempo
     restart: unless-stopped
 
   # Prometheus — metrics from OTel collector and god health endpoint
@@ -71,6 +85,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
+      - "--web.enable-remote-write-receiver"
     volumes:
       - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -138,4 +153,5 @@ volumes:
   grafana-data:
   prometheus-data:
   jaeger-badger:
+  tempo-data:
   redis-data:

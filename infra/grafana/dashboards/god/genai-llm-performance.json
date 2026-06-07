@@ -1,0 +1,218 @@
+{
+  "id": null,
+  "uid": "genai-llm-performance",
+  "title": "GenAI - LLM Performance",
+  "tags": ["genai", "otel", "llm"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "10s",
+  "time": { "from": "now-10m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate by model (req/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model) (rate({job=~\".+\"} |= \"LLM inference\" | logfmt | model != \"\" [1m])) * 60",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 1, "fillOpacity": 10 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Avg TTFT by model (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg by (model) (avg_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap ttft_ms [1m]))",
+          "legendFormat": "{{model}} avg"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "TTFT p50/p95 by model (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.50, {job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap ttft_ms [5m]) by (model)",
+          "legendFormat": "{{model}} p50"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.95, {job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap ttft_ms [5m]) by (model)",
+          "legendFormat": "{{model}} p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 4,
+      "title": "Token throughput (tokens/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference complete\" | logfmt | unwrap input_tokens [1m])) * 60",
+          "legendFormat": "input tokens/min"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference complete\" | logfmt | unwrap output_tokens [1m])) * 60",
+          "legendFormat": "output tokens/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1, "fillOpacity": 20 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 5,
+      "title": "Request rate by operation type (req/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference complete\" [1m])) * 60",
+          "legendFormat": "chat"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"Embeddings generated\" [1m])) * 60",
+          "legendFormat": "embeddings"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate({job=~\".+\"} |= \"Agent invocation complete\" [1m])) * 60",
+          "legendFormat": "invoke_agent"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 6,
+      "title": "LLM error rate by model",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model) (rate({job=~\".+\", level=~\"error|ERROR\"} |= \"LLM inference failed\" | logfmt | model != \"\" [1m])) * 60",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "custom": { "lineWidth": 1 }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Avg output tokens per request by model",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg by (model) (avg_over_time({job=~\".+\"} |= \"LLM inference complete\" | logfmt | model != \"\" | unwrap output_tokens [1h]))",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 300 },
+              { "color": "orange", "value": 600 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Agent invocation tokens (aggregate across turns)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"Agent invocation complete\" | logfmt | unwrap input_tokens [1m])) * 60",
+          "legendFormat": "agent input tokens/min"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"Agent invocation complete\" | logfmt | unwrap output_tokens [1m])) * 60",
+          "legendFormat": "agent output tokens/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1, "fillOpacity": 15 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    }
+  ]
+}

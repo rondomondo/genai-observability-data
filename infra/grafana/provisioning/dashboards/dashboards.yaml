@@ -1,11 +1,26 @@
 apiVersion: 1
 
 providers:
-  - name: genai-observability
+  - name: god
     orgId: 1
     type: file
-    disableDeletion: false
+    disableDeletion: true
     updateIntervalSeconds: 30
     allowUiUpdates: true
     options:
-      path: /etc/grafana/dashboards
+      path: /etc/grafana/dashboards/god
+      foldersFromFilesStructure: false
+    folder: God
+    folderUid: god
+
+  - name: opendemo
+    orgId: 1
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards/oteldemo
+      foldersFromFilesStructure: false
+    folder: Oteldemo
+    folderUid: oteldemo

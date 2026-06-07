@@ -1,0 +1,278 @@
+{
+  "id": null,
+  "uid": "otel-collector-metrics",
+  "title": "OTel Collector Metrics",
+  "tags": ["genai", "otel", "infrastructure", "collector"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-10m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Spans received/s",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(otelcol_receiver_accepted_spans_total[1m])",
+          "legendFormat": "{{receiver}} accepted/s"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(otelcol_receiver_refused_spans_total[1m])",
+          "legendFormat": "{{receiver}} refused/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": "refused.*" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Spans exported/s by exporter",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(otelcol_exporter_sent_spans_total[1m])",
+          "legendFormat": "{{exporter}} sent/s"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(otelcol_exporter_send_failed_spans_total[1m])",
+          "legendFormat": "{{exporter}} failed/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*failed.*" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "Spans received -- total (last hour)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(otelcol_receiver_accepted_spans_total[1h])",
+          "legendFormat": "spans received"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 4,
+      "title": "Spans exported -- total (last hour)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(otelcol_exporter_sent_spans_total[1h]))",
+          "legendFormat": "spans exported"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 5,
+      "title": "Export failure rate",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(otelcol_exporter_send_failed_spans_total[5m])) / sum(rate(otelcol_exporter_sent_spans_total[5m]))",
+          "legendFormat": "export failure rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 6,
+      "title": "Collector memory RSS (bytes)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "otelcol_process_memory_rss",
+          "legendFormat": "RSS"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 300000000 },
+              { "color": "red", "value": 450000000 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 7,
+      "title": "Batch processor -- send size (p50 / p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, rate(otelcol_processor_batch_batch_send_size_bucket[1m]))",
+          "legendFormat": "p50 batch size"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, rate(otelcol_processor_batch_batch_send_size_bucket[1m]))",
+          "legendFormat": "p99 batch size"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 8,
+      "title": "Go goroutines",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "go_goroutines{job=\"otel-collector\"}",
+          "legendFormat": "goroutines"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1, "fillOpacity": 10 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Collector memory RSS over time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "otelcol_process_memory_rss",
+          "legendFormat": "RSS bytes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 300000000 },
+              { "color": "red", "value": 450000000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Logs received/s (if log pipeline metrics available)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(otelcol_receiver_accepted_log_records_total[1m])",
+          "legendFormat": "{{receiver}} logs accepted/s"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(otelcol_exporter_sent_log_records_total[1m])",
+          "legendFormat": "{{exporter}} logs exported/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    }
+  ]
+}

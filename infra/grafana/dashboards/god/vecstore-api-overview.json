@@ -1,0 +1,288 @@
+{
+  "id": null,
+  "uid": "vecstore-api-overview",
+  "title": "Vecstore API - Overview",
+  "tags": ["genai", "otel", "vecstore", "red"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "10s",
+  "time": { "from": "now-10m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate by endpoint (req/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 16, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (http_path) (rate({service_name=\"vecstore-api\"} | json | http_path=~\"/embed.*|/search.*|/cache.*|/ingest.*|/summarise.*\" [1m])) * 60",
+          "legendFormat": "{{http_path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 1, "fillOpacity": 5 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 2,
+      "title": "Request rate (all)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({service_name=\"vecstore-api\"} [2m])) * 60",
+          "legendFormat": "req/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "id": 3,
+      "title": "Error rate",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({service_name=\"vecstore-api\", level=~\"error|ERROR\"} [2m])) / sum(rate({service_name=\"vecstore-api\"} [2m]))",
+          "legendFormat": "error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "orange", "value": 0.03 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 10,
+      "title": "Embed backend",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 4, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({service_name=\"vecstore-api\"} | json | message=\"embedder_started\" | keep backend [10m])",
+          "legendFormat": "{{backend}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "string",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value" }
+    },
+    {
+      "id": 11,
+      "title": "Embed model",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 4, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({service_name=\"vecstore-api\"} | json | message=\"embedder_started\" | keep model [10m])",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "string",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value" }
+    },
+    {
+      "id": 4,
+      "title": "Active async jobs",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({service_name=\"vecstore-api\"} | json | message=~\".*job.*started.*\" [5m]))",
+          "legendFormat": "active jobs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "orange", "value": 20 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 5,
+      "title": "Auth failures",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({service_name=\"vecstore-api\"} | json | message=~\".*[Uu]nauthorized.*|.*[Ff]orbidden.*|.*[Ii]nvalid.*[Aa][Pp][Ii].*[Kk]ey.*\" [2m])) * 60",
+          "legendFormat": "auth failures/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 6,
+      "title": "Request latency by endpoint (p50 / p95 ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.5, {service_name=\"vecstore-api\"} | json | http_path=~\"/embed.*|/search.*|/cache.*|/ingest.*\" | unwrap duration_ms [1m]) by (http_path)",
+          "legendFormat": "p50 {{http_path}}"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.95, {service_name=\"vecstore-api\"} | json | http_path=~\"/embed.*|/search.*|/cache.*|/ingest.*\" | unwrap duration_ms [1m]) by (http_path)",
+          "legendFormat": "p95 {{http_path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 1, "fillOpacity": 5 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 7,
+      "title": "Error rate by endpoint (errors/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 20, "w": 16, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (http_path) (rate({service_name=\"vecstore-api\", level=~\"error|ERROR\"} | json | http_path=~\"/embed.*|/search.*|/cache.*|/ingest.*|/summarise.*\" [1m])) * 60",
+          "legendFormat": "{{http_path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 1 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 8,
+      "title": "Error rate per endpoint (last 5 min)",
+      "type": "bargauge",
+      "gridPos": { "x": 16, "y": 20, "w": 8, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (http_path) (rate({service_name=\"vecstore-api\", level=~\"error|ERROR\"} | json | http_path=~\"/embed.*|/search.*|/cache.*|/ingest.*|/summarise.*\" [5m])) / sum by (http_path) (rate({service_name=\"vecstore-api\"} | json | http_path=~\"/embed.*|/search.*|/cache.*|/ingest.*|/summarise.*\" [5m]))",
+          "legendFormat": "{{http_path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Recent vecstore-api logs",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service_name=\"vecstore-api\"}",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}

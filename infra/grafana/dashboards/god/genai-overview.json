@@ -1,0 +1,83 @@
+{
+  "id": null,
+  "uid": "genai-overview",
+  "title": "GenAI Observability - Overview",
+  "tags": ["genai", "otel"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-10m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Log volume by service",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service_name) (rate({job=~\".+\"} [1m]))",
+          "legendFormat": "{{service_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 1 } }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Error logs by service",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service_name) (rate({job=~\".+\", level=~\"error|ERROR\"} [1m]))",
+          "legendFormat": "{{service_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "custom": { "lineWidth": 1 }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Recent logs",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=~\".+\"}",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Traces - search in Jaeger",
+      "type": "text",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Traces** are in Jaeger: [http://localhost:16686](http://localhost:16686)  \nServices generating traces: `api-gateway`, `llm-gemini`, and others emitted by the `god` generator."
+      }
+    }
+  ],
+  "templating": { "list": [] }
+}

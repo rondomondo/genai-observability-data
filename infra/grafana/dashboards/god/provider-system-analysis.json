@@ -1,0 +1,290 @@
+{
+  "id": null,
+  "uid": "provider-system-analysis",
+  "title": "Provider and System Analysis",
+  "tags": ["genai", "otel", "provider", "llm"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-10m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate by provider (req/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated|Agent invocation complete|Agent invocation failed\" |~ \"model=claude\" [1m])) * 60",
+          "legendFormat": "google"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated|Agent invocation complete|Agent invocation failed\" |~ \"model=gpt|model=text-embedding\" [1m])) * 60",
+          "legendFormat": "openai"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "google" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "openai" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "title": "Error rate by provider",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference failed\" |~ \"model=claude\" [2m])) / sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed\" |~ \"model=claude\" [2m]))",
+          "legendFormat": "google error rate"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({job=~\".+\"} |= \"LLM inference failed\" |~ \"model=gpt\" [2m])) / sum(rate({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed\" |~ \"model=gpt\" [2m]))",
+          "legendFormat": "openai error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "Anthropic requests -- last hour",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 4, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated\" |~ \"model=claude|model=voyage\" [1h]))",
+          "legendFormat": "google"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 4,
+      "title": "OpenAI requests -- last hour",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 8, "w": 4, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated\" |~ \"model=gpt|model=text-embedding\" [1h]))",
+          "legendFormat": "openai"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 5,
+      "title": "Provider share -- last hour",
+      "type": "piechart",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated\" |~ \"model=claude|model=voyage\" [1h]))",
+          "legendFormat": "google"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(count_over_time({job=~\".+\"} |~ \"LLM inference complete|LLM inference failed|Embeddings generated\" |~ \"model=gpt|model=text-embedding\" [1h]))",
+          "legendFormat": "openai"
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "google" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "openai" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
+        ]
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 6,
+      "title": "Request volume by model -- last hour",
+      "type": "bargauge",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"model=gemini-2.5-flash\" [1h]))",
+          "legendFormat": "gemini-2.5-flash"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"model=claude-haiku-4-5-20251001\" [1h]))",
+          "legendFormat": "claude-haiku-4-5"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"model=gpt-4o\" [1h]))",
+          "legendFormat": "gpt-4o"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"model=text-embedding-3-small\" [1h]))",
+          "legendFormat": "text-embedding-3-small"
+        },
+        {
+          "refId": "E",
+          "expr": "sum(count_over_time({job=~\".+\"} |= \"model=voyage-3\" [1h]))",
+          "legendFormat": "voyage-3"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 7,
+      "title": "TTFT p50/p95 by provider (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"LLM inference complete\" |~ \"model=claude\" | logfmt | unwrap ttft_ms [1m]))",
+          "legendFormat": "google avg ms"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.95, {job=~\".+\"} |= \"LLM inference complete\" |~ \"model=claude\" | logfmt | unwrap ttft_ms [5m])",
+          "legendFormat": "google p95 ms"
+        },
+        {
+          "refId": "C",
+          "expr": "avg(avg_over_time({job=~\".+\"} |= \"LLM inference complete\" |~ \"model=gpt\" | logfmt | unwrap ttft_ms [1m]))",
+          "legendFormat": "openai avg ms"
+        },
+        {
+          "refId": "D",
+          "expr": "quantile_over_time(0.95, {job=~\".+\"} |= \"LLM inference complete\" |~ \"model=gpt\" | logfmt | unwrap ttft_ms [5m])",
+          "legendFormat": "openai p95 ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 8,
+      "title": "Token throughput by provider (tokens/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum_over_time({job=~\".+\"} |= \"LLM inference complete\" |~ \"model=claude\" | logfmt | unwrap output_tokens [1m])) * 60",
+          "legendFormat": "google output tokens/min"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(sum_over_time({job=~\".+\"} |= \"LLM inference complete\" |~ \"model=gpt\" | logfmt | unwrap output_tokens [1m])) * 60",
+          "legendFormat": "openai output tokens/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 9,
+      "title": "Traces -- llm-gemini (Jaeger)",
+      "type": "traces",
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "search",
+          "service": "llm-gemini",
+          "limit": 20
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 10,
+      "title": "LLM inference logs by provider",
+      "type": "logs",
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=~\".+\", service_name=~\"llm-gemini|embed-service|agent-service\"} |~ \"(LLM inference|Embeddings|Agent invocation)\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}
